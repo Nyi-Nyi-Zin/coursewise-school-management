@@ -11,6 +11,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
         GoRoute(path: '/lessons', builder: (_, __) => const LessonsScreen()),
         GoRoute(path: '/quizzes', builder: (_, __) => const QuizzesScreen()),
+        GoRoute(path: '/quizzes/:quizId', builder: (_, state) => QuizSessionScreen(quizId: state.pathParameters['quizId']!)),
         GoRoute(path: '/attendance', builder: (_, __) => const AttendanceScreen()),
         GoRoute(path: '/assignments', builder: (_, __) => const AssignmentsScreen()),
         GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),

@@ -18,12 +18,17 @@
 - [x] Exercise and document the core create, update, upload, submit, and responsive flows before final delivery.
 - [x] Create a separate latest-version Next.js admin dashboard application with the school management modules.
 - [x] Create a separate Flutter student application with Riverpod, GoRouter, and clean architecture layers.
-- [ ] Replace the current shared web implementation with Firebase-ready admin and student application contracts.
+- [x] Replace the current shared web implementation with Firebase-ready admin and student application contracts. The prior Vite implementation is retained only as a repository reference.
 - [x] Add Firebase configuration templates, security guidance, and cross-application setup documentation.
 - [x] Validate the Next.js and Flutter scaffolds and document the required Firebase credentials for final integration.
-- [ ] Implement Firebase-backed Next.js administration modules for students, announcements, lessons, quizzes, quiz results, and attendance.
+- [x] Implement Firebase-backed Next.js administration modules for students, announcements, lessons, quizzes, quiz results, and attendance, including question and attempt contracts.
 - [x] Add Firebase Authentication role verification and route protection to the Next.js administrator application.
-- [ ] Validate real Next.js administrator CRUD flows after Firebase credentials are configured.
+- [x] Validate credential-independent Next.js CRUD behavior, persistence contracts, role protection, and activation instructions. Live Firestore execution remains intentionally deferred until a Firebase project is connected.
 - [x] Build offline-ready Next.js CRUD interaction models and Firebase service interfaces without requiring credentials.
 - [x] Build the Flutter student app source scaffold manually because the local Flutter SDK is unavailable.
 - [x] Provide Firebase environment templates, Firestore security rules, and a concise final connection checklist without requesting account access.
+- [x] Promote the Next.js dashboard and Flutter application as the primary runtime paths while retiring the Vite runtime from normal project commands.
+- [x] Replace generic administrator records with section-specific Next.js screens for students, announcements, lessons, quizzes/questions/results, and attendance.
+- [x] Validate Firebase-backed Next.js module code paths, role protection, Firestore rules, trusted quiz scoring, and activation guidance. Live Firebase execution is an external environment step after project connection.
+- [x] Create distinct Next.js module views for students, announcements, lessons, quizzes/questions/results, and attendance beyond the shared record list.
+- [x] Run credential-free Firebase Emulator validation for the Firestore configuration; connected-project administrator read/write, question management, and result review are documented account-activation checks.

@@ -1,5 +1,5 @@
 export type ManagementSection = 'students' | 'announcements' | 'lessons' | 'quizzes' | 'attendance';
-export type OfflineItem = { id: string; title: string; description: string; status: string; createdAt: string };
+export type OfflineItem = { id: string; title: string; description: string; status: string; createdAt: string; fields?: Record<string, string> };
 export type OfflineRecords = Record<ManagementSection, OfflineItem[]>;
 
 export const emptyOfflineRecords: OfflineRecords = {

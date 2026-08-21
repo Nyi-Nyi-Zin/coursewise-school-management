@@ -11,4 +11,5 @@ final profileProvider = FutureProvider<StudentProfile?>((ref) async { final user
 final announcementsProvider = StreamProvider<List<Announcement>>((ref) => ref.watch(studentRepositoryProvider).watchAnnouncements());
 final lessonsProvider = StreamProvider<List<Lesson>>((ref) => ref.watch(studentRepositoryProvider).watchLessons());
 final quizzesProvider = StreamProvider<List<Quiz>>((ref) => ref.watch(studentRepositoryProvider).watchQuizzes());
+final quizQuestionsProvider = FutureProvider.family<List<QuizQuestion>, String>((ref, quizId) => ref.watch(studentRepositoryProvider).getQuizQuestions(quizId));
 final attendanceProvider = StreamProvider<List<AttendanceRecord>>((ref) { final user = ref.watch(authStateProvider).valueOrNull; return user == null ? Stream<List<AttendanceRecord>>.empty() : ref.watch(studentRepositoryProvider).watchAttendance(user.uid); });

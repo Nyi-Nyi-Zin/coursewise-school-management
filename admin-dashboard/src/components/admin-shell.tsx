@@ -3,6 +3,7 @@
 import { hasFirebaseConfiguration } from "@/lib/firebase";
 import { OfflineActionPanel } from "@/components/offline-action-panel";
 import { OfflineWorkspace } from "@/components/offline-workspace";
+import { QuizQuestionPanel } from "@/components/quiz-question-panel";
 import { emptyOfflineRecords, removeOfflineRecord, saveOfflineRecord, type OfflineItem, type OfflineRecords } from "@/lib/offline-records";
 import { deleteFirebaseAdminRecord, loadFirebaseAdminRecords, saveFirebaseAdminRecord } from "@/lib/firebase-admin-records";
 import {
@@ -55,6 +56,7 @@ export function AdminShell() {
   const [records, setRecords] = useState<OfflineRecords>(emptyOfflineRecords);
   const [editingItem, setEditingItem] = useState<OfflineItem | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [managedQuiz, setManagedQuiz] = useState<OfflineItem | null>(null);
   const content = headings[section];
   const openCreate = () => { setEditingItem(null); setPanelOpen(true); };
   useEffect(() => {
@@ -103,9 +105,10 @@ export function AdminShell() {
     {isMenuOpen && <button onClick={() => setMenuOpen(false)} aria-label="Close navigation" className="fixed inset-0 z-30 bg-emerald-950/40 lg:hidden" />}
     <main className="min-h-screen lg:ml-72">
       <header className="sticky top-0 z-20 flex h-[74px] items-center border-b border-stone-200/80 bg-[#f8f8f6]/90 px-5 backdrop-blur-xl lg:px-9"><button onClick={() => setMenuOpen(true)} className="mr-3 rounded-xl border border-stone-200 bg-white p-2 text-stone-600 lg:hidden"><Menu size={18} /></button><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Coursewise management</p><h1 className="font-display text-lg font-semibold">{navigation.find(item => item.id === section)?.label}</h1></div><div className="ml-auto flex items-center gap-2"><span className={`hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex ${hasFirebaseConfiguration ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}><span className="mr-1.5 size-1.5 rounded-full bg-current" />{hasFirebaseConfiguration ? "Firebase connected" : "Offline-ready mode"}</span><button onClick={openCreate} className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-900 px-4 text-sm font-bold text-white transition hover:bg-emerald-800"><Plus size={16} />{primaryAction(section)}</button></div></header>
-      <div className="p-5 lg:p-9"><section className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-emerald-800/55">{content.eyebrow}</p><h2 className="mt-1 font-display text-3xl font-semibold tracking-tight">{content.title}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-stone-500">{content.description}</p>{persistenceError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{persistenceError}</p>}</div>{section === "overview" && <button onClick={() => { setSection("students"); openCreate(); }} className="inline-flex w-fit items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm"><Plus size={16} />Add student</button>}</section><OfflineWorkspace section={section} records={records} onAction={openCreate} onNavigate={setSection} onEdit={item => { setEditingItem(item); setPanelOpen(true); }} onDelete={deleteItem} /></div>
+      <div className="p-5 lg:p-9"><section className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-emerald-800/55">{content.eyebrow}</p><h2 className="mt-1 font-display text-3xl font-semibold tracking-tight">{content.title}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-stone-500">{content.description}</p>{persistenceError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{persistenceError}</p>}</div>{section === "overview" && <button onClick={() => { setSection("students"); openCreate(); }} className="inline-flex w-fit items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm"><Plus size={16} />Add student</button>}</section><OfflineWorkspace section={section} records={records} onAction={openCreate} onNavigate={setSection} onEdit={item => { setEditingItem(item); setPanelOpen(true); }} onDelete={deleteItem} onManageQuiz={setManagedQuiz} /></div>
     </main>
     {isPanelOpen && <OfflineActionPanel section={section} initial={editingItem} onClose={() => { setPanelOpen(false); setEditingItem(null); }} onSave={saveItem} />}
+    {managedQuiz && <QuizQuestionPanel quizId={managedQuiz.id} quizTitle={managedQuiz.title} onClose={() => setManagedQuiz(null)} />}
   </div>;
 }
 

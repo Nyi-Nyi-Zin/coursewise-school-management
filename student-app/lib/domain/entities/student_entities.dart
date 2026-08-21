@@ -49,6 +49,23 @@ class Quiz {
   factory Quiz.fromMap(String id, Map<String, dynamic> data) => Quiz(id: id, title: data['title'] as String? ?? 'Quiz', description: data['description'] as String?, totalMarks: data['totalMarks'] as int? ?? 0, durationMinutes: data['durationMinutes'] as int?);
 }
 
+class QuizQuestion {
+  const QuizQuestion({required this.id, required this.prompt, required this.options, required this.marks, required this.sortOrder});
+  final String id;
+  final String prompt;
+  final List<String> options;
+  final int marks;
+  final int sortOrder;
+  factory QuizQuestion.fromMap(String id, Map<String, dynamic> data) => QuizQuestion(id: id, prompt: data['prompt'] as String? ?? 'Question', options: List<String>.from(data['options'] as List? ?? const []), marks: data['marks'] as int? ?? 1, sortOrder: data['sortOrder'] as int? ?? 0);
+}
+
+class QuizAnswer {
+  const QuizAnswer({required this.questionId, required this.selectedAnswerIndex});
+  final String questionId;
+  final int selectedAnswerIndex;
+  Map<String, dynamic> toMap() => {'questionId': questionId, 'selectedAnswerIndex': selectedAnswerIndex};
+}
+
 class AttendanceRecord {
   const AttendanceRecord({required this.id, required this.date, required this.status, this.note});
   final String id;

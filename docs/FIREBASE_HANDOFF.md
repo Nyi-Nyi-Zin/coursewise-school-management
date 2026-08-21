@@ -33,7 +33,7 @@ Finally, deploy `firebase/firestore.rules` and `firebase/firestore.indexes.json`
 
 ## Recommended trusted server work
 
-The provided applications are ready for client authentication and Firestore reads after setup. Before production student provisioning and quiz submission, add a server-only Firebase Admin SDK layer to the Next.js app or a Firebase callable function. It should create Firebase Authentication users, create corresponding `users/{uid}` documents, calculate quiz scores from server-trusted answers, and write quiz attempts. Never expose the Firebase private key in either Next.js browser code or the Flutter app.
+The provided applications are ready for client authentication and Firestore reads after setup. The Next.js dashboard includes shared persistence adapters for records, quiz questions, and attempt summaries. The Flutter quiz flow loads published questions and calls the trusted `submitQuizAttempt` Firebase callable function implemented in `functions/src/index.ts`; it recalculates marks from protected answers before writing a result. Before production student provisioning, add a server-only Firebase Admin SDK layer or callable function that creates Firebase Authentication users and matching `users/{uid}` documents. Never expose the Firebase private key in either Next.js browser code or the Flutter app.
 
 ## References
 
