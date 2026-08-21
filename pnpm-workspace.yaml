@@ -1,0 +1,6 @@
+packages:
+  - admin-dashboard
+
+allowBuilds:
+  "@firebase/util": true
+  protobufjs: true

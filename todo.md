@@ -16,3 +16,14 @@
 - [x] Verify key flows, responsiveness, and visual quality in the running application.
 - [x] Add administrator UI for editing existing quizzes and quiz questions using the secured update procedures.
 - [x] Exercise and document the core create, update, upload, submit, and responsive flows before final delivery.
+- [x] Create a separate latest-version Next.js admin dashboard application with the school management modules.
+- [x] Create a separate Flutter student application with Riverpod, GoRouter, and clean architecture layers.
+- [ ] Replace the current shared web implementation with Firebase-ready admin and student application contracts.
+- [x] Add Firebase configuration templates, security guidance, and cross-application setup documentation.
+- [x] Validate the Next.js and Flutter scaffolds and document the required Firebase credentials for final integration.
+- [ ] Implement Firebase-backed Next.js administration modules for students, announcements, lessons, quizzes, quiz results, and attendance.
+- [x] Add Firebase Authentication role verification and route protection to the Next.js administrator application.
+- [ ] Validate real Next.js administrator CRUD flows after Firebase credentials are configured.
+- [x] Build offline-ready Next.js CRUD interaction models and Firebase service interfaces without requiring credentials.
+- [x] Build the Flutter student app source scaffold manually because the local Flutter SDK is unavailable.
+- [x] Provide Firebase environment templates, Firestore security rules, and a concise final connection checklist without requesting account access.
