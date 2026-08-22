@@ -1,5 +1,9 @@
 {
   "functions": [{ "source": "functions" }],
+  "hosting": [
+    { "target": "admin", "public": "admin-dashboard/out", "ignore": ["firebase.json", "**/.*", "**/node_modules/**"] },
+    { "target": "student", "public": "student-website/out", "ignore": ["firebase.json", "**/.*", "**/node_modules/**"] }
+  ],
   "firestore": {
     "rules": "firebase/firestore.rules",
     "indexes": "firebase/firestore.indexes.json"

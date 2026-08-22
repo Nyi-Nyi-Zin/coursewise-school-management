@@ -14,6 +14,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    include: ["server/**/*.test.ts", "server/**/*.spec.ts", "student-website/**/*.test.ts", "admin-dashboard/**/*.test.ts"],
+    environmentMatchGlobs: [["admin-dashboard/src/lib/use-admin-records.hook.test.ts", "jsdom"]],
   },
 });

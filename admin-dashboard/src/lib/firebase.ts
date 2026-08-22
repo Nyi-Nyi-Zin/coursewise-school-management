@@ -11,7 +11,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-export const hasFirebaseConfiguration = Boolean(
+export const hasFirebaseConfiguration = process.env.NEXT_PUBLIC_ENABLE_FIREBASE === "true" && Boolean(
   firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
 );
 

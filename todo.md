@@ -55,3 +55,14 @@
 - [x] Rename the Android application and visible student-app brand to Teza Tech Lab.
 - [x] Rebuild, verify, and push the rebranded signed Android APK to GitHub.
 - [x] Publish the verified Teza Tech Lab signed APK as a private GitHub release asset: https://github.com/Nyi-Nyi-Zin/coursewise-school-management/releases/tag/v0.1.0-teza-tech-lab
+- [x] Preserve the existing Flutter `student-app/` unchanged while creating the new `student-website/` Next.js application.
+- [x] Establish shared Firebase-ready web contracts, TanStack React Query configuration, and role-aware authentication boundaries for both websites.
+- [x] Build the mobile-first Next.js Student Website with separate Login/Register, Home, Lessons, Quizzes, Assignments, Attendance, and Profile routes using shadcn/ui.
+- [x] Refactor the existing Next.js Admin Website onto shared Firebase-ready data hooks with shadcn/ui management workflows.
+- [x] Prepare independent Student and Admin deployment configurations for `student.<domain>` and `admin.<domain>` without disturbing the existing Flutter application.
+- [x] Refactor admin students, announcements, lessons, quizzes, and attendance workflows onto shared TanStack Query hooks and Firebase-ready load/save/delete/invalidate patterns.
+- [x] Add verification coverage for the refactored admin data hooks and representative CRUD flows across multiple modules.
+- [x] Refactor Admin Website module data so TanStack Query is the shared state owner rather than duplicated local `records` state, including consistent mutation rollback and error handling.
+- [x] Add query/mutation coverage for `useAdminRecords`, including save/delete success and failure behavior across student and lesson modules.
+- [x] Add direct `useAdminRecords` hook tests with a QueryClient wrapper for save/delete success and failure rollback across student and lesson modules.
+- [ ] Test, build, push to GitHub, and document the subdomain deployment setup for the two Next.js websites.
