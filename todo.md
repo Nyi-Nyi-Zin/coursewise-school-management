@@ -51,6 +51,7 @@
 - [ ] Reintroduce Firebase Core and Firebase Authentication to the Flutter student app with real email/password login and registration.
 - [ ] Apply a Firebase Android project configuration and enable the Email/Password provider for the Coursewise student app.
 - [ ] Validate Firebase-backed registration, login, session restoration, and sign-out, then rebuild the signed Android APK and push the update to GitHub.
-- [ ] Apply the supplied Teza Tech Lab logo as the Android launcher icon across required density assets.
-- [ ] Rename the Android application and visible student-app brand to Teza Tech Lab.
-- [ ] Rebuild, verify, and push the rebranded signed Android APK to GitHub.
+- [x] Apply the supplied Teza Tech Lab logo as the Android launcher icon through an Android vector launcher asset.
+- [x] Rename the Android application and visible student-app brand to Teza Tech Lab.
+- [x] Rebuild, verify, and push the rebranded signed Android APK to GitHub.
+- [x] Publish the verified Teza Tech Lab signed APK as a private GitHub release asset: https://github.com/Nyi-Nyi-Zin/coursewise-school-management/releases/tag/v0.1.0-teza-tech-lab
