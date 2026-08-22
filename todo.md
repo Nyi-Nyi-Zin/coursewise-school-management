@@ -93,3 +93,5 @@
 - [x] Retire the older Firebase Hosting deployment instructions and make the repository deployment handoff Vercel-only.
 - [x] Re-run the Student and Admin website builds after Vercel-only documentation cleanup and publish the update to GitHub.
 - [ ] Fix the Vercel package installation failure caused by the incomplete pnpm workspace definition, then redeploy the Admin Website.
+- [ ] Fix the Vercel project build command so it runs outside the parent pnpm workspace and redeploy the Admin Website.
+- [ ] Correct the GitHub commit email so Vercel can associate the source commit with the authenticated account and allow the Admin Website deployment.
