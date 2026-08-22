@@ -1,16 +1,15 @@
 # Teza Tech Lab Next.js Subdomain Deployment
 
-The repository now contains **three independent applications**. The original Flutter app remains unchanged in `student-app/`. The Next.js Student Website lives in `student-website/`, and the Next.js Admin Website lives in `admin-dashboard/`.
+The active Teza Tech Lab delivery now contains **two independent web applications**. The original Flutter app remains unchanged in `student-app/` as an archived repository reference. The Next.js Student Website lives in `student-website/`, and the Next.js Admin Website lives in `admin-dashboard/`.
 
 | Application | Repository folder | Production subdomain | Build command | Output folder |
 |---|---|---|---|---|
 | Student Website | `student-website/` | `student.<your-domain>` | `pnpm student:web:build` | `student-website/out` |
 | Admin Website | `admin-dashboard/` | `admin.<your-domain>` | `pnpm admin:build` | `admin-dashboard/out` |
-| Flutter mobile app | `student-app/` | Not applicable | `flutter build apk --release` | `student-app/build/app/outputs/flutter-apk` |
 
 Both websites are static Next.js exports, so they can be deployed independently to Firebase Hosting, Vercel, Netlify, or an equivalent static host. They use the same Firebase project but do not share a runtime or a deployment directory.
 
-> The existing domain should be configured only after each site is live on its temporary hosting address. Point the `student` and `admin` DNS records to their respective hosting deployments rather than to the legacy Flutter project.
+> The existing domain should be configured only after each site is live on its temporary hosting address. Point the `student` and `admin` DNS records to their respective hosting deployments. The archived Flutter folder has no production DNS role.
 
 ## Firebase configuration
 

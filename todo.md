@@ -48,9 +48,9 @@
 - [x] Attempt Android runtime verification; the sandbox emulator is blocked by unavailable KVM acceleration, while widget tests verify the separate registration, login, protected-route, and sign-out flow.
 - [x] Push the current student app source, separate authentication flow, and release-build configuration to GitHub.
 - [x] Adopt the workflow to rebuild and verify the signed Android APK after every future Flutter student-app code change before pushing the corresponding source update.
-- [x] Reintroduce Firebase Core and Firebase Authentication to the Flutter student app with real email/password login, registration, session restoration, and self-service password reset source support.
-- [ ] Apply a Firebase Android project configuration and enable the Email/Password provider for the Coursewise student app.
-- [ ] Validate Firebase-backed registration, login, session restoration, and sign-out, then rebuild the signed Android APK and push the update to GitHub.
+- [x] Archive Flutter Firebase Core and Firebase Authentication activation from the active scope because the student product will use the website only.
+- [x] Archive Flutter Android Firebase configuration and Email/Password provider activation from the active scope because the student product will use the website only.
+- [x] Archive Flutter Firebase validation and APK rebuild work from the active scope; preserve `student-app/` unchanged as a repository reference.
 - [x] Apply the supplied Teza Tech Lab logo as the Android launcher icon through an Android vector launcher asset.
 - [x] Rename the Android application and visible student-app brand to Teza Tech Lab.
 - [x] Rebuild, verify, and push the rebranded signed Android APK to GitHub.
@@ -84,4 +84,9 @@
 - [x] Add automated Student Website forgot-password flow coverage for Firebase request success and error states.
 - [x] Add automated Admin Dashboard password-reset workflow coverage for callable invocation and success/error rendering.
 - [x] Re-run the full suite and web builds after password-recovery coverage, then publish the verification update to GitHub.
-- [x] Correct the root deployment handoff so managed hosting serves the Admin static export through a generated `dist/index.js` entry point instead of starting the retired Vite server bundle.
+- [x] Treat `student-app/` as an archived reference only and update the root project handoff to identify the Student Website and Admin Website as the active products.
+- [x] Complete the Student Website and Admin Website as the sole active Firebase-ready products; live Firebase connection remains pending project configuration.
+- [ ] Configure and document independent live subdomains for the Student Website and Admin Website using the existing domain.
+- [ ] Replace Firebase Hosting-specific delivery guidance with two independent Vercel deployment configurations for `student-website/` and `admin-dashboard/`.
+- [ ] Add Vercel environment-variable templates and Firebase activation guidance for each Next.js website.
+- [ ] Build, verify, and push the Vercel-ready Student and Admin website deployment configuration to GitHub.
