@@ -7,7 +7,7 @@ Teza Tech Lab now has two active web applications. Create **two separate Vercel 
 | Teza Tech Lab Student | `student-website` | Student registration, login, learning, private score, attendance, and password recovery | `student.<your-domain>` |
 | Teza Tech Lab Admin | `admin-dashboard` | Courses, batches, enrollments, lessons, quizzes, attendance, results, and password recovery assistance | `admin.<your-domain>` |
 
-Each directory contains its own `vercel.json` and generates a static Next.js export in `out/`. The archived `student-app/` Flutter folder must not be selected as a Vercel project root.
+Each directory contains its own `vercel.json` and generates a static Next.js export in `out/`. The Vercel install command intentionally uses `--ignore-workspace` so each project resolves its dependencies from its own root rather than inheriting the monorepo workspace. The archived `student-app/` Flutter folder must not be selected as a Vercel project root.
 
 ## Firebase environment variables
 

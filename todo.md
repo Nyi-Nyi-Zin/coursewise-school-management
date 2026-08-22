@@ -90,5 +90,6 @@
 - [x] Replace Firebase Hosting-specific delivery guidance with two independent Vercel deployment configurations for `student-website/` and `admin-dashboard/`.
 - [x] Add Vercel environment-variable templates and Firebase activation guidance for each Next.js website.
 - [x] Build, verify, and push the Vercel-ready Student and Admin website deployment configuration to GitHub.
-- [ ] Retire the older Firebase Hosting deployment instructions and make the repository deployment handoff Vercel-only.
-- [ ] Re-run the Student and Admin website builds after Vercel-only documentation cleanup and publish the update to GitHub.
+- [x] Retire the older Firebase Hosting deployment instructions and make the repository deployment handoff Vercel-only.
+- [x] Re-run the Student and Admin website builds after Vercel-only documentation cleanup and publish the update to GitHub.
+- [ ] Fix the Vercel package installation failure caused by the incomplete pnpm workspace definition, then redeploy the Admin Website.
