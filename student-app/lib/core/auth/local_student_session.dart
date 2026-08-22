@@ -105,6 +105,17 @@ class LocalStudentSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> requestPasswordReset(String email) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail.contains('@')) throw const FormatException('Enter a valid email address.');
+    if (!usingFirebase) throw const FormatException('Password reset becomes available after Firebase Android configuration is connected.');
+    try {
+      await _firebaseAuth!.sendPasswordResetEmail(email: normalizedEmail);
+    } on FirebaseAuthException catch (error) {
+      throw FormatException(_firebaseMessage(error));
+    }
+  }
+
   static String _firebaseMessage(FirebaseAuthException error) {
     switch (error.code) {
       case 'email-already-in-use':

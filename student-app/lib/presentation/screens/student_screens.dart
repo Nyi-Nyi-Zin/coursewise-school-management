@@ -50,6 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 22),
               _SubmitButton(label: 'Sign in', busyLabel: 'Signing in…', busy: _busy, onPressed: _login),
+              TextButton(onPressed: _busy ? null : _forgotPassword, child: const Text('Forgot password?')),
               const SizedBox(height: 12),
               TextButton(onPressed: _busy ? null : () => context.go('/register'), child: const Text('New student? Create an account')),
             ],
@@ -72,6 +73,29 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await StudentSessionScope.of(context).login(email: _email.text, password: _password.text);
       if (mounted) context.go('/home');
+    } on FormatException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final controller = TextEditingController(text: _email.text);
+    final submittedEmail = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reset password'),
+        content: TextField(controller: controller, keyboardType: TextInputType.emailAddress, autofocus: true, decoration: const InputDecoration(labelText: 'Student email address')),
+        actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(dialogContext).pop(controller.text), child: const Text('Send link'))],
+      ),
+    );
+    controller.dispose();
+    if (submittedEmail == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await StudentSessionScope.of(context).requestPasswordReset(submittedEmail);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('If the account exists, Firebase sent a password reset link.')));
     } on FormatException catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
