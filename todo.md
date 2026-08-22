@@ -48,3 +48,9 @@
 - [x] Attempt Android runtime verification; the sandbox emulator is blocked by unavailable KVM acceleration, while widget tests verify the separate registration, login, protected-route, and sign-out flow.
 - [x] Push the current student app source, separate authentication flow, and release-build configuration to GitHub.
 - [x] Adopt the workflow to rebuild and verify the signed Android APK after every future Flutter student-app code change before pushing the corresponding source update.
+- [ ] Reintroduce Firebase Core and Firebase Authentication to the Flutter student app with real email/password login and registration.
+- [ ] Apply a Firebase Android project configuration and enable the Email/Password provider for the Coursewise student app.
+- [ ] Validate Firebase-backed registration, login, session restoration, and sign-out, then rebuild the signed Android APK and push the update to GitHub.
+- [ ] Apply the supplied Teza Tech Lab logo as the Android launcher icon across required density assets.
+- [ ] Rename the Android application and visible student-app brand to Teza Tech Lab.
+- [ ] Rebuild, verify, and push the rebranded signed Android APK to GitHub.

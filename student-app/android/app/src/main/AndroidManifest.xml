@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="coursewise_student"
+        android:label="Teza Tech Lab"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/ic_teza_tech_lab"
+        android:roundIcon="@drawable/ic_teza_tech_lab">
         <activity
             android:name=".MainActivity"
             android:exported="true"

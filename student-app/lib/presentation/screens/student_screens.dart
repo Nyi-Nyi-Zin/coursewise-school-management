@@ -202,7 +202,7 @@ class _AuthLayout extends StatelessWidget {
                     const SizedBox(height: 28),
                     form,
                     const SizedBox(height: 16),
-                    const Text('Accounts are stored securely on this device until Firebase Authentication is connected.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+                    Text(StudentSessionScope.of(context).usingFirebase ? 'Your account is secured with Firebase Authentication.' : 'Firebase will be used automatically after Android project configuration is added.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
@@ -264,7 +264,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => StudentScaffold(
-        title: 'Coursewise',
+        title: 'Teza Tech Lab',
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
