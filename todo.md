@@ -92,8 +92,9 @@
 - [x] Build, verify, and push the Vercel-ready Student and Admin website deployment configuration to GitHub.
 - [x] Retire the older Firebase Hosting deployment instructions and make the repository deployment handoff Vercel-only.
 - [x] Re-run the Student and Admin website builds after Vercel-only documentation cleanup and publish the update to GitHub.
-- [ ] Fix the Vercel package installation failure caused by the incomplete pnpm workspace definition, then redeploy the Admin Website.
-- [ ] Fix the Vercel project build command so it runs outside the parent pnpm workspace and redeploy the Admin Website.
-- [ ] Exclude test-only TypeScript files from each isolated Next.js production type check so Vercel does not require local Vitest dependencies.
-- [ ] Remove the static `out` output-directory override that prevents Vercel from locating Next.js route manifests during deployment.
-- [ ] Correct the GitHub commit email so Vercel can associate the source commit with the authenticated account and allow the Admin Website deployment.
+- [x] Fix the Vercel package installation failure caused by the incomplete pnpm workspace definition, then redeploy the Admin Website.
+- [x] Fix the Vercel project build command so it runs outside the parent pnpm workspace and redeploy the Admin Website.
+- [x] Exclude test-only TypeScript files from each isolated Next.js production type check so Vercel does not require local Vitest dependencies.
+- [x] Remove the static `out` output-directory override that prevents Vercel from locating Next.js route manifests during deployment.
+- [x] Correct the GitHub commit email so Vercel can associate the source commit with the authenticated account and allow the Admin Website deployment.
+- [x] Deploy independent Vercel projects for the Student Website and Admin Website and verify both production URLs load in demo-safe mode.
