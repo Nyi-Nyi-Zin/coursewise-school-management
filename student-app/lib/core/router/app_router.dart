@@ -1,19 +1,25 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../auth/local_student_session.dart';
 import '../../presentation/screens/student_screens.dart';
 
-final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
-      initialLocation: '/home',
+GoRouter createAppRouter(LocalStudentSession session) => GoRouter(
+      initialLocation: session.isSignedIn ? '/home' : '/login',
+      refreshListenable: session,
+      redirect: (context, state) {
+        final atLogin = state.uri.path == '/login';
+        if (!session.isSignedIn && !atLogin) return '/login';
+        if (session.isSignedIn && atLogin) return '/home';
+        return null;
+      },
       routes: [
-        GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-        GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
-        GoRoute(path: '/lessons', builder: (_, __) => const LessonsScreen()),
-        GoRoute(path: '/quizzes', builder: (_, __) => const QuizzesScreen()),
-        GoRoute(path: '/quizzes/:quizId', builder: (_, state) => QuizSessionScreen(quizId: state.pathParameters['quizId']!)),
-        GoRoute(path: '/attendance', builder: (_, __) => const AttendanceScreen()),
-        GoRoute(path: '/assignments', builder: (_, __) => const AssignmentsScreen()),
-        GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+        GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+        GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+        GoRoute(path: '/lessons', builder: (context, state) => const LessonsScreen()),
+        GoRoute(path: '/quizzes', builder: (context, state) => const QuizzesScreen()),
+        GoRoute(path: '/quizzes/:quizId', builder: (context, state) => QuizSessionScreen(quizId: state.pathParameters['quizId']!)),
+        GoRoute(path: '/attendance', builder: (context, state) => const AttendanceScreen()),
+        GoRoute(path: '/assignments', builder: (context, state) => const AssignmentsScreen()),
+        GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
       ],
-    ));
+    );

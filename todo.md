@@ -34,3 +34,10 @@
 - [x] Run credential-free Firebase Emulator validation for the Firestore configuration; connected-project administrator read/write, question management, and result review are documented account-activation checks.
 - [x] Prepare the Flutter student application as a standalone Android-capable project.
 - [x] Produce and verify an installable Android package if the local Flutter/Android toolchain permits; otherwise package the app source for handoff.
+- [x] Install or provision Flutter and Android build tooling for an actual Android APK build.
+- [x] Generate Flutter Android platform files, resolve packages, and build a verified downloadable debug Android APK.
+- [ ] Resolve the Gradle daemon failure and produce a signed release APK at the standard Android release path.
+- [x] Remove the Firebase-required startup block and launch the student app directly in offline mode when Firebase is unconfigured.
+- [x] Build and verify a corrected downloadable APK that opens to the student home screen without Firebase setup.
+- [x] Add offline-capable student authentication with form validation, session persistence, and protected routes.
+- [x] Build and verify a student APK with the new authentication flow.
