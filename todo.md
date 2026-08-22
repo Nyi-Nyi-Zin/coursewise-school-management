@@ -94,4 +94,5 @@
 - [x] Re-run the Student and Admin website builds after Vercel-only documentation cleanup and publish the update to GitHub.
 - [ ] Fix the Vercel package installation failure caused by the incomplete pnpm workspace definition, then redeploy the Admin Website.
 - [ ] Fix the Vercel project build command so it runs outside the parent pnpm workspace and redeploy the Admin Website.
+- [ ] Exclude test-only TypeScript files from each isolated Next.js production type check so Vercel does not require local Vitest dependencies.
 - [ ] Correct the GitHub commit email so Vercel can associate the source commit with the authenticated account and allow the Admin Website deployment.
