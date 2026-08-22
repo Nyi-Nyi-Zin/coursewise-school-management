@@ -98,3 +98,6 @@
 - [x] Remove the static `out` output-directory override that prevents Vercel from locating Next.js route manifests during deployment.
 - [x] Correct the GitHub commit email so Vercel can associate the source commit with the authenticated account and allow the Admin Website deployment.
 - [x] Deploy independent Vercel projects for the Student Website and Admin Website and verify both production URLs load in demo-safe mode.
+- [x] Audit Firebase live-activation readiness for both Vercel websites without adding credentials or connecting a custom domain.
+- [x] Strengthen the Firebase administrator deployment handoff for Authentication, Firestore rules/indexes, callable functions, and Vercel environment variables.
+- [x] Re-run Firebase emulator rules coverage, automated tests, and both production website builds after the activation-readiness work.

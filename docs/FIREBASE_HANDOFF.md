@@ -1,41 +1,78 @@
-# Firebase Handoff for Coursewise
+# Teza Tech Lab Firebase Production Handoff
 
-Coursewise is now organized as two applications that share one Firebase project. The **Next.js 16.3.1** application in `admin-dashboard/` is the administrator workspace. The **Flutter student app** in `student-app/` uses Riverpod, GoRouter, and a clean separation between entities, repository interfaces, Firebase data access, and presentation screens. The current local source is intentionally credential-independent: the Next.js dashboard works in offline-ready mode, and Flutter opens a configuration screen until Firebase is configured.
+Teza Tech Lab’s active products are the **Student Website** in `student-website/` and the **Admin Website** in `admin-dashboard/`. Both are deployed independently on Vercel and must use the **same Firebase project**. The earlier Flutter source in `student-app/` is retained only as an archived reference and is not part of the live product or Firebase activation path.
 
-| Application | Primary responsibility | Firebase integration point |
+> **Current state:** both Vercel websites are publicly deployed in **demo-safe mode**. They will not initialize Firebase until the complete public web configuration is supplied and `NEXT_PUBLIC_ENABLE_FIREBASE` is set to `true`.
+
+## What the Firebase project provides
+
+| Firebase service | Student Website responsibility | Admin Website responsibility | Production dependency |
+|---|---|---|---|
+| Authentication | Email/password registration, login, sign-out, and password-reset email | Administrator sign-in and reset-link assistance | Enable **Email/Password** provider |
+| Cloud Firestore | Reads only published, active-batch learning data and the student’s own records | Creates and manages courses, batches, enrolments, content, attendance, and student records | Deploy rules and indexes |
+| Cloud Functions | Calls trusted quiz submission | Creates protected password-reset links and receives trusted quiz submissions | Deploy `functions/` |
+
+Firebase’s web SDK uses the configuration generated for a registered Web App. These `NEXT_PUBLIC_*` values are client configuration, not a service-account credential; authorization remains enforced by Firebase Authentication, Firestore Security Rules, and callable-function checks.[1] [2]
+
+## Required Vercel environment variables
+
+Add **exactly the same values** to both Vercel projects—`teza-tech-lab-student` and `teza-tech-lab-admin`—under **Settings → Environment Variables**. Apply them to **Production**, **Preview**, and **Development** where applicable, then redeploy both sites.
+
+| Environment variable | Value source | Required |
 |---|---|---|
-| `admin-dashboard/` | Students, announcements, lessons, quizzes, results, and attendance | `src/lib/firebase.ts` and `.env.example` |
-| `student-app/` | Student learning, announcements, lessons, quizzes, attendance, and profile | `lib/data/repositories/student_repository.dart` and `lib/firebase_options.dart` |
-| `firebase/` | Authorization policy and query indexes | `firestore.rules` and `firestore.indexes.json` |
+| `NEXT_PUBLIC_ENABLE_FIREBASE` | Literal value `true` | Yes |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase Console → Project settings → Your apps → Web App | Yes |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Web App configuration | Yes |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Web App configuration | Yes |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase Web App configuration | Yes |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase Web App configuration | Yes |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase Web App configuration | Yes |
 
-## Data contract
+Do **not** add a service-account JSON file, Firebase Admin SDK private key, or any privileged secret to either website. Browser code may only receive the public Firebase web configuration. The privileged work in this repository is intentionally performed by callable functions.
 
-The two applications use the same Firestore collection names. Student identity documents live in `users/{uid}` with the fields `role`, `name`, `email`, `studentId`, `photoUrl`, and `isActive`. Content collections are `announcements`, `lessons`, and `quizzes`; questions are stored at `quizzes/{quizId}/questions/{questionId}`. Student-specific records use the authenticated Firebase UID in `quizAttempts.studentId` and `attendance.studentId`.
+## Required Firebase Console configuration
 
-| Collection | Student capability | Administrator capability |
-|---|---|---|
-| `users` | Read own profile; update limited self-service fields | Create and manage every student profile |
-| `announcements` | Read only published records | Full create, update, publish, ordering, and delete access |
-| `lessons` | Read only published lessons | Full create, update, publish, ordering, and delete access |
-| `quizzes` and `questions` | Read only published quizzes and questions | Full quiz/question lifecycle management |
-| `quizAttempts` | Read own attempts | Read all attempts; trusted server writes results |
-| `attendance` | Read own records | Record and edit `Present`, `Absent`, `Late`, and `Excused` statuses |
+Enable the **Email/Password** sign-in provider in **Authentication → Sign-in method**. Register or confirm one Firebase **Web App** and use its generated configuration values for both Vercel sites. Add the Vercel production hostnames to **Authentication → Settings → Authorized domains** before relying on login or password recovery.[3]
 
-> **Security boundary:** quiz score calculation and persistence must run through a trusted server-side callable function or Firebase Admin SDK. The supplied Firestore rules deliberately prevent student clients from creating or changing scored attempts.
+Use a temporary administrator Firebase Authentication account and ensure its matching Firestore user document has `role: "admin"`. Administrator access, batch management, and reset-link generation rely on that role check; a user without it must not receive administrator capabilities.
 
-## Final connection steps
+## Deploy rules, indexes, and trusted functions
 
-First, create or select a Firebase project, enable Email/Password authentication, and create a Cloud Firestore database. Add the Firebase web configuration values to `admin-dashboard/.env.local` using the keys in `.env.example`. The Next.js client initializes only after all required public variables are present.
+From an authenticated Firebase CLI session at the repository root, deploy the production security components as a single operation:
 
-Next, install Flutter locally, run `flutter create .` inside `student-app/` to generate platform folders, then install the FlutterFire CLI and run `flutterfire configure`. This creates the platform-specific `lib/firebase_options.dart` file used by the app. The official FlutterFire workflow specifies that the generated file contains identifiers rather than secret values and should be refreshed when platforms or Firebase services change.[1]
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,functions
+```
 
-Finally, deploy `firebase/firestore.rules` and `firebase/firestore.indexes.json` through the Firebase CLI or console. The rules use `request.auth` for authentication checks and document reads for role evaluation; Firebase documents that rule conditions can evaluate authentication and other document data, so both applications must query published content with the matching `isPublished` constraint.[2]
+The Firebase CLI reads `firebase.json`, which maps the Firestore policy to `firebase/firestore.rules`, the required query indexes to `firebase/firestore.indexes.json`, and callable Functions to `functions/`.[4]
 
-## Recommended trusted server work
+| Component | Live protection or capability |
+|---|---|
+| `firebase/firestore.rules` | Requires authentication, checks roles, requires active course/batch enrolment, limits students to their own attendance and attempts, and hides answer keys from students. |
+| `firebase/firestore.indexes.json` | Provides the Firestore indexes needed for the repository’s scoped queries. |
+| `submitQuizAttempt` callable | Verifies enrolment, reads protected answer keys, calculates the score on the server, and writes the attempt. |
+| `adminCreatePasswordResetLink` callable | Requires an administrator Firestore role before generating a password-reset link. |
 
-The provided applications are ready for client authentication and Firestore reads after setup. The Next.js dashboard includes shared persistence adapters for records, quiz questions, and attempt summaries. The Flutter quiz flow loads published questions and calls the trusted `submitQuizAttempt` Firebase callable function implemented in `functions/src/index.ts`; it recalculates marks from protected answers before writing a result. Before production student provisioning, add a server-only Firebase Admin SDK layer or callable function that creates Firebase Authentication users and matching `users/{uid}` documents. Never expose the Firebase private key in either Next.js browser code or the Flutter app.
+> **Security boundary:** do not change the Firestore Rules to allow students to write scores or attendance records. These values are administrator- or server-controlled so one student cannot alter another student’s records or their own score.
+
+## Production acceptance checklist
+
+After Vercel redeployments and Firebase deployment, create a small real test group and validate the following in order.
+
+| Validation | Expected result |
+|---|---|
+| Student registration and login | A student can create an Email/Password account and sign in. |
+| Password recovery | A student receives the Firebase reset flow; an administrator can request a protected reset link. |
+| Course and batch enrolment | An administrator can create a course and batch, then assign the student Firebase UID. |
+| Batch isolation | A student only sees content, attendance, and attempts matching the active assigned course and batch. |
+| Private records | A student cannot fetch another student’s attendance, quiz attempt, or protected answer keys. |
+| Trusted quiz score | A submitted quiz attempt is scored by the callable Function, not by browser-provided marks. |
+
+Custom-domain configuration is intentionally deferred. When a domain is ready, add `student.<your-domain>` and `admin.<your-domain>` to Vercel and add both verified hostnames to Firebase Authentication’s authorized domains.
 
 ## References
 
-[1]: https://firebase.google.com/docs/flutter/setup "Firebase: Get started with Firebase in your Flutter project"
-[2]: https://firebase.google.com/docs/firestore/security/rules-conditions "Firebase: Writing conditions for Cloud Firestore Security Rules"
+[1]: https://firebase.google.com/docs/web/learn-more "Firebase Web: Learn more about configuration"
+[2]: https://firebase.google.com/docs/firestore/security/get-started "Firebase: Get started with Cloud Firestore Security Rules"
+[3]: https://firebase.google.com/docs/auth/web/password-auth "Firebase: Authenticate with Firebase using Password-Based Accounts"
+[4]: https://firebase.google.com/docs/cli "Firebase CLI documentation"

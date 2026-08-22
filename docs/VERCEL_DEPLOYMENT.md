@@ -7,7 +7,7 @@ Teza Tech Lab now has two active web applications. Create **two separate Vercel 
 | Teza Tech Lab Student | `student-website` | Student registration, login, learning, private score, attendance, and password recovery | `student.<your-domain>` |
 | Teza Tech Lab Admin | `admin-dashboard` | Courses, batches, enrollments, lessons, quizzes, attendance, results, and password recovery assistance | `admin.<your-domain>` |
 
-Each directory contains its own `vercel.json` and generates a static Next.js export in `out/`. Both the Vercel install and build commands intentionally use `--ignore-workspace` so each project resolves and builds its dependencies from its own root rather than inheriting the monorepo workspace. The archived `student-app/` Flutter folder must not be selected as a Vercel project root.
+Each directory contains its own `vercel.json`. Both Vercel install and build commands intentionally use `--ignore-workspace` so each project resolves and builds dependencies from its own root rather than inheriting the monorepo workspace. Vercel must use its native Next.js output detection; do not configure an `outputDirectory` override. The archived `student-app/` Flutter folder must not be selected as a Vercel project root.
 
 ## Firebase environment variables
 
@@ -24,6 +24,8 @@ Add the following values to **both** Vercel projects in **Settings → Environme
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID |
 
 Enable **Email/Password** in Firebase Authentication before the Student Website goes live. Deploy the repository Firestore Rules and Firebase Functions before entering production data; the rules enforce `auth.uid`, course, and `batchId` isolation for student records.
+
+The independent Vercel projects have already been deployed in demo-safe mode. Their live Firebase activation procedure, including callable Functions and authorized-domain requirements, is maintained in [FIREBASE_HANDOFF.md](./FIREBASE_HANDOFF.md).
 
 ## Custom-domain routing
 
