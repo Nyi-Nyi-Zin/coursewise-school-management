@@ -4,16 +4,17 @@ import '../auth/local_student_session.dart';
 import '../../presentation/screens/student_screens.dart';
 
 GoRouter createAppRouter(LocalStudentSession session) => GoRouter(
-      initialLocation: session.isSignedIn ? '/home' : '/login',
+      initialLocation: session.isSignedIn ? '/home' : (session.hasRegisteredAccount ? '/login' : '/register'),
       refreshListenable: session,
       redirect: (context, state) {
-        final atLogin = state.uri.path == '/login';
-        if (!session.isSignedIn && !atLogin) return '/login';
-        if (session.isSignedIn && atLogin) return '/home';
+        final atAuth = state.uri.path == '/login' || state.uri.path == '/register';
+        if (!session.isSignedIn && !atAuth) return session.hasRegisteredAccount ? '/login' : '/register';
+        if (session.isSignedIn && atAuth) return '/home';
         return null;
       },
       routes: [
         GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+        GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
         GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
         GoRoute(path: '/lessons', builder: (context, state) => const LessonsScreen()),
         GoRoute(path: '/quizzes', builder: (context, state) => const QuizzesScreen()),

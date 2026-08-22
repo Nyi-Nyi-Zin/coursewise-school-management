@@ -5,9 +5,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('persists a valid local student sign-in', () async {
+  test('registers, persists, and logs in a local student account', () async {
     final session = await LocalStudentSession.restore();
-    await session.signIn(name: 'Aye Aye', email: 'aye@example.com', password: 'secret1');
+    await session.register(name: 'Aye Aye', email: 'aye@example.com', password: 'secret1');
+
+    await session.signOut();
+    await session.login(email: 'aye@example.com', password: 'secret1');
 
     final restored = await LocalStudentSession.restore();
     expect(restored.isSignedIn, isTrue);
@@ -15,8 +18,10 @@ void main() {
     expect(restored.email, 'aye@example.com');
   });
 
-  test('rejects an invalid local student sign-in', () async {
+  test('rejects an invalid local student login', () async {
     final session = await LocalStudentSession.restore();
-    expect(() => session.signIn(name: 'A', email: 'invalid', password: '123'), throwsFormatException);
+    await session.register(name: 'Aye Aye', email: 'aye@example.com', password: 'secret1');
+    await session.signOut();
+    expect(() => session.login(email: 'aye@example.com', password: 'incorrect'), throwsFormatException);
   });
 }

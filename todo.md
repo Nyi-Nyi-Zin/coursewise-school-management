@@ -41,3 +41,8 @@
 - [x] Build and verify a corrected downloadable APK that opens to the student home screen without Firebase setup.
 - [x] Add offline-capable student authentication with form validation, session persistence, and protected routes.
 - [x] Build and verify a student APK with the new authentication flow.
+- [x] Split the student authentication interface into distinct Login and Register screens.
+- [x] Implement persistent local student account registration and password-validated sign-in.
+- [x] Test the separate authentication flows and rebuild the signed Android APK.
+- [x] Add widget coverage for Login/Register navigation, registration, login, and sign-out behavior.
+- [x] Attempt Android runtime verification; the sandbox emulator is blocked by unavailable KVM acceleration, while widget tests verify the separate registration, login, protected-route, and sign-out flow.
