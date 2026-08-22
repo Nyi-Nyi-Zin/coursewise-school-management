@@ -4,12 +4,12 @@ import Link from "next/link";
 import { Mail, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { StudentBrand } from "@/components/student-brand";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { requestPasswordReset } from "@/lib/auth-service";
-import { isFirebaseConfigured } from "@/lib/firebase";
+import { StudentBrand } from "../../../components/student-brand";
+import { Button } from "../../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Input } from "../../../components/ui/input";
+import { requestPasswordReset } from "../../../lib/auth-service";
+import { isFirebaseConfigured } from "../../../lib/firebase";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState(""); const [sending, setSending] = useState(false); const [sent, setSent] = useState(false);

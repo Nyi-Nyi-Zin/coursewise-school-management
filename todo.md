@@ -80,4 +80,7 @@
 - [x] Add Admin Dashboard UI scope-control integration coverage for batch changes and empty scope behavior across attendance and quiz review.
 - [x] Add jsdom integration coverage for rendered course-batch scope controls updating attendance and quiz review together, including an empty-scope state.
 - [x] Add a rendered Admin Dashboard integration test combining actual scope controls, scoped attendance, and ScopedQuizAttemptReview for empty and changing batch states.
-- [ ] Test batch isolation, private student records, and password recovery source flows; rebuild websites and push updates to GitHub.
+- [x] Test batch isolation, private student records, and password recovery source flows; rebuild websites and push updates to GitHub.
+- [x] Add automated Student Website forgot-password flow coverage for Firebase request success and error states.
+- [x] Add automated Admin Dashboard password-reset workflow coverage for callable invocation and success/error rendering.
+- [ ] Re-run the full suite and web builds after password-recovery coverage, then publish the verification update to GitHub.

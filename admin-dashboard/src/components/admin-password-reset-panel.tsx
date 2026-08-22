@@ -1,10 +1,10 @@
 "use client";
 
-import { httpsCallable } from "firebase/functions";
 import { KeyRound, MailCheck } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { hasFirebaseConfiguration, getFirebaseClient } from "@/lib/firebase";
+import { Button } from "./ui/button";
+import { hasFirebaseConfiguration } from "../lib/firebase";
+import { createAdminPasswordResetLink } from "../lib/admin-password-reset-service";
 
 export function AdminPasswordResetPanel() {
   const [email, setEmail] = useState(""); const [link, setLink] = useState(""); const [message, setMessage] = useState<string | null>(null); const [sending, setSending] = useState(false);
@@ -12,8 +12,7 @@ export function AdminPasswordResetPanel() {
     event.preventDefault(); if (!hasFirebaseConfiguration) { setMessage("Connect Firebase before using administrator password recovery."); return; }
     setSending(true); setMessage(null);
     try {
-      const { functions } = getFirebaseClient(); const call = httpsCallable<{ email: string }, { link: string }>(functions, "adminCreatePasswordResetLink");
-      const result = await call({ email: email.trim() }); setLink(result.data.link); setMessage("A secure, one-time password reset link was created for this student.");
+      const resetLink = await createAdminPasswordResetLink(email); setLink(resetLink); setMessage("A secure, one-time password reset link was created for this student.");
     } catch { setMessage("The reset link could not be created. Confirm you are signed in as an administrator and deploy the Cloud Function."); }
     finally { setSending(false); }
   }

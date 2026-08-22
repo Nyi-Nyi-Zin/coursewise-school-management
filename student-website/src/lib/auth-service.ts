@@ -1,5 +1,5 @@
 import { createUserWithEmailAndPassword, getIdTokenResult, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updateProfile, type User } from "firebase/auth";
-import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { firebaseAuth, isFirebaseConfigured } from "./firebase";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { firestore } from "@/lib/firebase";
 
