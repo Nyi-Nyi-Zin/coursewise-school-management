@@ -95,4 +95,5 @@
 - [ ] Fix the Vercel package installation failure caused by the incomplete pnpm workspace definition, then redeploy the Admin Website.
 - [ ] Fix the Vercel project build command so it runs outside the parent pnpm workspace and redeploy the Admin Website.
 - [ ] Exclude test-only TypeScript files from each isolated Next.js production type check so Vercel does not require local Vitest dependencies.
+- [ ] Remove the static `out` output-directory override that prevents Vercel from locating Next.js route manifests during deployment.
 - [ ] Correct the GitHub commit email so Vercel can associate the source commit with the authenticated account and allow the Admin Website deployment.

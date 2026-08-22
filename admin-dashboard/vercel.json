@@ -1,6 +1,5 @@
 {
   "framework": "nextjs",
   "installCommand": "pnpm install --ignore-workspace --no-frozen-lockfile",
-  "buildCommand": "pnpm --ignore-workspace run build",
-  "outputDirectory": "out"
+  "buildCommand": "pnpm --ignore-workspace run build"
 }
