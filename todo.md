@@ -46,3 +46,5 @@
 - [x] Test the separate authentication flows and rebuild the signed Android APK.
 - [x] Add widget coverage for Login/Register navigation, registration, login, and sign-out behavior.
 - [x] Attempt Android runtime verification; the sandbox emulator is blocked by unavailable KVM acceleration, while widget tests verify the separate registration, login, protected-route, and sign-out flow.
+- [x] Push the current student app source, separate authentication flow, and release-build configuration to GitHub.
+- [x] Adopt the workflow to rebuild and verify the signed Android APK after every future Flutter student-app code change before pushing the corresponding source update.
