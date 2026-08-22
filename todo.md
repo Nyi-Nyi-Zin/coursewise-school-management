@@ -32,3 +32,5 @@
 - [x] Validate Firebase-backed Next.js module code paths, role protection, Firestore rules, trusted quiz scoring, and activation guidance. Live Firebase execution is an external environment step after project connection.
 - [x] Create distinct Next.js module views for students, announcements, lessons, quizzes/questions/results, and attendance beyond the shared record list.
 - [x] Run credential-free Firebase Emulator validation for the Firestore configuration; connected-project administrator read/write, question management, and result review are documented account-activation checks.
+- [x] Prepare the Flutter student application as a standalone Android-capable project.
+- [x] Produce and verify an installable Android package if the local Flutter/Android toolchain permits; otherwise package the app source for handoff.
