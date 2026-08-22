@@ -55,6 +55,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" }) {
           {isRegister ? <Field icon={LockKeyhole} label="Confirm password"><Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repeat your password" autoComplete="new-password" required minLength={6} /></Field> : null}
           <Button className="w-full" size="lg" disabled={submitting}>{submitting ? "Please wait…" : isRegister ? "Create account" : "Sign in"}<ArrowRight className="size-4" /></Button>
           <p className="text-center text-sm text-slate-400">{isRegister ? "Already have an account? " : "New to Teza Tech Lab? "}<Link className="font-semibold text-sky-300 hover:text-sky-200" href={isRegister ? "/login" : "/register"}>{isRegister ? "Sign in" : "Register now"}</Link></p>
+          {!isRegister ? <p className="text-center text-sm"><Link className="font-semibold text-sky-300 hover:text-sky-200" href="/forgot-password">Forgot password?</Link></p> : null}
           {!isFirebaseConfigured ? <p className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-200">Live accounts will activate when the Firebase web project configuration is added.</p> : null}
         </form>
       </CardContent>

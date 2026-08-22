@@ -10,10 +10,10 @@ type FieldDefinition = { key: string; label: string; type?: "text" | "url" | "nu
 const moduleFields: Record<Section, FieldDefinition[]> = {
   overview: [],
   students: [{ key: "studentId", label: "Student ID" }, { key: "email", label: "Email", type: "text" }, { key: "photoUrl", label: "Profile photo URL", type: "url" }],
-  announcements: [{ key: "bannerUrl", label: "Banner image URL", type: "url" }, { key: "linkUrl", label: "Destination link", type: "url" }, { key: "sortOrder", label: "Sort order", type: "number" }],
-  lessons: [{ key: "thumbnailUrl", label: "Thumbnail URL", type: "url" }, { key: "telegramUrl", label: "Telegram URL", type: "url" }, { key: "videoUrl", label: "Video URL", type: "url" }, { key: "pdfUrl", label: "PDF URL", type: "url" }, { key: "sortOrder", label: "Sort order", type: "number" }],
-  quizzes: [{ key: "durationMinutes", label: "Duration (minutes)", type: "number" }, { key: "totalMarks", label: "Total marks", type: "number" }],
-  attendance: [{ key: "date", label: "Attendance date", type: "date" }],
+  announcements: [{ key: "courseId", label: "Course ID" }, { key: "batchId", label: "Batch ID" }, { key: "bannerUrl", label: "Banner image URL", type: "url" }, { key: "linkUrl", label: "Destination link", type: "url" }, { key: "sortOrder", label: "Sort order", type: "number" }],
+  lessons: [{ key: "courseId", label: "Course ID" }, { key: "batchId", label: "Batch ID" }, { key: "thumbnailUrl", label: "Thumbnail URL", type: "url" }, { key: "telegramUrl", label: "Telegram URL", type: "url" }, { key: "videoUrl", label: "Video URL", type: "url" }, { key: "pdfUrl", label: "PDF URL", type: "url" }, { key: "sortOrder", label: "Sort order", type: "number" }],
+  quizzes: [{ key: "courseId", label: "Course ID" }, { key: "batchId", label: "Batch ID" }, { key: "durationMinutes", label: "Duration (minutes)", type: "number" }, { key: "totalMarks", label: "Total marks", type: "number" }],
+  attendance: [{ key: "courseId", label: "Course ID" }, { key: "batchId", label: "Batch ID" }, { key: "date", label: "Attendance date", type: "date" }],
   settings: [],
 };
 

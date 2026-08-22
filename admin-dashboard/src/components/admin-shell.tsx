@@ -4,10 +4,11 @@ import { hasFirebaseConfiguration } from "@/lib/firebase";
 import { OfflineActionPanel } from "@/components/offline-action-panel";
 import { OfflineWorkspace } from "@/components/offline-workspace";
 import { QuizQuestionPanel } from "@/components/quiz-question-panel";
-import { emptyOfflineRecords, type OfflineItem } from "@/lib/offline-records";
+import { emptyOfflineRecords, type ManagementSection, type OfflineItem } from "@/lib/offline-records";
 import {
   Bell,
   BookOpen,
+  BookMarked,
   BookOpenCheck,
   CalendarDays,
   ChevronRight,
@@ -27,11 +28,19 @@ import {
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAdminRecords } from "@/lib/use-admin-records";
+import type { CourseBatchScope } from "@/lib/course-batch-scope";
+import { buildCourseBatchDashboardData } from "@/lib/course-batch-dashboard";
+import { CourseBatchScopeControls } from "@/components/course-batch-scope-controls";
+import { ScopedQuizAttemptReview } from "@/components/scoped-quiz-attempt-review";
 
-type Section = "overview" | "students" | "announcements" | "lessons" | "quizzes" | "attendance" | "settings";
+import { CourseBatchManager } from "@/components/course-batch-manager";
+
+type Section = "overview" | "courses" | "students" | "announcements" | "lessons" | "quizzes" | "attendance" | "settings";
+function isRecordSection(section: Section): section is ManagementSection { return ["students", "announcements", "lessons", "quizzes", "attendance"].includes(section); }
 
 const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "courses", label: "Courses & batches", icon: BookMarked },
   { id: "students", label: "Students", icon: Users },
   { id: "announcements", label: "Announcements", icon: Bell },
   { id: "lessons", label: "Lessons", icon: BookOpen },
@@ -42,6 +51,7 @@ const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
 
 const headings: Record<Section, { eyebrow: string; title: string; description: string }> = {
   overview: { eyebrow: "Administration", title: "A clear view of the term.", description: "Track your learning space and begin the work that matters most." },
+  courses: { eyebrow: "Learning structure", title: "Courses & batches", description: "Create unlimited courses, separate learning batches, and assign student Firebase identities safely." },
   students: { eyebrow: "People", title: "Students", description: "Manage student identities, access status, and profile details." },
   announcements: { eyebrow: "Student communications", title: "Announcements", description: "Publish timely updates as banners in the student application." },
   lessons: { eyebrow: "Learning library", title: "Lessons", description: "Create and organize the resources students need to learn." },
@@ -57,16 +67,21 @@ export function AdminShell() {
   const [editingItem, setEditingItem] = useState<OfflineItem | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [managedQuiz, setManagedQuiz] = useState<OfflineItem | null>(null);
+  const [courseBatchScope, setCourseBatchScope] = useState<CourseBatchScope>({ courseId: "", batchId: "" });
   const { recordsQuery, saveMutation, deleteMutation } = useAdminRecords();
   const records = recordsQuery.data ?? emptyOfflineRecords;
+  const visibleRecords = section === "quizzes" || section === "attendance" ? buildCourseBatchDashboardData(records, courseBatchScope).visibleRecords : records;
   const persistenceError = recordsQuery.isError ? "Firebase records could not be loaded. The local workspace remains available." : mutationError;
   const content = headings[section];
-  const openCreate = () => { setEditingItem(null); setPanelOpen(true); };
+  const openCreate = () => { if (section === "courses") return; setEditingItem(null); setPanelOpen(true); };
   const saveItem = async (draft: Omit<OfflineItem, "id" | "createdAt">) => {
-    if (section === "overview" || section === "settings") return;
+    if (!isRecordSection(section)) return;
+    const batchScopedDraft = (section === "quizzes" || section === "attendance") && courseBatchScope.courseId && courseBatchScope.batchId
+      ? { ...draft, fields: { ...draft.fields, ...courseBatchScope } }
+      : draft;
     const item = editingItem
-      ? { ...editingItem, ...draft }
-      : { id: crypto.randomUUID(), createdAt: new Date().toLocaleDateString(), ...draft };
+      ? { ...editingItem, ...batchScopedDraft }
+      : { id: crypto.randomUUID(), createdAt: new Date().toLocaleDateString(), ...batchScopedDraft };
     try {
       await saveMutation.mutateAsync({ section, item });
       setMutationError(null);
@@ -77,7 +92,7 @@ export function AdminShell() {
     setEditingItem(null);
   };
   const deleteItem = async (id: string) => {
-    if (section === "overview" || section === "settings") return;
+    if (!isRecordSection(section)) return;
     try {
       await deleteMutation.mutateAsync({ section, id });
       setMutationError(null);
@@ -94,10 +109,10 @@ export function AdminShell() {
     </aside>
     {isMenuOpen && <button onClick={() => setMenuOpen(false)} aria-label="Close navigation" className="fixed inset-0 z-30 bg-emerald-950/40 lg:hidden" />}
     <main className="min-h-screen lg:ml-72">
-      <header className="sticky top-0 z-20 flex h-[74px] items-center border-b border-stone-200/80 bg-[#f8f8f6]/90 px-5 backdrop-blur-xl lg:px-9"><button onClick={() => setMenuOpen(true)} className="mr-3 rounded-xl border border-stone-200 bg-white p-2 text-stone-600 lg:hidden"><Menu size={18} /></button><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Teza Tech Lab management</p><h1 className="font-display text-lg font-semibold">{navigation.find(item => item.id === section)?.label}</h1></div><div className="ml-auto flex items-center gap-2"><span className={`hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex ${hasFirebaseConfiguration ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}><span className="mr-1.5 size-1.5 rounded-full bg-current" />{hasFirebaseConfiguration ? "Firebase connected" : "Offline-ready mode"}</span><Button onClick={openCreate}><Plus size={16} />{primaryAction(section)}</Button></div></header>
-      <div className="p-5 lg:p-9"><section className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-emerald-800/55">{content.eyebrow}</p><h2 className="mt-1 font-display text-3xl font-semibold tracking-tight">{content.title}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-stone-500">{content.description}</p>{persistenceError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{persistenceError}</p>}</div>{section === "overview" && <button onClick={() => { setSection("students"); openCreate(); }} className="inline-flex w-fit items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm"><Plus size={16} />Add student</button>}</section><OfflineWorkspace section={section} records={records} onAction={openCreate} onNavigate={setSection} onEdit={item => { setEditingItem(item); setPanelOpen(true); }} onDelete={deleteItem} onManageQuiz={setManagedQuiz} /></div>
+      <header className="sticky top-0 z-20 flex h-[74px] items-center border-b border-stone-200/80 bg-[#f8f8f6]/90 px-5 backdrop-blur-xl lg:px-9"><button onClick={() => setMenuOpen(true)} className="mr-3 rounded-xl border border-stone-200 bg-white p-2 text-stone-600 lg:hidden"><Menu size={18} /></button><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Teza Tech Lab management</p><h1 className="font-display text-lg font-semibold">{navigation.find(item => item.id === section)?.label}</h1></div><div className="ml-auto flex items-center gap-2"><span className={`hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex ${hasFirebaseConfiguration ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}><span className="mr-1.5 size-1.5 rounded-full bg-current" />{hasFirebaseConfiguration ? "Firebase connected" : "Offline-ready mode"}</span>{section !== "courses" && <Button onClick={openCreate}><Plus size={16} />{primaryAction(section)}</Button>}</div></header>
+      <div className="p-5 lg:p-9"><section className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-emerald-800/55">{content.eyebrow}</p><h2 className="mt-1 font-display text-3xl font-semibold tracking-tight">{content.title}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-stone-500">{content.description}</p>{persistenceError && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{persistenceError}</p>}</div>{section === "overview" && <button onClick={() => { setSection("students"); openCreate(); }} className="inline-flex w-fit items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm"><Plus size={16} />Add student</button>}</section>{section === "courses" ? <CourseBatchManager /> : <>{(section === "quizzes" || section === "attendance") && <CourseBatchScopeControls value={courseBatchScope} onChange={setCourseBatchScope} />}<OfflineWorkspace section={section as Exclude<Section, "courses">} records={visibleRecords} onAction={openCreate} onNavigate={next => setSection(current => typeof next === "function" ? next(current as Exclude<Section, "courses">) : next)} onEdit={item => { setEditingItem(item); setPanelOpen(true); }} onDelete={deleteItem} onManageQuiz={setManagedQuiz} />{section === "quizzes" && <ScopedQuizAttemptReview scope={courseBatchScope} />}</>}</div>
     </main>
-    {isPanelOpen && <OfflineActionPanel section={section} initial={editingItem} onClose={() => { setPanelOpen(false); setEditingItem(null); }} onSave={saveItem} />}
+    {isPanelOpen && section !== "courses" && <OfflineActionPanel section={section as Exclude<Section, "courses">} initial={editingItem} onClose={() => { setPanelOpen(false); setEditingItem(null); }} onSave={saveItem} />}
     {managedQuiz && <QuizQuestionPanel quizId={managedQuiz.id} quizTitle={managedQuiz.title} onClose={() => setManagedQuiz(null)} />}
   </div>;
 }
@@ -133,4 +148,4 @@ function SettingsCard() { return <div className="grid gap-5 lg:grid-cols-[1.1fr_
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ActionPanel({ section, onClose }: { section: Section; onClose: () => void }) { const title = primaryAction(section); return <div className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30 p-0 sm:p-4"><section className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl sm:rounded-3xl"><div className="flex items-center justify-between border-b border-stone-100 p-6"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Admin action</p><h3 className="mt-1 font-display text-xl font-semibold">{title}</h3></div><button onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button></div><div className="flex-1 p-6"><div className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900"><Sparkles className="mb-2 text-amber-700" size={17} />This Next.js panel is ready for Firebase. Add the Firebase environment variables and connect this form to its Firestore collection before creating production records.</div><div className="mt-6 space-y-4"><label className="block text-sm font-bold text-stone-700">Title or name<input className="mt-2 h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-600" placeholder="Enter details" /></label><label className="block text-sm font-bold text-stone-700">Description<textarea className="mt-2 min-h-24 w-full rounded-xl border border-stone-200 p-3 text-sm outline-none focus:border-emerald-600" placeholder="Add optional context" /></label></div></div><div className="border-t border-stone-100 p-6"><button onClick={onClose} className="w-full rounded-xl bg-emerald-900 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800">Save after Firebase setup</button></div></section></div>; }
 
-function primaryAction(section: Section) { return ({ overview: "Create record", students: "Add student", announcements: "New announcement", lessons: "New lesson", quizzes: "New quiz", attendance: "Record attendance", settings: "Configure Firebase" } as Record<Section, string>)[section]; }
+function primaryAction(section: Section) { return ({ overview: "Create record", courses: "New course", students: "Add student", announcements: "New announcement", lessons: "New lesson", quizzes: "New quiz", attendance: "Record attendance", settings: "Configure Firebase" } as Record<Section, string>)[section]; }

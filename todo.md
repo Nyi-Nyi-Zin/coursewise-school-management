@@ -65,4 +65,19 @@
 - [x] Refactor Admin Website module data so TanStack Query is the shared state owner rather than duplicated local `records` state, including consistent mutation rollback and error handling.
 - [x] Add query/mutation coverage for `useAdminRecords`, including save/delete success and failure behavior across student and lesson modules.
 - [x] Add direct `useAdminRecords` hook tests with a QueryClient wrapper for save/delete success and failure rollback across student and lesson modules.
-- [ ] Test, build, push to GitHub, and document the subdomain deployment setup for the two Next.js websites.
+- [x] Test, build, push to GitHub, and document the subdomain deployment setup for the two Next.js websites.
+- [x] Define Firebase data contracts for dynamic courses, batches, student enrollments, quiz attempts, and attendance records scoped by batch.
+- [x] Update Firestore Security Rules to enforce `auth.uid`, role, course, and `batchId` isolation for every student-owned record.
+- [x] Add dynamic course and batch creation, enrollment assignment, and student-to-batch management in the Admin Dashboard.
+- [x] Scope Admin Dashboard quiz attempts and attendance workflows to the selected course and batch.
+- [x] Add Student Website course enrollment context and private score/attendance access limited to the signed-in student and assigned batch.
+- [x] Add Firebase Email/Password forgot-password flow and admin-assisted reset guidance.
+- [x] Add Admin Dashboard course and batch selectors that drive attendance and quiz-attempt review modules.
+- [x] Filter Admin Dashboard attendance and quiz-attempt records by the active selected course and batch, with cross-batch query coverage.
+- [x] Add Admin Dashboard quiz-attempt review query tests proving only the selected courseId and batchId are requested and rendered.
+- [x] Add selector-change integration coverage showing both attendance and quiz review update together without cross-batch leakage.
+- [x] Add direct ScopedQuizAttemptReview query coverage proving Firestore request filters use the selected courseId and batchId only.
+- [x] Add Admin Dashboard UI scope-control integration coverage for batch changes and empty scope behavior across attendance and quiz review.
+- [x] Add jsdom integration coverage for rendered course-batch scope controls updating attendance and quiz review together, including an empty-scope state.
+- [x] Add a rendered Admin Dashboard integration test combining actual scope controls, scoped attendance, and ScopedQuizAttemptReview for empty and changing batch states.
+- [ ] Test batch isolation, private student records, and password recovery source flows; rebuild websites and push updates to GitHub.

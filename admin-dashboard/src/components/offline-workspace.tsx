@@ -5,6 +5,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { ManagementSection, OfflineItem, OfflineRecords } from "@/lib/offline-records";
 import { ModuleInsight } from "@/components/module-insight";
 import { ModuleRecordView } from "@/components/module-record-view";
+import { AdminPasswordResetPanel } from "@/components/admin-password-reset-panel";
 
 type Section = "overview" | "students" | "announcements" | "lessons" | "quizzes" | "attendance" | "settings";
 
@@ -18,7 +19,7 @@ const meta: Record<ManagementSection, { icon: typeof Users; hint: string }> = {
 
 export function OfflineWorkspace({ section, records, onAction, onNavigate, onEdit, onDelete, onManageQuiz }: { section: Section; records: OfflineRecords; onAction: () => void; onNavigate: Dispatch<SetStateAction<Section>>; onEdit: (item: OfflineItem) => void; onDelete: (id: string) => void; onManageQuiz: (item: OfflineItem) => void }) {
   if (section === "overview") return <Overview records={records} onNavigate={onNavigate} />;
-  if (section === "settings") return <SettingsCard />;
+  if (section === "settings") return <><SettingsCard /><AdminPasswordResetPanel /></>;
   const current = records[section];
   const { icon: Icon, hint } = meta[section];
   if (!current.length) return <><ModuleInsight section={section} records={current} /><div className="grid min-h-72 place-items-center rounded-3xl border border-dashed border-stone-300 bg-white/70 p-8 text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-800"><Icon size={20} /></span><h3 className="mt-4 font-display text-xl font-semibold">Nothing here yet</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-500">{hint}</p><button onClick={onAction} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><Plus size={15} />Create record</button></div></div></>;

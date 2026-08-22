@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { StudentBrand } from "@/components/student-brand";
 import { cn } from "@/lib/utils";
 import { useStudentAuth } from "@/components/student-auth-provider";
+import { useStudentCourse } from "@/components/student-course-provider";
 
 const navigation = [
   { href: "/", label: "Home", icon: House },
@@ -20,6 +21,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { firebaseActive, loading, user, role } = useStudentAuth();
+  const { enrollment } = useStudentCourse();
   const mustRedirect = firebaseActive && !loading && (!user || role === "admin");
   useEffect(() => {
     if (mustRedirect) router.replace("/login");
@@ -39,6 +41,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex items-center gap-2">
+            {enrollment ? <span className="hidden rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-semibold text-sky-200 sm:inline-flex">{enrollment.courseTitle} · {enrollment.batchName}</span> : null}
             <button className="grid size-10 place-items-center rounded-xl text-slate-400 transition-colors hover:bg-slate-900 hover:text-sky-300" aria-label="Notifications"><Bell className="size-5" /></button>
             <Link href="/profile" className="hidden items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200 hover:border-slate-700 sm:flex"><UserCircle2 className="size-4 text-sky-300" />My profile</Link>
             <button className="grid size-10 place-items-center rounded-xl border border-slate-800 text-slate-300 lg:hidden" aria-label="Open navigation"><Menu className="size-5" /></button>
