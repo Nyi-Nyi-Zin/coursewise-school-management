@@ -35,6 +35,12 @@ export const submitQuizAttempt = onCall(async request => {
   if (!quiz.exists || quiz.data()?.isPublished !== true) {
     throw new HttpsError('not-found', 'This quiz is not available.');
   }
+  const now = Date.now();
+  const opensAt = quiz.data()?.opensAt ? new Date(String(quiz.data()?.opensAt)).getTime() : null;
+  const closesAt = quiz.data()?.closesAt ? new Date(String(quiz.data()?.closesAt)).getTime() : null;
+  if ((opensAt !== null && now < opensAt) || (closesAt !== null && now >= closesAt)) {
+    throw new HttpsError('failed-precondition', 'This quiz is not open at this time.');
+  }
 
   const courseId = String(quiz.data()?.courseId ?? '');
   const batchId = String(quiz.data()?.batchId ?? '');
@@ -68,6 +74,8 @@ export const adminCreateStudentAccount = onCall(async request => {
   const name = String(request.data?.name ?? '').trim();
   const email = String(request.data?.email ?? '').trim().toLowerCase();
   const studentId = String(request.data?.studentId ?? '').trim();
+  const photoUrl = typeof request.data?.photoUrl === 'string' ? request.data.photoUrl.trim() : '';
+  const isActive = request.data?.isActive !== false;
   if (!name || !email.includes('@') || !studentId) {
     throw new HttpsError('invalid-argument', 'A student name, email address, and student ID are required.');
   }
@@ -80,7 +88,8 @@ export const adminCreateStudentAccount = onCall(async request => {
       email,
       role: 'student',
       studentId,
-      isActive: true,
+      isActive,
+      ...(photoUrl ? { photoUrl } : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -94,6 +103,14 @@ export const adminCreateStudentAccount = onCall(async request => {
     }
     throw new HttpsError('internal', 'Could not create the student account.');
   }
+});
+
+export const adminListStudents = onCall(async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in before viewing students.');
+  await assertAdmin(request.auth.uid);
+
+  const snapshot = await getFirestore().collection('users').where('role', '==', 'student').get();
+  return snapshot.docs.map(student => ({ id: student.id, data: student.data() }));
 });
 
 export const adminCreatePasswordResetLink = onCall(async request => {

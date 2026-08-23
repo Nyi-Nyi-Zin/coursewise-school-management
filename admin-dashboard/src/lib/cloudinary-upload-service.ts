@@ -33,6 +33,10 @@ export function uploadBannerImage(file: File) {
   return uploadToCloudinary(file, { kind: "image", folder: "coursewise/banners" });
 }
 
+export function uploadStudentProfilePhoto(file: File) {
+  return uploadToCloudinary(file, { kind: "image", folder: "coursewise/student-profiles" });
+}
+
 export function uploadLessonFile(file: File) {
   return uploadToCloudinary(file, { kind: "file", folder: "coursewise/lessons" });
 }

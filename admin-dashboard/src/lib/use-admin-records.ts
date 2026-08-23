@@ -7,10 +7,16 @@ import { emptyOfflineRecords, type ManagementSection, type OfflineItem, type Off
 import { adminRecordQueryKey, adminSections, mergeAdminRecordDelete, mergeAdminRecordSave } from "./admin-records-query";
 
 async function loadAllAdminRecords(): Promise<OfflineRecords> {
-  const entries = await Promise.all(adminSections.map(async section => {
-    return [section, await loadFirebaseAdminRecords(section)] as const;
-  }));
-  return Object.fromEntries(entries) as OfflineRecords;
+  const results = await Promise.allSettled(
+    adminSections.map(async section => [section, await loadFirebaseAdminRecords(section)] as const),
+  );
+  // A failing unrelated source must not block announcement saves or make the
+  // whole dashboard appear unavailable.
+  return results.reduce<OfflineRecords>((records, result, index) => {
+    const section = adminSections[index];
+    if (result.status === "fulfilled") records[section] = result.value[1];
+    return records;
+  }, structuredClone(emptyOfflineRecords));
 }
 
 export async function optimisticallySaveAdminRecord(queryClient: QueryClient, section: ManagementSection, item: OfflineItem) {

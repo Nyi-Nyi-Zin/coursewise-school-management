@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   announcements,
@@ -30,6 +30,19 @@ const nullableUrl = z
   .optional()
   .nullable();
 const attendanceStatus = z.enum(["Present", "Absent", "Late", "Excused"]);
+const quizSchedule = z.object({
+  opensAt: z.string().datetime().optional().nullable(),
+  closesAt: z.string().datetime().optional().nullable(),
+}).superRefine(({ opensAt, closesAt }, ctx) => {
+  if (opensAt && closesAt && new Date(closesAt) <= new Date(opensAt)) {
+    ctx.addIssue({ code: "custom", message: "Closing time must be after the opening time.", path: ["closesAt"] });
+  }
+});
+const activeQuizCondition = () => and(
+  eq(quizzes.isPublished, true),
+  or(isNull(quizzes.opensAt), lte(quizzes.opensAt, new Date())),
+  or(isNull(quizzes.closesAt), gt(quizzes.closesAt, new Date())),
+);
 
 const studentProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (ctx.user.role !== "student" || !ctx.user.isActive) {
@@ -230,18 +243,18 @@ export const schoolRouter = router({
         return { quiz, questions: (await getQuizQuestions(quiz.id)).map(question => toQuestionView(question, true)) };
       }),
       create: adminProcedure
-        .input(z.object({ title: z.string().min(2).max(180), description: z.string().max(2_500).optional().nullable(), durationMinutes: z.number().int().min(1).max(480).optional().nullable(), isPublished: z.boolean() }))
+        .input(z.object({ title: z.string().min(2).max(180), description: z.string().max(2_500).optional().nullable(), durationMinutes: z.number().int().min(1).max(480).optional().nullable(), isPublished: z.boolean() }).merge(quizSchedule))
         .mutation(async ({ input }) => {
           const db = await requireDb();
-          const result = await db.insert(quizzes).values(input);
+          const result = await db.insert(quizzes).values({ ...input, opensAt: input.opensAt ? new Date(input.opensAt) : null, closesAt: input.closesAt ? new Date(input.closesAt) : null });
           return { id: Number(result[0].insertId) };
         }),
       update: adminProcedure
-        .input(z.object({ id: z.number().int().positive(), title: z.string().min(2).max(180), description: z.string().max(2_500).optional().nullable(), durationMinutes: z.number().int().min(1).max(480).optional().nullable(), isPublished: z.boolean() }))
+        .input(z.object({ id: z.number().int().positive(), title: z.string().min(2).max(180), description: z.string().max(2_500).optional().nullable(), durationMinutes: z.number().int().min(1).max(480).optional().nullable(), isPublished: z.boolean() }).merge(quizSchedule))
         .mutation(async ({ input }) => {
           const db = await requireDb();
           const { id, ...values } = input;
-          await db.update(quizzes).set(values).where(eq(quizzes.id, id));
+          await db.update(quizzes).set({ ...values, opensAt: values.opensAt ? new Date(values.opensAt) : null, closesAt: values.closesAt ? new Date(values.closesAt) : null }).where(eq(quizzes.id, id));
           return { success: true };
         }),
       remove: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
@@ -314,7 +327,7 @@ export const schoolRouter = router({
       list: studentProcedure.query(() => listQuizzes(true)),
       take: studentProcedure.input(z.object({ quizId: z.number().int().positive() })).query(async ({ input }) => {
         const db = await requireDb();
-        const quiz = (await db.select().from(quizzes).where(and(eq(quizzes.id, input.quizId), eq(quizzes.isPublished, true))).limit(1))[0];
+        const quiz = (await db.select().from(quizzes).where(and(eq(quizzes.id, input.quizId), activeQuizCondition())).limit(1))[0];
         if (!quiz) throw new TRPCError({ code: "NOT_FOUND", message: "This quiz is not available." });
         return { quiz, questions: (await getQuizQuestions(quiz.id)).map(question => toQuestionView(question)) };
       }),
@@ -322,7 +335,7 @@ export const schoolRouter = router({
         .input(z.object({ quizId: z.number().int().positive(), answers: z.array(z.object({ questionId: z.number().int().positive(), selectedAnswerIndex: z.number().int().min(0) })) }))
         .mutation(async ({ ctx, input }) => {
           const db = await requireDb();
-          const quiz = (await db.select().from(quizzes).where(and(eq(quizzes.id, input.quizId), eq(quizzes.isPublished, true))).limit(1))[0];
+          const quiz = (await db.select().from(quizzes).where(and(eq(quizzes.id, input.quizId), activeQuizCondition())).limit(1))[0];
           if (!quiz) throw new TRPCError({ code: "NOT_FOUND", message: "This quiz is not available." });
           const questions = await getQuizQuestions(input.quizId);
           if (!questions.length) throw new TRPCError({ code: "BAD_REQUEST", message: "This quiz does not have questions yet." });

@@ -5,8 +5,12 @@ import { getFirebaseClient } from './firebase';
 export type QuizQuestionDraft = {
   id: string;
   prompt: string;
+  /** Older questions without a type are treated as multiple choice. */
+  type?: 'multiple_choice' | 'multiple_select' | 'true_false';
   options: string[];
   correctAnswerIndex: number;
+  /** Used by multiple-select questions. */
+  correctAnswerIndices?: number[];
   marks: number;
   sortOrder: number;
 };

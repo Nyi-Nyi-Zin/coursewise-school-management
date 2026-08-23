@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminCreatePasswordResetLink = exports.adminCreateStudentAccount = exports.submitQuizAttempt = void 0;
+exports.adminCreatePasswordResetLink = exports.adminListStudents = exports.adminCreateStudentAccount = exports.submitQuizAttempt = void 0;
 const node_crypto_1 = require("node:crypto");
 const app_1 = require("firebase-admin/app");
 const auth_1 = require("firebase-admin/auth");
@@ -59,6 +59,8 @@ exports.adminCreateStudentAccount = (0, https_1.onCall)(async (request) => {
     const name = String(request.data?.name ?? '').trim();
     const email = String(request.data?.email ?? '').trim().toLowerCase();
     const studentId = String(request.data?.studentId ?? '').trim();
+    const photoUrl = typeof request.data?.photoUrl === 'string' ? request.data.photoUrl.trim() : '';
+    const isActive = request.data?.isActive !== false;
     if (!name || !email.includes('@') || !studentId) {
         throw new https_1.HttpsError('invalid-argument', 'A student name, email address, and student ID are required.');
     }
@@ -70,7 +72,8 @@ exports.adminCreateStudentAccount = (0, https_1.onCall)(async (request) => {
             email,
             role: 'student',
             studentId,
-            isActive: true,
+            isActive,
+            ...(photoUrl ? { photoUrl } : {}),
             createdAt: firestore_1.FieldValue.serverTimestamp(),
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
@@ -87,6 +90,13 @@ exports.adminCreateStudentAccount = (0, https_1.onCall)(async (request) => {
         }
         throw new https_1.HttpsError('internal', 'Could not create the student account.');
     }
+});
+exports.adminListStudents = (0, https_1.onCall)(async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Sign in before viewing students.');
+    await assertAdmin(request.auth.uid);
+    const snapshot = await (0, firestore_1.getFirestore)().collection('users').where('role', '==', 'student').get();
+    return snapshot.docs.map(student => ({ id: student.id, data: student.data() }));
 });
 exports.adminCreatePasswordResetLink = (0, https_1.onCall)(async (request) => {
     if (!request.auth)

@@ -7,7 +7,7 @@ import { uploadStudentPhotoToCloudinary } from "@/lib/cloudinary-upload-service"
 export type StudentProfile = { id: string; name: string; email: string; studentId: string; photoUrl?: string; activeCourseId?: string; activeBatchId?: string };
 export type EnrollmentContext = { courseId: string; batchId: string; courseTitle: string; batchName: string };
 export type PrivateQuizAttempt = { id: string; quizId: string; courseId: string; batchId: string; score: number; totalMarks: number; submittedAt?: string };
-export type BatchQuiz = { id: string; title: string; description: string; durationMinutes: number; totalMarks: number };
+export type BatchQuiz = { id: string; title: string; description: string; durationMinutes: number; totalMarks: number; opensAt?: string | null; closesAt?: string | null };
 export type QuizQuestion = { id: string; prompt: string; options: string[]; marks: number };
 export type SubmittedQuizAnswer = { questionId: string; selectedAnswerIndex: number };
 export type QuizSubmissionResult = { score: number; totalMarks: number; percentage: number };
@@ -74,7 +74,8 @@ export async function getStudentQuizAttempts(studentId: string, courseId?: strin
 export async function getBatchQuizzes(courseId?: string, batchId?: string): Promise<BatchQuiz[]> {
   if (!firestore || !courseId || !batchId) return [];
   const snapshot = await getDocs(query(collection(firestore, "quizzes"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("title", "asc")));
-  return snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<BatchQuiz, "id">) }));
+  const now = Date.now();
+  return snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<BatchQuiz, "id">) })).filter((quiz) => (!quiz.opensAt || new Date(quiz.opensAt).getTime() <= now) && (!quiz.closesAt || new Date(quiz.closesAt).getTime() > now));
 }
 
 export async function getQuizQuestions(quizId: string): Promise<QuizQuestion[]> {

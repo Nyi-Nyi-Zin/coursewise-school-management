@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, like, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   announcements,
@@ -104,7 +104,7 @@ export async function listQuizzes(publishedOnly = false) {
   const db = await requireDb();
   const query = db.select().from(quizzes);
   return publishedOnly
-    ? query.where(eq(quizzes.isPublished, true)).orderBy(desc(quizzes.createdAt))
+    ? query.where(and(eq(quizzes.isPublished, true), or(isNull(quizzes.opensAt), lte(quizzes.opensAt, new Date())), or(isNull(quizzes.closesAt), gt(quizzes.closesAt, new Date())))).orderBy(desc(quizzes.createdAt))
     : query.orderBy(desc(quizzes.createdAt));
 }
 

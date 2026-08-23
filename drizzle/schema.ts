@@ -72,6 +72,8 @@ export const quizzes = mysqlTable(
     durationMinutes: int("durationMinutes"),
     totalMarks: int("totalMarks").default(0).notNull(),
     isPublished: boolean("isPublished").default(false).notNull(),
+    opensAt: timestamp("opensAt"),
+    closesAt: timestamp("closesAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

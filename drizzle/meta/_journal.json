@@ -15,6 +15,13 @@
       "when": 1787350824817,
       "tag": "0001_safe_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787350900000,
+      "tag": "0002_quiz_schedule",
+      "breakpoints": true
     }
   ]
 }

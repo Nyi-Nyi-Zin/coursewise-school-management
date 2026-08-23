@@ -1,10 +1,10 @@
 import { httpsCallable } from "firebase/functions";
 import { getFirebaseClient, hasFirebaseConfiguration } from "./firebase";
 
-export async function createStudentAccount(input: { name: string; email: string; studentId: string }) {
+export async function createStudentAccount(input: { name: string; email: string; studentId: string; photoUrl?: string; isActive?: boolean }) {
   if (!hasFirebaseConfiguration) throw new Error("Firebase is not configured.");
   const { functions } = getFirebaseClient();
-  const call = httpsCallable<{ name: string; email: string; studentId: string }, { uid: string; resetLink: string }>(functions, "adminCreateStudentAccount");
-  const result = await call({ name: input.name.trim(), email: input.email.trim(), studentId: input.studentId.trim() });
+  const call = httpsCallable<{ name: string; email: string; studentId: string; photoUrl?: string; isActive?: boolean }, { uid: string; resetLink: string }>(functions, "adminCreateStudentAccount");
+  const result = await call({ name: input.name.trim(), email: input.email.trim(), studentId: input.studentId.trim(), photoUrl: input.photoUrl?.trim() || undefined, isActive: input.isActive });
   return result.data;
 }

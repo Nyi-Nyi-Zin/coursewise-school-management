@@ -31,12 +31,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { useAdminRecords } from "@/lib/use-admin-records";
 import type { CourseBatchScope } from "@/lib/course-batch-scope";
 import { buildCourseBatchDashboardData } from "@/lib/course-batch-dashboard";
 import { CourseBatchScopeControls } from "@/components/course-batch-scope-controls";
-import { ScopedQuizAttemptReview } from "@/components/scoped-quiz-attempt-review";
+import { createStudentAccount } from "@/lib/admin-student-account-service";
 
 import { CourseBatchManager } from "@/components/course-batch-manager";
 
@@ -178,6 +177,18 @@ export function AdminShell() {
   };
   const saveItem = async (draft: Omit<OfflineItem, "id" | "createdAt">) => {
     if (!isRecordSection(section)) return;
+    if (section === "students" && !editingItem) {
+      try {
+        await createStudentAccount({ name: draft.title, email: draft.fields?.email ?? "", studentId: draft.fields?.studentId ?? "", photoUrl: draft.fields?.photoUrl, isActive: draft.status === "Active" });
+        setMutationError(null);
+        await recordsQuery.refetch();
+      } catch (error) {
+        setMutationError(error instanceof Error ? error.message.replace("Firebase: ", "") : "The student account could not be created.");
+      }
+      setPanelOpen(false);
+      setEditingItem(null);
+      return;
+    }
     const batchScopedDraft =
       (section === "quizzes" || section === "attendance") &&
       courseBatchScope.courseId &&
@@ -210,6 +221,20 @@ export function AdminShell() {
     } catch {
       setMutationError(
         "The record could not be deleted. Your workspace was restored to its previous state."
+      );
+    }
+  };
+  const toggleItemStatus = async (item: OfflineItem) => {
+    if (!isRecordSection(section)) return;
+    try {
+      await saveMutation.mutateAsync({
+        section,
+        item: { ...item, status: item.status === "Published" ? "Draft" : "Published" },
+      });
+      setMutationError(null);
+    } catch {
+      setMutationError(
+        "The record status could not be updated. Your workspace was restored to its previous state."
       );
     }
   };
@@ -301,12 +326,6 @@ export function AdminShell() {
                 ? "Firebase connected"
                 : "Offline-ready mode"}
             </span>
-            {section !== "courses" && (
-              <Button onClick={openCreate}>
-                <Plus size={16} />
-                {primaryAction(section)}
-              </Button>
-            )}
           </div>
         </header>
         <div className="p-5 lg:p-9">
@@ -327,18 +346,6 @@ export function AdminShell() {
                 </p>
               )}
             </div>
-            {section === "overview" && (
-              <button
-                onClick={() => {
-                  navigate("students");
-                  openCreate();
-                }}
-                className="inline-flex w-fit items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm"
-              >
-                <Plus size={16} />
-                Add student
-              </button>
-            )}
           </section>}
           {section === "courses" ? (
             <CourseBatchManager />
@@ -367,10 +374,8 @@ export function AdminShell() {
                 }}
                 onDelete={deleteItem}
                 onManageQuiz={setManagedQuiz}
+                onStatusChange={item => void toggleItemStatus(item)}
               />
-              {section === "quizzes" && (
-                <ScopedQuizAttemptReview scope={courseBatchScope} />
-              )}
             </>
           )}
         </div>
