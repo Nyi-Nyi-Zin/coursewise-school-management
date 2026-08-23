@@ -109,3 +109,4 @@
 - [x] Document and implement a secure first-administrator bootstrap procedure that does not weaken Firestore role controls.
 - [x] Add and validate a trusted Admin SDK first-administrator bootstrap script that preserves the deployed Firestore role protections.
 - [x] Push the Admin Website sign-in changes to GitHub, redeploy Vercel, and verify the production `/login` route.
+- [x] Repair the managed root deployment startup contract so it does not require a missing `dist/index.js` artifact.
