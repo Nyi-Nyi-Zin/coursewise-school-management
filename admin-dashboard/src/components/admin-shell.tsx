@@ -1,6 +1,7 @@
 "use client";
 
 import { hasFirebaseConfiguration } from "@/lib/firebase";
+import { signOutAdministrator } from "@/lib/admin-auth-service";
 import { OfflineActionPanel } from "@/components/offline-action-panel";
 import { OfflineWorkspace } from "@/components/offline-workspace";
 import { QuizQuestionPanel } from "@/components/quiz-question-panel";
@@ -74,6 +75,10 @@ export function AdminShell() {
   const persistenceError = recordsQuery.isError ? "Firebase records could not be loaded. The local workspace remains available." : mutationError;
   const content = headings[section];
   const openCreate = () => { if (section === "courses") return; setEditingItem(null); setPanelOpen(true); };
+  const signOut = async () => {
+    await signOutAdministrator();
+    window.location.assign("/login");
+  };
   const saveItem = async (draft: Omit<OfflineItem, "id" | "createdAt">) => {
     if (!isRecordSection(section)) return;
     const batchScopedDraft = (section === "quizzes" || section === "attendance") && courseBatchScope.courseId && courseBatchScope.batchId
@@ -105,7 +110,7 @@ export function AdminShell() {
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-[#143d36] px-3 py-5 text-white transition-transform lg:translate-x-0 ${isMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="flex items-center justify-between px-3"><Brand /><button onClick={() => setMenuOpen(false)} className="rounded-lg p-2 text-emerald-100/70 lg:hidden"><X size={18} /></button></div>
       <div className="mt-10"><p className="px-3 text-[10px] font-bold uppercase tracking-[.2em] text-emerald-100/45">Management</p><nav className="mt-2 space-y-1">{navigation.map(item => <button key={item.id} onClick={() => { setSection(item.id); setMenuOpen(false); }} className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm transition ${section === item.id ? "bg-[#d4f59b] font-bold text-emerald-950" : "text-emerald-50 hover:bg-white/10"}`}><item.icon size={17} />{item.label}</button>)}</nav></div>
-      <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[#d4f59b] text-xs font-bold text-emerald-950">AD</span><div className="min-w-0"><p className="truncate text-sm font-semibold">Administrator</p><p className="truncate text-xs text-emerald-100/55">Firebase role: admin</p></div></div><button className="mt-3 flex items-center gap-2 text-xs text-emerald-100/70 hover:text-white"><LogOut size={14} />Sign out</button></div>
+      <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[#d4f59b] text-xs font-bold text-emerald-950">AD</span><div className="min-w-0"><p className="truncate text-sm font-semibold">Administrator</p><p className="truncate text-xs text-emerald-100/55">Firebase role: admin</p></div></div><button onClick={() => void signOut()} className="mt-3 flex items-center gap-2 text-xs text-emerald-100/70 hover:text-white"><LogOut size={14} />Sign out</button></div>
     </aside>
     {isMenuOpen && <button onClick={() => setMenuOpen(false)} aria-label="Close navigation" className="fixed inset-0 z-30 bg-emerald-950/40 lg:hidden" />}
     <main className="min-h-screen lg:ml-72">

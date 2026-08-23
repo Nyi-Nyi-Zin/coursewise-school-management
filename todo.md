@@ -101,3 +101,11 @@
 - [x] Audit Firebase live-activation readiness for both Vercel websites without adding credentials or connecting a custom domain.
 - [x] Strengthen the Firebase administrator deployment handoff for Authentication, Firestore rules/indexes, callable functions, and Vercel environment variables.
 - [x] Re-run Firebase emulator rules coverage, automated tests, and both production website builds after the activation-readiness work.
+- [x] Add the supplied Firebase Web App configuration and activation flag to both Vercel website projects.
+- [x] Enable Firebase Email/Password Authentication and create the Cloud Firestore database in the approved Firebase project.
+- [ ] Deploy the repository Firestore Rules, indexes, and trusted callable Functions to the approved Firebase project.
+- [ ] Verify both live Vercel websites initialize Firebase successfully and retain their student/admin access boundaries.
+- [x] Add a Firebase email/password sign-in route to the Admin Website so authorized administrators have a production access path.
+- [x] Document and implement a secure first-administrator bootstrap procedure that does not weaken Firestore role controls.
+- [x] Add and validate a trusted Admin SDK first-administrator bootstrap script that preserves the deployed Firestore role protections.
+- [ ] Push the Admin Website sign-in changes to GitHub, redeploy Vercel, and verify the production `/login` route.
