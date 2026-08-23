@@ -110,7 +110,7 @@
 - [x] Add and validate a trusted Admin SDK first-administrator bootstrap script that preserves the deployed Firestore role protections.
 - [x] Push the Admin Website sign-in changes to GitHub, redeploy Vercel, and verify the production `/login` route.
 - [x] Repair the managed root deployment startup contract so it does not require a missing `dist/index.js` artifact.
-- [ ] Promote the approved first registered Firebase account to the administrator role and verify live access.
+- [x] Promote the approved first registered Firebase account to the administrator role and verify live access.
 - [x] Promote the approved first registered Firebase account to the administrator role and verify live access.
 - [x] Verify the live Student Website with a real Firebase student account and confirm student-only portal access.
 - [x] Verify the live Admin Website blocks a non-administrator account after Firebase activation.
