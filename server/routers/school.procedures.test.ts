@@ -144,6 +144,8 @@ describe("school management contracts", () => {
       description: "Refined quiz instructions",
       durationMinutes: 30,
       isPublished: true,
+      opensAt: null,
+      closesAt: null,
     });
     expect(where).toHaveBeenCalledOnce();
   });

@@ -116,3 +116,5 @@
 - [x] Verify the live Admin Website blocks a non-administrator account after Firebase activation.
 - [x] Record the exact live authentication verification outcomes before final production verification is considered complete.
 - [x] Integrate the supplied Teza Tech Lab SVG logo into the Student Website and Admin Website branding surfaces.
+- [x] Update the stale quiz-settings test expectation for the synchronized optional opensAt and closesAt fields.
+- [x] Fetch and validate the latest private GitHub repository revision in the active project workspace while preserving the archived Flutter student-app folder.
