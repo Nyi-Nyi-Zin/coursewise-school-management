@@ -22,6 +22,7 @@ function TakeQuizContent() {
   const quizId = searchParams.get("id") ?? "";
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<QuizSubmissionResult | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const questions = useQuery({ queryKey: ["student", "quiz-questions", quizId], queryFn: () => getQuizQuestions(quizId), enabled: Boolean(quizId) });
   const submission = useMutation({
     mutationFn: () => submitQuizAttempt(quizId, (questions.data ?? []).map((question) => ({ questionId: question.id, selectedAnswerIndex: answers[question.id] ?? -1 }))),
@@ -46,7 +47,8 @@ function TakeQuizContent() {
         : !items.length ? <div className="mt-8"><EmptyQuizState title="This quiz has no published questions yet." description="Please check back later or contact your instructor." /></div>
         : <>
           <div className="mt-8 space-y-4">{items.map((question, index) => <QuestionCard key={question.id} index={index + 1} question={question} selected={answers[question.id]} onSelect={(optionIndex) => setAnswers((current) => ({ ...current, [question.id]: optionIndex }))} />)}</div>
-          <Card className="sticky bottom-24 mt-6 border-slate-800 lg:bottom-6"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm text-slate-400">{answeredCount} of {items.length} answered</p><Button disabled={submission.isPending || answeredCount === 0} onClick={() => submission.mutate()}>{submission.isPending ? "Submitting…" : "Submit answers"}</Button></CardContent></Card>
+          <Card className="sticky bottom-24 mt-6 border-slate-800 lg:bottom-6"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm text-slate-400">{answeredCount} of {items.length} answered</p><Button disabled={submission.isPending || answeredCount !== items.length} onClick={() => setConfirming(true)}>{submission.isPending ? "Submitting…" : "Review & submit"}</Button></CardContent></Card>
+          {confirming ? <div role="dialog" aria-modal="true" aria-label="Confirm quiz submission" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 p-4"><Card className="w-full max-w-md"><CardContent className="p-6"><h2 className="text-xl font-bold text-white">Submit your answers?</h2><p className="mt-2 text-sm leading-6 text-slate-400">You answered all {items.length} questions. Your attempt cannot be edited afterward.</p><div className="mt-6 flex justify-end gap-3"><Button variant="outline" onClick={() => setConfirming(false)}>Go back</Button><Button disabled={submission.isPending} onClick={() => { setConfirming(false); submission.mutate(); }}>{submission.isPending ? "Submitting…" : "Submit now"}</Button></div></CardContent></Card></div> : null}
         </>}
     </section>
   );

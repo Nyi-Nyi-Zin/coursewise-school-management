@@ -24,6 +24,11 @@ service cloud.firestore {
       let quiz = get(/databases/$(database)/documents/quizzes/$(quizId));
       return quiz.data.isPublished == true && isActiveBatchMember(quiz.data.courseId, quiz.data.batchId);
     }
+    function assignmentIsReadable(assignmentId, courseId, batchId) {
+      let assignment = get(/databases/$(database)/documents/assignments/$(assignmentId));
+      return assignment.data.isPublished == true && assignment.data.courseId == courseId &&
+        assignment.data.batchId == batchId && isActiveBatchMember(courseId, batchId);
+    }
 
     match /users/{userId} {
       allow read: if isAdmin() || isOwner(userId);
@@ -100,6 +105,20 @@ service cloud.firestore {
     match /attendance/{attendanceId} {
       allow read: if isAdmin() || canReadOwnBatchRecord();
       allow create, update, delete: if isAdmin();
+    }
+
+    match /assignments/{assignmentId} {
+      allow read: if isAdmin() || (isPublished() && canReadBatchContent());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /assignmentSubmissions/{submissionId} {
+      allow read: if isAdmin() || canReadOwnBatchRecord();
+      allow create: if signedIn() && request.resource.data.studentId == request.auth.uid &&
+        hasBatchFields(request.resource.data) && request.resource.data.assignmentId is string &&
+        assignmentIsReadable(request.resource.data.assignmentId, request.resource.data.courseId, request.resource.data.batchId);
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
     }
   }
 }

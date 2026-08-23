@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Teza Tech Lab | Student Portal",
   description: "A focused learning portal for Teza Tech Lab students.",
+  icons: {
+    icon: "/teza-tech-lab-logo.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -9,9 +9,9 @@ type StudentAuthState = { user: User | null; role: PortalRole; loading: boolean;
 const StudentAuthContext = createContext<StudentAuthState>({ user: null, role: null, loading: true, firebaseActive: false });
 
 export function StudentAuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<StudentAuthState>({ user: null, role: null, loading: true, firebaseActive: isFirebaseConfigured });
+  const [state, setState] = useState<StudentAuthState>({ user: null, role: null, loading: isFirebaseConfigured, firebaseActive: isFirebaseConfigured });
   useEffect(() => {
-    if (!firebaseAuth) { setState({ user: null, role: null, loading: false, firebaseActive: false }); return; }
+    if (!firebaseAuth) return;
     return onAuthStateChanged(firebaseAuth, async (user) => {
       const role = user ? await getPortalRole(user).catch(() => null) : null;
       setState({ user, role, loading: false, firebaseActive: true });

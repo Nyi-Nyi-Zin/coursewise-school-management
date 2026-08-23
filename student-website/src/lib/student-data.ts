@@ -8,6 +8,7 @@ export const studentQueryKeys = {
   lessons: ["student", "lessons"] as const,
   quizzes: ["student", "quizzes"] as const,
   attendance: ["student", "attendance"] as const,
+  assignments: ["student", "assignments"] as const,
 };
 
 export const demoAnnouncements: Announcement[] = [

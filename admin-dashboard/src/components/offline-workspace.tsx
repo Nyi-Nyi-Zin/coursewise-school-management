@@ -1,18 +1,19 @@
 "use client";
 
-import { Bell, BookOpen, CalendarDays, ClipboardCheck, Plus, Users } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, ClipboardCheck, FileText, Plus, Users } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ManagementSection, OfflineItem, OfflineRecords } from "@/lib/offline-records";
 import { ModuleInsight } from "@/components/module-insight";
 import { ModuleRecordView } from "@/components/module-record-view";
 import { AdminPasswordResetPanel } from "@/components/admin-password-reset-panel";
 
-type Section = "overview" | "students" | "announcements" | "lessons" | "quizzes" | "attendance" | "settings";
+type Section = "overview" | "students" | "announcements" | "lessons" | "assignments" | "quizzes" | "attendance" | "settings";
 
 const meta: Record<ManagementSection, { icon: typeof Users; hint: string }> = {
   students: { icon: Users, hint: "Create student profiles, update access status, or remove a profile." },
   announcements: { icon: Bell, hint: "Create and publish banner updates for the Student Website home page." },
   lessons: { icon: BookOpen, hint: "Manage lesson titles, resource notes, and publication state." },
+  assignments: { icon: FileText, hint: "Publish briefs, due dates, and instructions for each course batch." },
   quizzes: { icon: ClipboardCheck, hint: "Create quiz records now, then add Firebase-backed questions after connection." },
   attendance: { icon: CalendarDays, hint: "Record attendance using Present, Absent, Late, or Excused." },
 };
@@ -22,7 +23,7 @@ export function OfflineWorkspace({ section, records, onAction, onNavigate, onEdi
   if (section === "settings") return <><SettingsCard /><AdminPasswordResetPanel /></>;
   const current = records[section];
   const { icon: Icon, hint } = meta[section];
-  const insight = section === "students" || section === "announcements" || section === "lessons" ? null : <ModuleInsight section={section} records={current} />;
+  const insight = section === "students" || section === "announcements" || section === "lessons" || section === "assignments" ? null : <ModuleInsight section={section} records={current} />;
   if (section === "students") return <>{insight}<ModuleRecordView section={section} records={current} onCreate={onAction} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} onStatusChange={onStatusChange} /></>;
   if (!current.length) return <>{insight}<div className="grid min-h-72 place-items-center rounded-3xl border border-dashed border-stone-300 bg-white/70 p-8 text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-800"><Icon size={20} /></span><h3 className="mt-4 font-display text-xl font-semibold">Nothing here yet</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-500">{hint}</p><button onClick={onAction} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><Plus size={15} />Create record</button></div></div></>;
   return <>{insight}<ModuleRecordView section={section} records={current} onCreate={onAction} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} onStatusChange={onStatusChange} /></>;
@@ -33,6 +34,7 @@ function Overview({ records, onNavigate }: { records: OfflineRecords; onNavigate
   const cards: Array<{ key: ManagementSection; label: string; count: number; detail: string; icon: typeof Users }> = [
     { key: "students", label: "Active students", count: activeStudents, detail: `${records.students.length} student profiles`, icon: Users },
     { key: "lessons", label: "Lessons", count: records.lessons.length, detail: "Learning library", icon: BookOpen },
+    { key: "assignments", label: "Assignments", count: records.assignments.length, detail: "Course work", icon: FileText },
     { key: "quizzes", label: "Quizzes", count: records.quizzes.length, detail: "Student assessments", icon: ClipboardCheck },
     { key: "announcements", label: "Announcements", count: records.announcements.length, detail: "Student communications", icon: Bell },
   ];

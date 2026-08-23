@@ -1,4 +1,4 @@
-import { doc, getDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { addDoc, doc, getDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { demoAnnouncements, demoAttendance, demoLessons, type Announcement, type Lesson } from "@/lib/student-data";
 import { firebaseFunctions, firestore } from "@/lib/firebase";
@@ -11,6 +11,8 @@ export type BatchQuiz = { id: string; title: string; description: string; durati
 export type QuizQuestion = { id: string; prompt: string; options: string[]; marks: number };
 export type SubmittedQuizAnswer = { questionId: string; selectedAnswerIndex: number };
 export type QuizSubmissionResult = { score: number; totalMarks: number; percentage: number };
+export type Assignment = { id: string; title: string; description: string; courseId: string; batchId: string; dueAt?: string; resourceUrl?: string; submissionInstructions?: string };
+export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; feedback?: string; score?: number | null };
 
 export async function getStudentProfile(userId: string): Promise<StudentProfile> {
   if (!firestore) return { id: userId, name: "Student", email: "student@example.com", studentId: "TL-2026-001" };
@@ -65,6 +67,32 @@ export async function getStudentAttendance(studentId: string, courseId?: string,
   return snapshot.docs.map((item) => item.data());
 }
 
+export async function getPublishedAssignments(courseId?: string, batchId?: string): Promise<Assignment[]> {
+  if (!firestore || !courseId || !batchId) return [];
+  const snapshot = await getDocs(query(collection(firestore, "assignments"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("dueAt", "asc")));
+  return snapshot.docs.map((item) => {
+    const data = item.data();
+    return { id: item.id, title: String(data.title ?? "Assignment"), description: String(data.description ?? ""), courseId, batchId, dueAt: asDateString(data.dueAt), resourceUrl: stringOrUndefined(data.resourceUrl), submissionInstructions: stringOrUndefined(data.submissionInstructions) };
+  });
+}
+
+export async function getStudentAssignmentSubmissions(studentId: string, courseId?: string, batchId?: string): Promise<AssignmentSubmission[]> {
+  if (!firestore || !courseId || !batchId) return [];
+  const snapshot = await getDocs(query(collection(firestore, "assignmentSubmissions"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId), orderBy("submittedAt", "desc")));
+  return snapshot.docs.map((item) => {
+    const data = item.data();
+    return { id: item.id, assignmentId: String(data.assignmentId ?? ""), submittedAt: asDateString(data.submittedAt), submissionText: stringOrUndefined(data.submissionText), submissionUrl: stringOrUndefined(data.submissionUrl), feedback: stringOrUndefined(data.feedback), score: typeof data.score === "number" ? data.score : null };
+  });
+}
+
+export async function submitAssignment(studentId: string, assignment: Assignment, input: { submissionText?: string; submissionUrl?: string }) {
+  if (!firestore) throw new Error("Assignment submission is only available in Firebase mode.");
+  const submissionText = input.submissionText?.trim() ?? "";
+  const submissionUrl = input.submissionUrl?.trim() ?? "";
+  if (!submissionText && !submissionUrl) throw new Error("Add your response or a submission link before sending.");
+  await addDoc(collection(firestore, "assignmentSubmissions"), { assignmentId: assignment.id, studentId, courseId: assignment.courseId, batchId: assignment.batchId, submissionText: submissionText || null, submissionUrl: submissionUrl || null, submittedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+
 export async function getStudentQuizAttempts(studentId: string, courseId?: string, batchId?: string): Promise<PrivateQuizAttempt[]> {
   if (!firestore || !courseId || !batchId) return [];
   const snapshot = await getDocs(query(collection(firestore, "quizAttempts"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId), orderBy("submittedAt", "desc"), limit(30)));
@@ -90,3 +118,6 @@ export async function submitQuizAttempt(quizId: string, answers: SubmittedQuizAn
   const response = await callable({ quizId, answers });
   return { score: Number(response.data.score ?? 0), totalMarks: Number(response.data.totalMarks ?? 0), percentage: Number(response.data.percentage ?? 0) };
 }
+
+function stringOrUndefined(value: unknown) { return typeof value === "string" && value ? value : undefined; }
+function asDateString(value: unknown) { return typeof value === "string" ? value : value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function" ? value.toDate().toISOString() : undefined; }

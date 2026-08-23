@@ -10,6 +10,9 @@ const mono = DM_Mono({ variable: "--font-course-mono", weight: ["400", "500"], s
 export const metadata: Metadata = {
   title: "Teza Tech Lab | Admin",
   description: "Teza Tech Lab school and course management workspace.",
+  icons: {
+    icon: "/teza-tech-lab-logo.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

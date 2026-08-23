@@ -45,6 +45,7 @@ type Section =
   | "students"
   | "announcements"
   | "lessons"
+  | "assignments"
   | "quizzes"
   | "attendance"
   | "settings";
@@ -53,6 +54,7 @@ function isRecordSection(section: Section): section is ManagementSection {
     "students",
     "announcements",
     "lessons",
+    "assignments",
     "quizzes",
     "attendance",
   ].includes(section);
@@ -64,8 +66,10 @@ const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "students", label: "Students", icon: Users },
   { id: "announcements", label: "Announcements", icon: Bell },
   { id: "lessons", label: "Lessons", icon: BookOpen },
+  { id: "assignments", label: "Assignments", icon: ClipboardCheck },
   { id: "quizzes", label: "Quizzes", icon: ClipboardCheck },
-  { id: "attendance", label: "Attendance", icon: CalendarDays },
+  // Temporarily hidden from the admin navigation; keep the attendance page/code intact.
+  // { id: "attendance", label: "Attendance", icon: CalendarDays },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -75,6 +79,7 @@ const sectionPaths: Record<Section, string> = {
   students: "/students",
   announcements: "/announcements",
   lessons: "/lessons",
+  assignments: "/assignments",
   quizzes: "/quizzes",
   attendance: "/attendance",
   settings: "/settings",
@@ -115,6 +120,11 @@ const headings: Record<
     eyebrow: "Learning library",
     title: "Lessons",
     description: "Create and organize the resources students need to learn.",
+  },
+  assignments: {
+    eyebrow: "Course work",
+    title: "Assignments",
+    description: "Publish briefs, due dates, and submission instructions for each batch.",
   },
   quizzes: {
     eyebrow: "Assessment",
@@ -205,13 +215,11 @@ export function AdminShell() {
     try {
       await saveMutation.mutateAsync({ section, item });
       setMutationError(null);
-    } catch {
-      setMutationError(
-        "The record could not be saved. Your workspace was restored to its previous state."
-      );
+      setPanelOpen(false);
+      setEditingItem(null);
+    } catch (error) {
+      setMutationError(formatRecordSaveError(error));
     }
-    setPanelOpen(false);
-    setEditingItem(null);
   };
   const deleteItem = async (id: string) => {
     if (!isRecordSection(section)) return;
@@ -400,6 +408,23 @@ export function AdminShell() {
       )}
     </div>
   );
+}
+
+function formatRecordSaveError(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String(error.code)
+    : "";
+  if (code === "permission-denied") {
+    return "Firebase denied this save. Sign in with an administrator account, confirm users/{your-user-id} has role: admin, and deploy the current Firestore rules.";
+  }
+  if (code === "unauthenticated") {
+    return "Your Firebase session has expired. Sign in again, then save the assignment.";
+  }
+  if (code === "unavailable") {
+    return "Firebase is temporarily unavailable. Check your connection and try saving again.";
+  }
+  const message = error instanceof Error ? error.message.replace(/^Firebase:\s*/, "") : "";
+  return message ? `The record could not be saved: ${message}` : "The record could not be saved. Your workspace was restored to its previous state.";
 }
 
 function Brand() {
