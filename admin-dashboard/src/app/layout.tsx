@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Mono, DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 import { AdminProviders } from "./providers";
+import { desktopViewportWidth, mobileResponsiveEnabled } from "../../../shared/portal-display-settings";
 
 const sans = DM_Sans({ variable: "--font-course-sans", subsets: ["latin"] });
 const display = Fraunces({ variable: "--font-course-display", subsets: ["latin"] });
@@ -14,6 +15,10 @@ export const metadata: Metadata = {
     icon: "/teza-tech-lab-logo.svg",
   },
 };
+
+export const viewport: Viewport = mobileResponsiveEnabled
+  ? { width: "device-width", initialScale: 1 }
+  : { width: desktopViewportWidth, initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}><body><AdminProviders>{children}</AdminProviders></body></html>;
