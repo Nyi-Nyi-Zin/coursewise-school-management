@@ -10,6 +10,8 @@ Firebase Authentication initially contained only its default localhost and Fireb
 
 The Firebase CLI is authorized with the project owner account. The repository's `firebase/firestore.rules` and `firebase/firestore.indexes.json` were successfully deployed to the `(default)` database in `student-management-syste-e8dbb`.
 
+The Admin Website release containing the Firebase email/password `/login` route, non-admin sign-out protection, and the first-admin bootstrap guidance was pushed to GitHub and deployed successfully through Vercel.
+
 ## Current blocking step
 
 Trusted callable Functions remain a separate action because this project uses Cloud Functions for Firebase v2 and Firebase may require a Blaze billing plan before they can be deployed. The project owner approved the Cloud Functions API enablement, and a live inventory check now confirms the API is enabled with no functions deployed. Billing and function deployment remain intentionally deferred. Until a billing prerequisite is explicitly approved and the functions are deployed, trusted server-side quiz scoring and the admin-generated password-reset-link helper remain unavailable. Student password-reset email and Firestore-protected website data remain independently available.
