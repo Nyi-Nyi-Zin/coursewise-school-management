@@ -26,6 +26,12 @@ The project owner confirmed the student account successfully registered through 
 
 The project owner additionally confirmed the real student account reached the authenticated Student Portal Home after registration. The production verification outcome is therefore complete: the student account can access the Student Portal, the same student account is blocked from the Admin Website, and the promoted administrator account can access the Admin Website.
 
+The Admin Website Vercel deployment for the Teza Tech Lab logo and safer Firebase credential feedback update completed successfully.
+
+The matching Student Website Vercel deployment completed successfully, and its live login screen renders the supplied Teza Tech Lab SVG logo.
+
+The live Admin Website login screen also renders the supplied Teza Tech Lab SVG logo.
+
 ## Current blocking step
 
 Trusted callable Functions remain a separate action because this project uses Cloud Functions for Firebase v2 and Firebase may require a Blaze billing plan before they can be deployed. The project owner approved the Cloud Functions API enablement, and a live inventory check now confirms the API is enabled with no functions deployed. Billing and function deployment remain intentionally deferred. Until a billing prerequisite is explicitly approved and the functions are deployed, trusted server-side quiz scoring and the admin-generated password-reset-link helper remain unavailable. Student password-reset email and Firestore-protected website data remain independently available.
