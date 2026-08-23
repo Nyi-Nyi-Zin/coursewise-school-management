@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+html[data-theme="dark"] body { background: #020617; }
+html[data-theme="dark"] body { color: #e2e8f0; }
+html[data-theme="dark"] [class~="bg-white"], html[data-theme="dark"] [class~="bg-stone-50"], html[data-theme="dark"] [class~="bg-[#f8f8f6]"] { background-color: #0f172a !important; }
+html[data-theme="dark"] [class~="text-stone-900"], html[data-theme="dark"] [class~="text-stone-800"] { color: #f8fafc !important; }
+html[data-theme="dark"] [class~="text-stone-600"], html[data-theme="dark"] [class~="text-stone-500"], html[data-theme="dark"] [class~="text-stone-400"] { color: #cbd5e1 !important; }
+html[data-theme="dark"] [class*="border-stone-"] { border-color: #334155 !important; }
+html[data-theme="dark"] .preference-controls { background: #0f172a !important; color: #e2e8f0; }
+
 @theme inline {
   --font-sans: var(--font-course-sans);
   --font-display: var(--font-course-display);

@@ -1,0 +1,17 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { BellRing, Check, Inbox } from "lucide-react";
+import { useStudentAuth } from "@/components/student-auth-provider";
+import { useStudentCourse } from "@/components/student-course-provider";
+import { getStudentNotifications, markStudentNotificationRead } from "@/lib/phase-a-student-service";
+
+export default function StudentNotificationsPage() {
+  const { user } = useStudentAuth();
+  const { enrollment } = useStudentCourse();
+  const client = useQueryClient();
+  const notifications = useQuery({ queryKey: ["student", "notifications", user?.uid, enrollment?.courseId, enrollment?.batchId], queryFn: () => getStudentNotifications(user!.uid, enrollment?.courseId, enrollment?.batchId), enabled: Boolean(user?.uid && enrollment) });
+  const read = useMutation({ mutationFn: markStudentNotificationRead, onSuccess: () => void client.invalidateQueries({ queryKey: ["student", "notifications", user?.uid, enrollment?.courseId, enrollment?.batchId] }) });
+  const unread = notifications.data?.filter(item => !item.isRead).length ?? 0;
+  return <div className="space-y-6"><section className="rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8"><p className="flex items-center gap-2 text-sm font-semibold text-sky-300"><BellRing className="size-4" />Private updates</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-white">Your notifications</h1><p className="mt-3 text-slate-400">You have {unread ? `${unread} unread update${unread === 1 ? "" : "s"}` : "no unread updates"} for your current batch.</p></section><section className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">{notifications.isLoading ? <p className="p-6 text-sm text-slate-400">Loading updates…</p> : notifications.data?.map(item => <article key={item.id} className={`border-b border-slate-800 p-5 last:border-0 ${item.isRead ? "opacity-70" : "bg-sky-400/[0.04]"}`}><div className="flex gap-4"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${item.isRead ? "bg-slate-800 text-slate-400" : "bg-sky-400/15 text-sky-300"}`}><BellRing className="size-5" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-sky-300">{item.kind}</p><h2 className="mt-1 font-semibold text-white">{item.title}</h2></div>{!item.isRead ? <button onClick={() => read.mutate(item.id)} disabled={read.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-800"><Check className="size-3.5" />Mark read</button> : <span className="text-xs font-medium text-slate-500">Read</span>}</div><p className="mt-2 leading-6 text-slate-400">{item.body}</p>{item.createdAt ? <p className="mt-3 text-xs text-slate-500">{new Date(item.createdAt).toLocaleString()}</p> : null}</div></div></article>)}{!notifications.isLoading && !notifications.data?.length ? <div className="p-12 text-center"><Inbox className="mx-auto size-9 text-slate-600" /><p className="mt-3 font-semibold text-slate-200">No notifications yet</p><p className="mt-1 text-sm text-slate-500">Updates from your instructors will arrive here.</p></div> : null}</section></div>;
+}

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   CloudCog,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -38,6 +39,9 @@ import { CourseBatchScopeControls } from "@/components/course-batch-scope-contro
 import { createStudentAccount } from "@/lib/admin-student-account-service";
 
 import { CourseBatchManager } from "@/components/course-batch-manager";
+import { GradebookPanel, NotificationPanel } from "@/components/phase-a-admin-panels";
+import { PreferenceControls, usePortalPreferences } from "../../../shared/portal-preferences";
+import type { PortalTextKey } from "../../../shared/portal-i18n";
 
 type Section =
   | "overview"
@@ -48,7 +52,12 @@ type Section =
   | "assignments"
   | "quizzes"
   | "attendance"
+  | "grades"
+  | "notifications"
   | "settings";
+const navTextKeys: Record<Section, PortalTextKey> = {
+  overview: "overview", courses: "courses", students: "students", announcements: "announcements", lessons: "lessons", assignments: "assignments", quizzes: "quizzes", attendance: "attendance", grades: "gradebook", notifications: "notifications", settings: "settings",
+};
 function isRecordSection(section: Section): section is ManagementSection {
   return [
     "students",
@@ -68,8 +77,9 @@ const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "lessons", label: "Lessons", icon: BookOpen },
   { id: "assignments", label: "Assignments", icon: ClipboardCheck },
   { id: "quizzes", label: "Quizzes", icon: ClipboardCheck },
-  // Temporarily hidden from the admin navigation; keep the attendance page/code intact.
-  // { id: "attendance", label: "Attendance", icon: CalendarDays },
+  { id: "attendance", label: "Attendance", icon: CalendarDays },
+  { id: "grades", label: "Gradebook", icon: GraduationCap },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -82,6 +92,8 @@ const sectionPaths: Record<Section, string> = {
   assignments: "/assignments",
   quizzes: "/quizzes",
   attendance: "/attendance",
+  grades: "/grades",
+  notifications: "/notifications",
   settings: "/settings",
 };
 
@@ -137,6 +149,16 @@ const headings: Record<
     title: "Attendance",
     description: "Record daily attendance using the required school statuses.",
   },
+  grades: {
+    eyebrow: "Student progress",
+    title: "Gradebook",
+    description: "Record secure, batch-scoped grade items and make private progress visible to each student.",
+  },
+  notifications: {
+    eyebrow: "Student communications",
+    title: "Notifications",
+    description: "Deliver private in-app notices to the currently selected batch without browser-push setup.",
+  },
   settings: {
     eyebrow: "Configuration",
     title: "Workspace settings",
@@ -149,6 +171,7 @@ export function AdminShell() {
   const pathname = usePathname();
   const router = useRouter();
   const section = sectionFromPath(pathname);
+  const { theme, t } = usePortalPreferences();
   const [isMenuOpen, setMenuOpen] = useState(false);
   const [isPanelOpen, setPanelOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<OfflineItem | null>(null);
@@ -248,7 +271,7 @@ export function AdminShell() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f8f6] text-stone-900">
+    <div className={`min-h-screen ${theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-[#f8f8f6] text-stone-900"}`}>
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-[#143d36] px-3 py-5 text-white transition-transform lg:translate-x-0 ${isMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
@@ -263,7 +286,7 @@ export function AdminShell() {
         </div>
         <div className="mt-10">
           <p className="px-3 text-[10px] font-bold uppercase tracking-[.2em] text-emerald-100/45">
-            Management
+            {t("management")}
           </p>
           <nav className="mt-2 space-y-1">
             {navigation.map(item => (
@@ -276,7 +299,7 @@ export function AdminShell() {
                 className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm transition ${section === item.id ? "bg-[#d4f59b] font-bold text-emerald-950" : "text-emerald-50 hover:bg-white/10"}`}
               >
                 <item.icon size={17} />
-                {item.label}
+                {t(navTextKeys[item.id])}
               </button>
             ))}
           </nav>
@@ -298,7 +321,7 @@ export function AdminShell() {
             className="mt-3 flex items-center gap-2 text-xs text-emerald-100/70 hover:text-white"
           >
             <LogOut size={14} />
-            Sign out
+            {t("signOut")}
           </button>
         </div>
       </aside>
@@ -322,17 +345,18 @@ export function AdminShell() {
               Teza Tech Lab management
             </p>
             <h1 className="font-display text-lg font-semibold">
-              {navigation.find(item => item.id === section)?.label}
+              {t(navTextKeys[section])}
             </h1>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <PreferenceControls compact />
             <span
               className={`hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex ${hasFirebaseConfiguration ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}
             >
               <span className="mr-1.5 size-1.5 rounded-full bg-current" />
               {hasFirebaseConfiguration
-                ? "Firebase connected"
-                : "Offline-ready mode"}
+                ? t("connected")
+                : t("offlineReady")}
             </span>
           </div>
         </header>
@@ -357,6 +381,10 @@ export function AdminShell() {
           </section>}
           {section === "courses" ? (
             <CourseBatchManager />
+          ) : section === "grades" ? (
+            <GradebookPanel />
+          ) : section === "notifications" ? (
+            <NotificationPanel />
           ) : (
             <>
               {(section === "quizzes" || section === "attendance") && (
@@ -366,13 +394,13 @@ export function AdminShell() {
                 />
               )}
               <OfflineWorkspace
-                section={section as Exclude<Section, "courses">}
+                section={section as Exclude<Section, "courses" | "grades" | "notifications">}
                 records={visibleRecords}
                 onAction={openCreate}
                 onNavigate={next =>
                   navigate(current =>
                     typeof next === "function"
-                      ? next(current as Exclude<Section, "courses">)
+                      ? next(current as Exclude<Section, "courses" | "grades" | "notifications">)
                       : next
                   )
                 }
@@ -388,9 +416,9 @@ export function AdminShell() {
           )}
         </div>
       </main>
-      {isPanelOpen && section !== "courses" && (
+      {isPanelOpen && isRecordSection(section) && (
         <OfflineActionPanel
-          section={section as Exclude<Section, "courses">}
+          section={section}
           initial={editingItem}
           onClose={() => {
             setPanelOpen(false);
@@ -777,6 +805,8 @@ function primaryAction(section: Section) {
       lessons: "New lesson",
       quizzes: "New quiz",
       attendance: "Record attendance",
+      grades: "Add grade",
+      notifications: "Send notification",
       settings: "Configure Firebase",
     } as Record<Section, string>
   )[section];

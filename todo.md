@@ -120,3 +120,14 @@
 - [x] Fetch and validate the latest private GitHub repository revision in the active project workspace while preserving the archived Flutter student-app folder.
 - [x] Map the requested education-management feature set to existing Teza Tech Lab capabilities and Firebase dependencies.
 - [x] Prepare a prioritized implementation roadmap for the requested missing features without changing the approved billing or domain decisions.
+- [x] Create a develop branch from the latest GitHub source and keep main unchanged during Phase A work.
+- [x] Implement and commit the first Phase A source changes on develop only.
+- [ ] Compare main and develop after the first Phase A commit to verify production/main remains unchanged.
+- [x] Define Firestore-safe Gradebook, progress, and in-app notification contracts with existing course/batch privacy boundaries.
+- [x] Restore responsive mobile/tablet viewport behavior and the Admin Attendance navigation entry point.
+- [x] Implement Admin gradebook/progress workflows and Student private grade/progress views.
+- [x] Implement batch-scoped in-app notifications with private student read-state handling.
+- [x] Implement dark/light theme preference and Burmese/English localization foundations across both websites.
+- [x] Add real Burmese/English translation resources and locale-aware rendering for shared navigation, headings, labels, and key flows in both websites.
+- [x] Apply comprehensive dark/light theme tokens and component styling across both websites, then verify the preference switch with coverage.
+- [ ] Add tests, validate both website builds, and publish Phase A commits to the GitHub develop branch.

@@ -120,5 +120,20 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
     }
+
+    match /gradeRecords/{gradeId} {
+      allow read: if isAdmin() || canReadOwnBatchRecord();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin() || (isOwner(resource.data.recipientId) && hasBatchFields(resource.data) && isActiveBatchMember(resource.data.courseId, resource.data.batchId));
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isOwner(resource.data.recipientId) && hasBatchFields(resource.data) &&
+        isActiveBatchMember(resource.data.courseId, resource.data.batchId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt'])
+      );
+    }
   }
 }
