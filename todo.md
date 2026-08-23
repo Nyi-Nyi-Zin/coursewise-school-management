@@ -118,3 +118,5 @@
 - [x] Integrate the supplied Teza Tech Lab SVG logo into the Student Website and Admin Website branding surfaces.
 - [x] Update the stale quiz-settings test expectation for the synchronized optional opensAt and closesAt fields.
 - [x] Fetch and validate the latest private GitHub repository revision in the active project workspace while preserving the archived Flutter student-app folder.
+- [x] Map the requested education-management feature set to existing Teza Tech Lab capabilities and Firebase dependencies.
+- [x] Prepare a prioritized implementation roadmap for the requested missing features without changing the approved billing or domain decisions.
