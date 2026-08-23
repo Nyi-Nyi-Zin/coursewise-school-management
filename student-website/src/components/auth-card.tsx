@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { loginStudent, registerStudent } from "@/lib/auth-service";
+import { getStudentAuthenticationErrorMessage } from "@/lib/auth-error";
 
 export function AuthCard({ mode }: { mode: "login" | "register" }) {
   const [name, setName] = useState("");
@@ -39,8 +40,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" }) {
       }
       window.location.assign("/");
     } catch (error) {
-      const message = error instanceof Error ? error.message.replace("Firebase: ", "") : "Unable to complete authentication.";
-      toast.error(isRegister ? "Registration could not be completed." : "Login could not be completed.", { description: message });
+      toast.error(isRegister ? "Registration could not be completed." : "Login could not be completed.", { description: getStudentAuthenticationErrorMessage(error) });
     } finally { setSubmitting(false); }
   }
 

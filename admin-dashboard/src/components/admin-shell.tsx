@@ -10,7 +10,6 @@ import {
   Bell,
   BookOpen,
   BookMarked,
-  BookOpenCheck,
   CalendarDays,
   ChevronRight,
   ClipboardCheck,
@@ -122,7 +121,7 @@ export function AdminShell() {
   </div>;
 }
 
-function Brand() { return <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#d4f59b] text-emerald-950"><BookOpenCheck size={21} /></span><span><span className="font-display block text-lg font-semibold">Teza Tech Lab</span><span className="block text-[10px] font-bold uppercase tracking-[.17em] text-emerald-100/50">Admin studio</span></span></div>; }
+function Brand() { return <div className="flex items-center gap-3"><span className="grid size-10 place-items-center overflow-hidden rounded-xl bg-slate-950 ring-1 ring-[#d4f59b]/30"><img src="/manus-storage/teza-tech-lab-logo_338fd03c.svg" alt="" className="size-full object-cover" /></span><span><span className="font-display block text-lg font-semibold">Teza Tech Lab</span><span className="block text-[10px] font-bold uppercase tracking-[.17em] text-emerald-100/50">Admin studio</span></span></div>; }
 
 // Legacy presentation components are retained as design references while the
 // interactive offline workspace above is the active administration surface.

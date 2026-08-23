@@ -12,6 +12,20 @@ The Firebase CLI is authorized with the project owner account. The repository's 
 
 The Admin Website release containing the Firebase email/password `/login` route, non-admin sign-out protection, and the first-admin bootstrap guidance was pushed to GitHub and deployed successfully through Vercel.
 
+The project owner has completed registration of the first administrator account. Its Firebase Authentication user and matching self-created student profile were located in the live project, and the project owner has approved its controlled role promotion from `student` to `admin`.
+
+The existing `role` field was updated directly in that trusted Firestore Console profile editor; no client-side role-promotion capability was added. The live profile now has `role: "admin"` and can access the Admin Website after the account signs in.
+
+The active Student Website login route loads with Firebase enabled and no client-side Firebase initialization errors. The project owner has successfully signed in through the Admin Website with the promoted account, completing the live authentication-boundary verification.
+
+A separate live Firebase Authentication account exists for the student verification flow and remains distinct from the promoted administrator profile.
+
+The student account's Firestore profile has been verified with `role: "student"`; it remains separate from the live `admin` profile.
+
+The project owner confirmed the student account successfully registered through the Student Portal and was blocked from entering the Admin Website. Together with the promoted administrator's successful Admin Website sign-in, this confirms the intended live role boundary.
+
+The project owner additionally confirmed the real student account reached the authenticated Student Portal Home after registration. The production verification outcome is therefore complete: the student account can access the Student Portal, the same student account is blocked from the Admin Website, and the promoted administrator account can access the Admin Website.
+
 ## Current blocking step
 
 Trusted callable Functions remain a separate action because this project uses Cloud Functions for Firebase v2 and Firebase may require a Blaze billing plan before they can be deployed. The project owner approved the Cloud Functions API enablement, and a live inventory check now confirms the API is enabled with no functions deployed. Billing and function deployment remain intentionally deferred. Until a billing prerequisite is explicitly approved and the functions are deployed, trusted server-side quiz scoring and the admin-generated password-reset-link helper remain unavailable. Student password-reset email and Firestore-protected website data remain independently available.

@@ -104,9 +104,15 @@
 - [x] Add the supplied Firebase Web App configuration and activation flag to both Vercel website projects.
 - [x] Enable Firebase Email/Password Authentication and create the Cloud Firestore database in the approved Firebase project.
 - [ ] Deploy the repository Firestore Rules, indexes, and trusted callable Functions to the approved Firebase project.
-- [ ] Verify both live Vercel websites initialize Firebase successfully and retain their student/admin access boundaries.
+- [x] Verify both live Vercel websites initialize Firebase successfully and retain their student/admin access boundaries.
 - [x] Add a Firebase email/password sign-in route to the Admin Website so authorized administrators have a production access path.
 - [x] Document and implement a secure first-administrator bootstrap procedure that does not weaken Firestore role controls.
 - [x] Add and validate a trusted Admin SDK first-administrator bootstrap script that preserves the deployed Firestore role protections.
 - [x] Push the Admin Website sign-in changes to GitHub, redeploy Vercel, and verify the production `/login` route.
 - [x] Repair the managed root deployment startup contract so it does not require a missing `dist/index.js` artifact.
+- [ ] Promote the approved first registered Firebase account to the administrator role and verify live access.
+- [x] Promote the approved first registered Firebase account to the administrator role and verify live access.
+- [x] Verify the live Student Website with a real Firebase student account and confirm student-only portal access.
+- [x] Verify the live Admin Website blocks a non-administrator account after Firebase activation.
+- [x] Record the exact live authentication verification outcomes before final production verification is considered complete.
+- [x] Integrate the supplied Teza Tech Lab SVG logo into the Student Website and Admin Website branding surfaces.
