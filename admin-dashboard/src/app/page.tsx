@@ -1,6 +1,5 @@
-import { AdminShell } from "@/components/admin-shell";
-import { AdminAuthGate } from "@/components/admin-auth-gate";
+import { AdminPage } from "@/components/admin-page";
 
 export default function AdminHome() {
-  return <AdminAuthGate><AdminShell /></AdminAuthGate>;
+  return <AdminPage />;
 }

@@ -4,7 +4,7 @@ import { Bell, BookOpen, CalendarDays, ClipboardCheck, Users } from "lucide-reac
 export function ModuleInsight({ section, records }: { section: ManagementSection; records: OfflineItem[] }) {
   const content = {
     students: { icon: Users, title: "Student directory", body: "Profiles capture identity, contact information, student ID, photo, and activation status.", metric: `${records.filter(item => item.status === "Active").length} active` },
-    announcements: { icon: Bell, title: "Banner publishing", body: "Published notices are ordered banners on the Flutter student home screen.", metric: `${records.filter(item => item.status === "Published").length} published` },
+    announcements: { icon: Bell, title: "Banner publishing", body: "Published notices appear as ordered banners on the Student Website home page.", metric: `${records.filter(item => item.status === "Published").length} published` },
     lessons: { icon: BookOpen, title: "Learning resources", body: "Each lesson supports thumbnail, Telegram, video, and PDF links for students.", metric: `${records.filter(item => item.status === "Published").length} live lessons` },
     quizzes: { icon: ClipboardCheck, title: "Assessment studio", body: "Open a quiz to manage multiple-choice questions and review trusted attempt results.", metric: `${records.length} assessments` },
     attendance: { icon: CalendarDays, title: "Daily attendance", body: "Record only Present, Absent, Late, or Excused, with an optional student note.", metric: `${records.length} records` },

@@ -9,10 +9,10 @@ service cloud.firestore {
     function isPublished() { return resource.data.isPublished == true; }
     function hasBatchFields(data) { return data.courseId is string && data.batchId is string; }
     function isBatchMember(courseId, batchId) {
-      return signedIn() && exists(/databases/$(database)/documents/courses/$(courseId)/batches/$(batchId)/enrollments/$(request.auth.uid));
+      return signedIn() && exists(/databases/$(database)/documents/enrollments/$(courseId + '_' + batchId + '_' + request.auth.uid));
     }
     function isActiveBatchMember(courseId, batchId) {
-      return isBatchMember(courseId, batchId) && get(/databases/$(database)/documents/courses/$(courseId)/batches/$(batchId)/enrollments/$(request.auth.uid)).data.status == 'active';
+      return isBatchMember(courseId, batchId) && get(/databases/$(database)/documents/enrollments/$(courseId + '_' + batchId + '_' + request.auth.uid)).data.status == 'active';
     }
     function canReadBatchContent() {
       return hasBatchFields(resource.data) && isActiveBatchMember(resource.data.courseId, resource.data.batchId);
@@ -44,23 +44,30 @@ service cloud.firestore {
       allow read: if isAdmin() || (signedIn() && resource.data.enrolledStudentIds.hasAny([request.auth.uid]));
       allow create, update, delete: if isAdmin();
 
-      match /batches/{batchId} {
-        allow read: if isAdmin() || isBatchMember(courseId, batchId);
-        allow create, update, delete: if isAdmin();
+    }
 
-        match /enrollments/{studentId} {
-          allow read: if isAdmin() || (isOwner(studentId) && isBatchMember(courseId, batchId));
-          allow create, update, delete: if isAdmin() &&
-            request.resource.data.studentId == studentId &&
-            request.resource.data.courseId == courseId &&
-            request.resource.data.batchId == batchId;
-        }
-      }
+    // Batches are shared entities. `courseIds` makes the course-to-batch relationship many-to-many.
+    match /batches/{batchId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.enrolledStudentIds.hasAny([request.auth.uid]));
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if isAdmin() || (isOwner(resource.data.studentId) && isBatchMember(resource.data.courseId, resource.data.batchId));
+      allow create, update, delete: if isAdmin() &&
+        request.resource.data.studentId is string &&
+        request.resource.data.courseId is string &&
+        request.resource.data.batchId is string;
     }
 
     match /announcements/{announcementId} {
       allow read: if isAdmin() || (isPublished() && canReadBatchContent());
       allow create, update, delete: if isAdmin();
+    }
+
+    // Legacy profile records managed by the admin workspace; live accounts live under /users.
+    match /students/{recordId} {
+      allow read, write: if isAdmin();
     }
 
     match /lessons/{lessonId} {

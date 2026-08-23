@@ -1,5 +1,5 @@
-export type Announcement = { id: string; title: string; description: string; accent: string; publishedAt: string };
-export type Lesson = { id: string; title: string; description: string; module: string; duration: string; status: "new" | "complete" | "continue" };
+export type Announcement = { id: string; title: string; description: string; accent: string; publishedAt: string; bannerUrl?: string; linkUrl?: string };
+export type Lesson = { id: string; title: string; description: string; module: string; duration: string; status: "new" | "complete" | "continue"; thumbnailUrl?: string; telegramUrl?: string; videoUrl?: string; pdfUrl?: string };
 export type AttendanceStatus = "Present" | "Absent" | "Late" | "Excused";
 
 export const studentQueryKeys = {

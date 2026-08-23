@@ -11,7 +11,7 @@ type Section = "overview" | "students" | "announcements" | "lessons" | "quizzes"
 
 const meta: Record<ManagementSection, { icon: typeof Users; hint: string }> = {
   students: { icon: Users, hint: "Create student profiles, update access status, or remove a profile." },
-  announcements: { icon: Bell, hint: "Create and publish banner updates for the student home screen." },
+  announcements: { icon: Bell, hint: "Create and publish banner updates for the Student Website home page." },
   lessons: { icon: BookOpen, hint: "Manage lesson titles, resource notes, and publication state." },
   quizzes: { icon: ClipboardCheck, hint: "Create quiz records now, then add Firebase-backed questions after connection." },
   attendance: { icon: CalendarDays, hint: "Record attendance using Present, Absent, Late, or Excused." },
@@ -22,8 +22,9 @@ export function OfflineWorkspace({ section, records, onAction, onNavigate, onEdi
   if (section === "settings") return <><SettingsCard /><AdminPasswordResetPanel /></>;
   const current = records[section];
   const { icon: Icon, hint } = meta[section];
+  if (section === "students") return <><ModuleInsight section={section} records={current} /><ModuleRecordView section={section} records={current} onCreate={onAction} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} /></>;
   if (!current.length) return <><ModuleInsight section={section} records={current} /><div className="grid min-h-72 place-items-center rounded-3xl border border-dashed border-stone-300 bg-white/70 p-8 text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-800"><Icon size={20} /></span><h3 className="mt-4 font-display text-xl font-semibold">Nothing here yet</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-500">{hint}</p><button onClick={onAction} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><Plus size={15} />Create record</button></div></div></>;
-  return <><ModuleInsight section={section} records={current} /><ModuleRecordView section={section} records={current} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} /></>;
+  return <><ModuleInsight section={section} records={current} /><ModuleRecordView section={section} records={current} onCreate={onAction} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} /></>;
 }
 
 function Overview({ records, onNavigate }: { records: OfflineRecords; onNavigate: Dispatch<SetStateAction<Section>> }) { const cards: Array<{ key: ManagementSection; label: string; icon: typeof Users }> = [{ key: "students", label: "Students", icon: Users }, { key: "lessons", label: "Lessons", icon: BookOpen }, { key: "quizzes", label: "Quizzes", icon: ClipboardCheck }, { key: "announcements", label: "Announcements", icon: Bell }]; return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(card => <button key={card.key} onClick={() => onNavigate(card.key)} className="rounded-3xl border border-stone-200/80 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><span className="grid size-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-800"><card.icon size={18} /></span><p className="mt-7 font-display text-3xl font-semibold">{records[card.key].length}</p><p className="mt-1 text-sm font-bold text-stone-700">{card.label}</p><p className="mt-1 text-xs text-stone-400">Offline-ready records</p></button>)}</div>; }

@@ -9,19 +9,29 @@ import { useEffect, useState } from "react";
 
 type AccessState = "checking" | "allowed" | "denied";
 
+// Each dashboard route renders its own page component. Keep the result of the
+// initial auth check while moving between those routes so navigation does not
+// briefly replace the entire workspace with a loading screen.
+let cachedAccess: Exclude<AccessState, "checking"> | null = null;
+
 export function AdminAuthGate({ children }: { children: React.ReactNode }) {
-  const [access, setAccess] = useState<AccessState>(hasFirebaseConfiguration ? "checking" : "allowed");
+  const [access, setAccess] = useState<AccessState>(
+    cachedAccess ?? (hasFirebaseConfiguration ? "checking" : "allowed")
+  );
 
   useEffect(() => {
     if (!hasFirebaseConfiguration) return;
     const { auth, db } = getFirebaseClient();
     const unsubscribe = onAuthStateChanged(auth, async user => {
       if (!user) {
+        cachedAccess = "denied";
         setAccess("denied");
         return;
       }
       const profile = await getDoc(doc(db, "users", user.uid));
-      setAccess(profile.data()?.role === "admin" ? "allowed" : "denied");
+      const nextAccess = profile.data()?.role === "admin" ? "allowed" : "denied";
+      cachedAccess = nextAccess;
+      setAccess(nextAccess);
     });
     return unsubscribe;
   }, []);

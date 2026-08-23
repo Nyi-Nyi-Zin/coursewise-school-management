@@ -7,7 +7,9 @@ import { emptyOfflineRecords, type ManagementSection, type OfflineItem, type Off
 import { adminRecordQueryKey, adminSections, mergeAdminRecordDelete, mergeAdminRecordSave } from "./admin-records-query";
 
 async function loadAllAdminRecords(): Promise<OfflineRecords> {
-  const entries = await Promise.all(adminSections.map(async section => [section, await loadFirebaseAdminRecords(section)] as const));
+  const entries = await Promise.all(adminSections.map(async section => {
+    return [section, await loadFirebaseAdminRecords(section)] as const;
+  }));
   return Object.fromEntries(entries) as OfflineRecords;
 }
 
@@ -31,7 +33,7 @@ export function rollbackAdminRecords(queryClient: QueryClient, previous: Offline
 
 export function useAdminRecords() {
   const queryClient = useQueryClient();
-  const recordsQuery = useQuery({ queryKey: adminRecordQueryKey, queryFn: loadAllAdminRecords, enabled: hasFirebaseConfiguration, initialData: emptyOfflineRecords });
+  const recordsQuery = useQuery({ queryKey: adminRecordQueryKey, queryFn: loadAllAdminRecords, enabled: hasFirebaseConfiguration });
   const saveMutation = useMutation({
     mutationFn: async ({ section, item }: { section: ManagementSection; item: OfflineItem }) => {
       if (hasFirebaseConfiguration) await saveFirebaseAdminRecord(section, item);

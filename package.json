@@ -20,8 +20,7 @@
     "student:web:dev": "pnpm --filter student-website exec next dev",
     "student:web:build": "pnpm --filter student-website run build",
     "build:admin:static": "pnpm --filter admin-dashboard run build && rm -rf dist/public && mkdir -p dist && cp -R admin-dashboard/out dist/public && cp scripts/static-server.mjs dist/index.js",
-    "build:student:static": "pnpm --filter student-website run build && rm -rf dist/public && mkdir -p dist && cp -R student-website/out dist/public",
-    "student:analyze": "cd student-app && flutter analyze"
+    "build:student:static": "pnpm --filter student-website run build && rm -rf dist/public && mkdir -p dist && cp -R student-website/out dist/public"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

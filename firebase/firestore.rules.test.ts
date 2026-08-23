@@ -15,8 +15,10 @@ async function seedBatchIsolationFixture() {
       setDoc(doc(db, "users", "student-a"), { role: "student" }),
       setDoc(doc(db, "users", "student-b"), { role: "student" }),
       setDoc(doc(db, "courses", "course-1"), { title: "Web Engineering", enrolledStudentIds: ["student-a", "student-b"] }),
-      setDoc(doc(db, "courses/course-1/batches/batch-a/enrollments/student-a"), { studentId: "student-a", courseId: "course-1", batchId: "batch-a", status: "active" }),
-      setDoc(doc(db, "courses/course-1/batches/batch-b/enrollments/student-b"), { studentId: "student-b", courseId: "course-1", batchId: "batch-b", status: "active" }),
+      setDoc(doc(db, "batches", "batch-a"), { name: "Batch A", courseIds: ["course-1"], enrolledStudentIds: ["student-a"] }),
+      setDoc(doc(db, "batches", "batch-b"), { name: "Batch B", courseIds: ["course-1"], enrolledStudentIds: ["student-b"] }),
+      setDoc(doc(db, "enrollments", "course-1_batch-a_student-a"), { studentId: "student-a", courseId: "course-1", batchId: "batch-a", status: "active" }),
+      setDoc(doc(db, "enrollments", "course-1_batch-b_student-b"), { studentId: "student-b", courseId: "course-1", batchId: "batch-b", status: "active" }),
       setDoc(doc(db, "lessons", "lesson-a"), { title: "Batch A lesson", courseId: "course-1", batchId: "batch-a", isPublished: true }),
       setDoc(doc(db, "lessons", "lesson-b"), { title: "Batch B lesson", courseId: "course-1", batchId: "batch-b", isPublished: true }),
       setDoc(doc(db, "quizAttempts", "attempt-a"), { studentId: "student-a", courseId: "course-1", batchId: "batch-a", score: 92 }),
@@ -43,7 +45,7 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     await assertSucceeds(getDoc(doc(studentA, "courses", "course-1")));
     await assertSucceeds(getDoc(doc(studentA, "lessons", "lesson-a")));
     await assertFails(getDoc(doc(studentA, "lessons", "lesson-b")));
-    await assertFails(getDoc(doc(studentA, "courses/course-1/batches/batch-b/enrollments/student-b")));
+    await assertFails(getDoc(doc(studentA, "enrollments", "course-1_batch-b_student-b")));
     await assertSucceeds(getDoc(doc(studentA, "quizzes/quiz-a/questions/question-a")));
     await assertFails(getDoc(doc(studentA, "quizzes/quiz-a/answerKeys/question-a")));
   });

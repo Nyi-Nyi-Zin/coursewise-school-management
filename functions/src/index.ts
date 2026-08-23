@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
@@ -9,7 +10,7 @@ initializeApp();
 type SubmittedAnswer = { questionId: string; selectedAnswerIndex: number };
 
 async function assertBatchEnrollment(studentId: string, courseId: string, batchId: string) {
-  const enrollment = await getFirestore().doc(`courses/${courseId}/batches/${batchId}/enrollments/${studentId}`).get();
+  const enrollment = await getFirestore().doc(`enrollments/${courseId}_${batchId}_${studentId}`).get();
   if (!enrollment.exists || enrollment.data()?.status !== 'active') {
     throw new HttpsError('permission-denied', 'You are not enrolled in this course batch.');
   }
@@ -58,6 +59,41 @@ export const submitQuizAttempt = onCall(async request => {
   });
 
   return { id: attempt.id, ...result };
+});
+
+export const adminCreateStudentAccount = onCall(async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in before creating a student account.');
+  await assertAdmin(request.auth.uid);
+
+  const name = String(request.data?.name ?? '').trim();
+  const email = String(request.data?.email ?? '').trim().toLowerCase();
+  const studentId = String(request.data?.studentId ?? '').trim();
+  if (!name || !email.includes('@') || !studentId) {
+    throw new HttpsError('invalid-argument', 'A student name, email address, and student ID are required.');
+  }
+
+  const auth = getAuth();
+  try {
+    const user = await auth.createUser({ email, password: randomBytes(18).toString('base64url'), displayName: name });
+    await getFirestore().collection('users').doc(user.uid).set({
+      name,
+      email,
+      role: 'student',
+      studentId,
+      isActive: true,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    const resetLink = await auth.generatePasswordResetLink(email);
+    return { uid: user.uid, resetLink };
+  } catch (error) {
+    if (typeof error === 'object' && error && 'errorInfo' in error) {
+      const code = (error as { errorInfo?: { code?: string } }).errorInfo?.code ?? '';
+      if (code.includes('email-already-exists')) throw new HttpsError('already-exists', 'An account with this email already exists.');
+      if (code.includes('invalid-email')) throw new HttpsError('invalid-argument', 'The email address is not valid.');
+    }
+    throw new HttpsError('internal', 'Could not create the student account.');
+  }
 });
 
 export const adminCreatePasswordResetLink = onCall(async request => {

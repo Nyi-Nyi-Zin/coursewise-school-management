@@ -1,6 +1,6 @@
 # Teza Tech Lab Firebase Production Handoff
 
-Teza Tech Lab’s active products are the **Student Website** in `student-website/` and the **Admin Website** in `admin-dashboard/`. Both are deployed independently on Vercel and must use the **same Firebase project**. The earlier Flutter source in `student-app/` is retained only as an archived reference and is not part of the live product or Firebase activation path.
+Teza Tech Lab’s active products are the **Student Website** in `student-website/` and the **Admin Website** in `admin-dashboard/`. Both are deployed independently on Vercel and must use the **same Firebase project**. The earlier Flutter source in `student-app/` has been removed from the repository.
 
 > **Current state:** both Vercel websites are publicly deployed in **demo-safe mode**. They will not initialize Firebase until the complete public web configuration is supplied and `NEXT_PUBLIC_ENABLE_FIREBASE` is set to `true`.
 
