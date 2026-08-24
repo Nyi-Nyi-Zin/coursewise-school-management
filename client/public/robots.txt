@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /student/
+Disallow: /login/
+Disallow: /register/
+Disallow: /account/
+Disallow: /dashboard/
+Sitemap: https://schoolcms-luralw9t.manus.space/sitemap.xml

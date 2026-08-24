@@ -11,6 +11,11 @@ const mono = DM_Mono({ variable: "--font-course-mono", weight: ["400", "500"], s
 export const metadata: Metadata = {
   title: "Teza Tech Lab | Admin",
   description: "Teza Tech Lab school and course management workspace.",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false },
+  },
   icons: {
     icon: "/teza-tech-lab-logo.svg",
   },

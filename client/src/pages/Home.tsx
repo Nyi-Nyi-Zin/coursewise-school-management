@@ -79,6 +79,20 @@ const adminMenu: DashboardNavItem[] = [
 
 const ROOT_DOCUMENT_TITLE = "Teza Tech Lab | Student Learning Management Platform";
 
+function PrivateRouteSeo() {
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="robots"]') ?? document.head.appendChild(document.createElement("meta"));
+    meta.setAttribute("name", "robots");
+    const previous = meta.getAttribute("content");
+    meta.setAttribute("content", "noindex, nofollow");
+    return () => {
+      if (previous) meta.setAttribute("content", previous);
+      else meta.remove();
+    };
+  }, []);
+  return null;
+}
+
 function formatDate(value?: Date | string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en", {
@@ -351,7 +365,7 @@ export default function Home() {
           </span>
           <span>
             <span className="font-display block text-base font-semibold tracking-tight">
-              Coursewise
+              Teza Tech Lab
             </span>
             <span className="block text-[10px] font-semibold uppercase tracking-[.2em] text-stone-400">
               Learning management
@@ -384,14 +398,14 @@ export default function Home() {
             One shared space for learning
           </span>
           <h1 className="mt-6 font-display text-5xl font-semibold leading-[.98] tracking-[-.055em] text-emerald-950 sm:text-6xl">
-            A calmer way to run your{" "}
-            <em className="font-normal text-emerald-700">learning day.</em>
+            Student learning and course management, all{" "}
+            <em className="font-normal text-emerald-700">in one place.</em>
           </h1>
           <h2 className="mt-5 max-w-xl font-display text-2xl font-semibold tracking-tight text-emerald-900">
-            Student learning and course management platform
+            A secure portal for learning, teaching, and course management
           </h2>
           <p className="mt-6 max-w-xl text-base leading-8 text-stone-600">
-            Coursewise brings student progress, learning materials, assessment,
+            Teza Tech Lab brings student progress, learning materials, assessment,
             and attendance into one intentional space—designed for focused
             teaching and confident learning.
           </p>
@@ -502,9 +516,12 @@ function PreviewTile({
 
 export function AdminPortal() {
   return (
-    <RoleGate role="admin">
-      <AdminWorkspace />
-    </RoleGate>
+    <>
+      <PrivateRouteSeo />
+      <RoleGate role="admin">
+        <AdminWorkspace />
+      </RoleGate>
+    </>
   );
 }
 
@@ -517,7 +534,7 @@ function AdminWorkspace() {
   if (location === "/admin/quizzes") page = <QuizzesAdmin />;
   if (location === "/admin/attendance") page = <AttendanceAdmin />;
   return (
-    <DashboardLayout title="Coursewise Admin" menuItems={adminMenu}>
+      <DashboardLayout title="Teza Tech Lab Admin" menuItems={adminMenu}>
       {page}
     </DashboardLayout>
   );
@@ -2428,9 +2445,12 @@ function AttendancePill({
 
 export function StudentPortal() {
   return (
-    <RoleGate role="student">
-      <StudentWorkspace />
-    </RoleGate>
+    <>
+      <PrivateRouteSeo />
+      <RoleGate role="student">
+        <StudentWorkspace />
+      </RoleGate>
+    </>
   );
 }
 

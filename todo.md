@@ -153,3 +153,7 @@
 - [x] Configure the Admin Website development origin allowlist to remove the current cross-origin dev-resource warning.
 - [x] Implement and validate an append-only administrator audit trail for tracked client-side actions, with the client-trust limitation documented.
 - [x] Create, validate, and deliver a reusable SEO skill package derived from the supplied SEO PDF guide.
+- [x] Audit and classify all root, Student, and Admin routes as public indexable or private noindex surfaces.
+- [x] Add robots, sitemaps, canonical/social metadata, and validated public structured data for the SEO rollout.
+- [x] Add private-route noindex safeguards and SEO artifact tests, then build and validate the rollout for GitHub develop publication.
+- [x] Add a visible no-JavaScript semantic landing-page fallback so the generated root artifact includes aligned H1 and H2 content.

@@ -17,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Teza Tech Lab | Student Portal",
   description: "A focused learning portal for Teza Tech Lab students.",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false },
+  },
   icons: {
     icon: "/teza-tech-lab-logo.svg",
   },
