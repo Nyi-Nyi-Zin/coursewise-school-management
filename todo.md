@@ -143,3 +143,5 @@
 - [x] Extend Burmese/English localization across certificates, exports, analytics, and other remaining key flows.
 - [x] Add security and UI tests and validate security rules and both production builds for the remaining feature work.
 - [x] Publish the completed remaining feature set to the private GitHub develop branch without changing main.
+- [x] Add a 3-to-8 keyword meta tag, an H2 of 80 characters or fewer, and a 30-to-60 character runtime title to the root page on develop.
+- [ ] Add automated validation for the strict root-page SEO character and quantity limits, then publish the fix to GitHub develop only.

@@ -77,6 +77,8 @@ const adminMenu: DashboardNavItem[] = [
   { icon: CalendarDays, label: "Attendance", path: "/admin/attendance" },
 ];
 
+const ROOT_DOCUMENT_TITLE = "Teza Tech Lab | Student Learning Management Platform";
+
 function formatDate(value?: Date | string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en", {
@@ -333,6 +335,9 @@ function RoleGate({
 export default function Home() {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
+  useEffect(() => {
+    document.title = ROOT_DOCUMENT_TITLE;
+  }, []);
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f7f6f1] text-stone-900">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(circle_at_18%_20%,rgba(212,245,155,.8),transparent_29%),radial-gradient(circle_at_80%_15%,rgba(173,225,202,.55),transparent_25%)]" />
@@ -382,6 +387,9 @@ export default function Home() {
             A calmer way to run your{" "}
             <em className="font-normal text-emerald-700">learning day.</em>
           </h1>
+          <h2 className="mt-5 max-w-xl font-display text-2xl font-semibold tracking-tight text-emerald-900">
+            Student learning and course management platform
+          </h2>
           <p className="mt-6 max-w-xl text-base leading-8 text-stone-600">
             Coursewise brings student progress, learning materials, assessment,
             and attendance into one intentional space—designed for focused
