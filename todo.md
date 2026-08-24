@@ -145,3 +145,5 @@
 - [x] Publish the completed remaining feature set to the private GitHub develop branch without changing main.
 - [x] Add a 3-to-8 keyword meta tag, an H2 of 80 characters or fewer, and a 30-to-60 character runtime title to the root page on develop.
 - [x] Add automated validation for the strict root-page SEO character and quantity limits, then publish the fix to GitHub develop only.
+- [x] Create detailed Burmese SEO documentation covering technical SEO, content strategy, measurement, and release checklists for both Teza Tech Lab websites.
+- [x] Create a detailed universal Burmese SEO guide for any website type, using Teza Tech Lab only as a practical example.
