@@ -142,3 +142,4 @@
 - [x] Implement browser-notification permission readiness without deploying deferred callable functions or storing device tokens before secure delivery is available.
 - [x] Extend Burmese/English localization across certificates, exports, analytics, and other remaining key flows.
 - [x] Add security and UI tests and validate security rules and both production builds for the remaining feature work.
+- [x] Publish the completed remaining feature set to the private GitHub develop branch without changing main.
