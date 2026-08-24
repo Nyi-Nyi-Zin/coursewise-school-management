@@ -140,5 +140,21 @@ service cloud.firestore {
       allow read: if isAdmin() || canReadOwnBatchRecord();
       allow create, update, delete: if isAdmin();
     }
+
+    // Browser-originated activity events are append-only and actor-bound. They are
+    // useful operational evidence, but a trusted server boundary is still required
+    // for tamper-resistant compliance audit records.
+    match /adminAuditEvents/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() &&
+        request.resource.data.keys().hasOnly(['actorId', 'action', 'targetType', 'targetId', 'summary', 'source', 'createdAt']) &&
+        request.resource.data.actorId == request.auth.uid &&
+        request.resource.data.action is string && request.resource.data.action.size() <= 80 &&
+        request.resource.data.targetType is string && request.resource.data.targetType.size() <= 80 &&
+        request.resource.data.targetId is string && request.resource.data.targetId.size() <= 160 &&
+        request.resource.data.summary is string && request.resource.data.summary.size() <= 240 &&
+        request.resource.data.source == 'admin-web' && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
   }
 }

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 
 const describeWithEmulator = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 let testEnv: RulesTestEnvironment;
@@ -87,6 +87,20 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     const admin = testEnv.authenticatedContext("admin-1").firestore();
     await assertSucceeds(setDoc(doc(admin, "courses", "course-2"), { title: "Data Design", enrolledStudentIds: [] }));
     expect((await getDoc(doc(admin, "courses", "course-2"))).data()?.title).toBe("Data Design");
+  });
+
+  it("permits only actor-bound append-only administrator audit events", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => { await setDoc(doc(context.firestore(), "users", "admin-1"), { role: "admin" }); });
+    const admin = testEnv.authenticatedContext("admin-1").firestore();
+    const student = testEnv.authenticatedContext("student-a").firestore();
+    const event = { actorId: "admin-1", action: "record.saved", targetType: "lessons", targetId: "lesson-a", summary: "lessons: Batch A lesson", source: "admin-web", createdAt: serverTimestamp() };
+    const eventRef = doc(admin, "adminAuditEvents", "event-a");
+    await assertSucceeds(setDoc(eventRef, event));
+    await assertSucceeds(getDoc(eventRef));
+    await assertFails(setDoc(doc(student, "adminAuditEvents", "event-b"), { ...event, actorId: "student-a" }));
+    await assertFails(setDoc(doc(admin, "adminAuditEvents", "event-c"), { ...event, actorId: "someone-else" }));
+    await assertFails(updateDoc(eventRef, { summary: "changed" }));
+    await assertFails(deleteDoc(eventRef));
   });
 
   it("allows a signed-in user to create only their own initial student profile", async () => {

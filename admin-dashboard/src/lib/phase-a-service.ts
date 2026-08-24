@@ -1,6 +1,7 @@
 import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, setDoc, where } from "firebase/firestore";
 import { clampScore, gradeCategories, type GradeCategory, type GradeRecord, type PortalNotificationKind } from "../../../shared/phase-a-contracts";
 import { getFirebaseClient } from "./firebase";
+import { recordAdminAuditEvent } from "./audit-service";
 
 export type GradeDraft = Omit<GradeRecord, "id" | "updatedAt">;
 export type NotificationDraft = {
@@ -35,9 +36,11 @@ export async function saveGradeRecord(draft: GradeDraft, recordId?: string) {
   };
   if (recordId) {
     await setDoc(doc(db, "gradeRecords", recordId), payload, { merge: true });
+    await recordAdminAuditEvent({ action: "grade.saved", targetType: "gradeRecord", targetId: recordId, summary: `Grade updated: ${payload.title}` });
     return recordId;
   }
   const created = await addDoc(collection(db, "gradeRecords"), { ...payload, createdAt: serverTimestamp() });
+  await recordAdminAuditEvent({ action: "grade.created", targetType: "gradeRecord", targetId: created.id, summary: `Grade created: ${payload.title}` });
   return created.id;
 }
 
@@ -56,6 +59,7 @@ export async function sendInAppNotifications(draft: NotificationDraft) {
     isRead: false,
     createdAt: serverTimestamp(),
   })));
+  await recordAdminAuditEvent({ action: "notification.sent", targetType: "notification", targetId: draft.batchId, summary: `Sent ${draft.recipientIds.length} in-app notification(s): ${draft.title.trim()}` });
 }
 
 function gradeRecord(id: string, data: Record<string, unknown>): GradeRecord {

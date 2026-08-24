@@ -1,17 +1,20 @@
 import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { getFirebaseClient } from './firebase';
+import { recordAdminAuditEvent } from './audit-service';
 import type { ManagementSection, OfflineItem } from './offline-records';
 
 export async function saveFirebaseAdminRecord(section: ManagementSection, item: OfflineItem) {
   const { db } = getFirebaseClient();
   const target = doc(db, collectionName(section), item.id);
   await setDoc(target, { ...firebaseData(section, item), updatedAt: serverTimestamp() }, { merge: true });
+  await recordAdminAuditEvent({ action: "record.saved", targetType: section, targetId: item.id, summary: `${section}: ${item.title}` });
 }
 
 export async function deleteFirebaseAdminRecord(section: ManagementSection, id: string) {
   const { db } = getFirebaseClient();
   await deleteDoc(doc(db, collectionName(section), id));
+  await recordAdminAuditEvent({ action: "record.deleted", targetType: section, targetId: id, summary: `${section} record deleted` });
 }
 
 export async function loadFirebaseAdminRecords(section: ManagementSection): Promise<OfflineItem[]> {
