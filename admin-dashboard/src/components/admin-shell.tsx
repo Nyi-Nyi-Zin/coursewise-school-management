@@ -19,6 +19,10 @@ import {
   ClipboardCheck,
   CloudCog,
   GraduationCap,
+  Award,
+  FileSpreadsheet,
+  ChartNoAxesCombined,
+  ShieldAlert,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -40,7 +44,11 @@ import { createStudentAccount } from "@/lib/admin-student-account-service";
 
 import { CourseBatchManager } from "@/components/course-batch-manager";
 import { GradebookPanel, NotificationPanel } from "@/components/phase-a-admin-panels";
+import { CertificatePanel } from "@/components/certificate-panel";
+import { ReportsPanel } from "@/components/reports-panel";
+import { AnalyticsPanel, AuditLogPanel } from "@/components/analytics-panels";
 import { PreferenceControls, usePortalPreferences } from "../../../shared/portal-preferences";
+import { PwaInstallControl } from "../../../shared/pwa-install";
 import type { PortalTextKey } from "../../../shared/portal-i18n";
 
 type Section =
@@ -54,9 +62,13 @@ type Section =
   | "attendance"
   | "grades"
   | "notifications"
+  | "certificates"
+  | "reports"
+  | "analytics"
+  | "audit"
   | "settings";
 const navTextKeys: Record<Section, PortalTextKey> = {
-  overview: "overview", courses: "courses", students: "students", announcements: "announcements", lessons: "lessons", assignments: "assignments", quizzes: "quizzes", attendance: "attendance", grades: "gradebook", notifications: "notifications", settings: "settings",
+  overview: "overview", courses: "courses", students: "students", announcements: "announcements", lessons: "lessons", assignments: "assignments", quizzes: "quizzes", attendance: "attendance", grades: "gradebook", notifications: "notifications", certificates: "certificates", reports: "reports", analytics: "analytics", audit: "audit", settings: "settings",
 };
 function isRecordSection(section: Section): section is ManagementSection {
   return [
@@ -80,6 +92,10 @@ const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "attendance", label: "Attendance", icon: CalendarDays },
   { id: "grades", label: "Gradebook", icon: GraduationCap },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "certificates", label: "Certificates", icon: Award },
+  { id: "reports", label: "Reports", icon: FileSpreadsheet },
+  { id: "analytics", label: "Analytics", icon: ChartNoAxesCombined },
+  { id: "audit", label: "Audit log", icon: ShieldAlert },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -94,6 +110,10 @@ const sectionPaths: Record<Section, string> = {
   attendance: "/attendance",
   grades: "/grades",
   notifications: "/notifications",
+  certificates: "/certificates",
+  reports: "/reports",
+  analytics: "/analytics",
+  audit: "/audit",
   settings: "/settings",
 };
 
@@ -158,6 +178,26 @@ const headings: Record<
     eyebrow: "Student communications",
     title: "Notifications",
     description: "Deliver private in-app notices to the currently selected batch without browser-push setup.",
+  },
+  certificates: {
+    eyebrow: "Verified learning records",
+    title: "Certificates",
+    description: "Issue, print, and revoke private course completion certificates for the selected batch.",
+  },
+  reports: {
+    eyebrow: "Operational visibility",
+    title: "Reports",
+    description: "Download scoped gradebook, attendance, and certificate reports as CSV, Excel, or printable PDF.",
+  },
+  analytics: {
+    eyebrow: "Operational visibility",
+    title: "Analytics",
+    description: "Review live Firestore data growth without creating sample activity or hidden tracking records.",
+  },
+  audit: {
+    eyebrow: "System evidence",
+    title: "Audit log",
+    description: "Review the trusted audit-log deployment status and integrity requirements.",
   },
   settings: {
     eyebrow: "Configuration",
@@ -350,6 +390,7 @@ export function AdminShell() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <PreferenceControls compact />
+            <PwaInstallControl compact />
             <span
               className={`hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex ${hasFirebaseConfiguration ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}
             >
@@ -385,6 +426,14 @@ export function AdminShell() {
             <GradebookPanel />
           ) : section === "notifications" ? (
             <NotificationPanel />
+          ) : section === "certificates" ? (
+            <CertificatePanel />
+          ) : section === "reports" ? (
+            <ReportsPanel />
+          ) : section === "analytics" ? (
+            <AnalyticsPanel />
+          ) : section === "audit" ? (
+            <AuditLogPanel />
           ) : (
             <>
               {(section === "quizzes" || section === "attendance") && (
@@ -394,13 +443,13 @@ export function AdminShell() {
                 />
               )}
               <OfflineWorkspace
-                section={section as Exclude<Section, "courses" | "grades" | "notifications">}
+                section={section as Exclude<Section, "courses" | "grades" | "notifications" | "certificates" | "reports" | "analytics" | "audit">}
                 records={visibleRecords}
                 onAction={openCreate}
                 onNavigate={next =>
                   navigate(current =>
                     typeof next === "function"
-                      ? next(current as Exclude<Section, "courses" | "grades" | "notifications">)
+                      ? next(current as Exclude<Section, "courses" | "grades" | "notifications" | "certificates" | "reports" | "analytics" | "audit">)
                       : next
                   )
                 }

@@ -1,0 +1,9 @@
+{
+  "name": "Teza Tech Lab Student Portal",
+  "short_name": "Teza Student",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#081522",
+  "theme_color": "#0ea5e9",
+  "icons": [{ "src": "/teza-tech-lab-logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

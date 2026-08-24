@@ -1,0 +1,15 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { Award, Download, ShieldCheck } from "lucide-react";
+import { useStudentAuth } from "@/components/student-auth-provider";
+import { useStudentCourse } from "@/components/student-course-provider";
+import { getStudentCertificates } from "@/lib/certificate-student-service";
+import { printCertificate } from "../../../../../shared/certificate-print";
+
+export default function CertificatesPage() {
+  const { user } = useStudentAuth();
+  const { enrollment } = useStudentCourse();
+  const certificates = useQuery({ queryKey: ["student", "certificates", user?.uid, enrollment?.courseId, enrollment?.batchId], queryFn: () => getStudentCertificates(user!.uid, enrollment!.courseId, enrollment!.batchId), enabled: Boolean(user?.uid && enrollment) });
+  return <div className="space-y-6"><section className="rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8"><p className="flex items-center gap-2 text-sm font-semibold text-sky-300"><Award className="size-4" />Your verified learning records</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-white">Certificates</h1><p className="mt-3 max-w-2xl leading-7 text-slate-400">Your active course certificates are private to you and authorized administrators. Download uses your browser&apos;s Save as PDF option.</p></section><section className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">{certificates.isLoading ? <p className="p-6 text-sm text-slate-400">Loading your certificates…</p> : certificates.data?.map(certificate => <article key={certificate.id} className="flex flex-col gap-4 border-b border-slate-800 p-6 last:border-0 sm:flex-row sm:items-center sm:justify-between"><div><p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-sky-300"><ShieldCheck className="size-4" />{certificate.status === "issued" ? "Verified certificate" : "Revoked certificate"}</p><h2 className="mt-2 text-xl font-semibold text-white">{certificate.courseTitle}</h2><p className="mt-1 text-sm text-slate-400">Certificate {certificate.certificateNumber} · Completion {certificate.completionPercent}%</p><p className="mt-1 text-xs text-slate-500">Verification code: {certificate.verificationCode || "Pending"}</p>{certificate.status === "revoked" ? <p className="mt-3 text-sm font-semibold text-red-300">This certificate has been revoked. {certificate.revokeReason || "Contact your administrator for details."}</p> : null}</div>{certificate.status === "issued" ? <button onClick={() => printCertificate(certificate)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-bold text-slate-950"><Download className="size-4" />Print / PDF</button> : null}</article>)}{!certificates.isLoading && !certificates.data?.length ? <div className="p-10 text-center"><Award className="mx-auto size-8 text-slate-600" /><p className="mt-3 font-semibold text-slate-200">No certificates issued yet</p><p className="mt-1 text-sm text-slate-500">Your verified certificates will appear here once your administrator issues them.</p></div> : null}</section></div>;
+}

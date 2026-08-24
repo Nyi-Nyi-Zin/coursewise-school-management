@@ -1,0 +1,27 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { Activity, BarChart3, Database, FileWarning, LineChart, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import { loadAnalyticsSnapshot } from "@/lib/analytics-service";
+
+const records = [
+  { key: "grades", label: "Grade records", color: "bg-emerald-500" },
+  { key: "attendance", label: "Attendance records", color: "bg-sky-500" },
+  { key: "submissions", label: "Assignment submissions", color: "bg-violet-500" },
+  { key: "quizAttempts", label: "Quiz attempts", color: "bg-amber-500" },
+  { key: "certificates", label: "Certificates", color: "bg-rose-500" },
+  { key: "notifications", label: "Notifications", color: "bg-cyan-500" },
+] as const;
+
+export function AnalyticsPanel() {
+  const analytics = useQuery({ queryKey: ["analytics", "snapshot"], queryFn: loadAnalyticsSnapshot });
+  const snapshot = analytics.data;
+  const high = Math.max(1, ...(snapshot ? records.map(record => snapshot[record.key]) : [1]));
+  return <div className="space-y-5"><section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55"><LineChart size={14} />Live operational visibility</p><h3 className="mt-1 font-display text-2xl font-semibold">Analytics & data growth</h3><p className="mt-1 max-w-2xl text-sm text-stone-500">Counts are read directly from the current Firebase project. No sample metrics or fabricated activity are displayed.</p></div><button onClick={() => void analytics.refetch()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-bold text-stone-700"><RefreshCw size={15} className={analytics.isFetching ? "animate-spin" : ""} />Refresh</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={<Users size={17} />} label="Student profiles" value={snapshot?.students} /><Metric icon={<BarChart3 size={17} />} label="Courses / batches" value={snapshot ? `${snapshot.courses} / ${snapshot.batches}` : undefined} /><Metric icon={<Activity size={17} />} label="Learning records" value={snapshot ? snapshot.grades + snapshot.attendance + snapshot.submissions + snapshot.quizAttempts : undefined} /><Metric icon={<Database size={17} />} label="Tracked documents" value={snapshot ? records.reduce((total, item) => total + snapshot[item.key], 0) : undefined} /></div></section><section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm"><h4 className="font-display text-xl font-semibold">Data growth by record type</h4><p className="mt-1 text-sm text-stone-500">A direct chart of current Firestore document counts.</p><div className="mt-6 space-y-4">{records.map(record => { const value = snapshot?.[record.key] ?? 0; return <div key={record.key} className="grid gap-2 sm:grid-cols-[11rem_1fr_auto] sm:items-center"><span className="text-sm font-medium text-stone-700">{record.label}</span><div className="h-3 overflow-hidden rounded-full bg-stone-100"><div className={`h-full rounded-full ${record.color}`} style={{ width: `${Math.max(value ? 5 : 0, Math.round((value / high) * 100))}%` }} /></div><span className="text-sm font-bold text-stone-800">{value}</span></div>; })}</div></section></div>;
+}
+
+export function AuditLogPanel() {
+  return <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm"><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-amber-800"><ShieldAlert size={14} />Trusted system evidence</p><h3 className="mt-2 font-display text-2xl font-semibold text-amber-950">Audit logs require a trusted server boundary</h3><p className="mt-3 max-w-3xl text-sm leading-6 text-amber-900">The platform does not write audit records directly from browser clients because a client-created log can be altered by an administrator. A tamper-resistant audit trail will be enabled only with the deferred Cloud Functions deployment, where the server can append immutable activity events for certificate issuance, grade changes, account changes, and notification delivery.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-amber-200 bg-white/70 p-4"><FileWarning className="text-amber-700" size={19} /><p className="mt-3 text-sm font-bold text-amber-950">Current status</p><p className="mt-1 text-sm leading-6 text-amber-800">Client-side audit writes are intentionally disabled to preserve evidence integrity.</p></div><div className="rounded-2xl border border-amber-200 bg-white/70 p-4"><Database className="text-amber-700" size={19} /><p className="mt-3 text-sm font-bold text-amber-950">Deployment prerequisite</p><p className="mt-1 text-sm leading-6 text-amber-800">Enable the approved billing plan, then deploy the protected callable/trigger workflow on a future release.</p></div></div></section>;
+}
+
+function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string | number }) { return <div className="rounded-2xl bg-stone-50 p-4"><span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-800">{icon}</span><p className="mt-4 text-2xl font-bold text-stone-900">{value ?? "—"}</p><p className="mt-1 text-xs font-semibold text-stone-500">{label}</p></div>; }

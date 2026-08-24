@@ -132,3 +132,13 @@
 - [x] Apply comprehensive dark/light theme tokens and component styling across both websites, then verify the preference switch with coverage.
 - [x] Add tests, validate both website builds, and publish Phase A commits to the GitHub develop branch.
 - [ ] Keep all future code changes and GitHub publications on develop until an explicit user-approved merge to main.
+- [x] Define secure Firestore contracts and navigation for certificates, exports, audit-log readiness, analytics, PWA, browser notifications, and remaining localization.
+- [x] Implement certificate issuance, student certificate access, and printable PDF certificate downloads.
+- [x] Implement Admin PDF, Excel, and CSV report exports for scoped course and batch data.
+- [ ] Implement administrator audit logs, activity tracking, data-growth metrics, and line/bar chart analytics.
+- [x] Implement live Firestore analytics, data-growth metrics, and chart-based Admin visibility without fabricating activity data.
+- [x] Add an Admin audit-log deployment-status panel that preserves the decision to defer tamper-resistant audit-event writes until trusted Functions are approved.
+- [x] Implement PWA manifest, install experience, and offline learning caching across both portals.
+- [x] Implement browser-notification permission readiness without deploying deferred callable functions or storing device tokens before secure delivery is available.
+- [x] Extend Burmese/English localization across certificates, exports, analytics, and other remaining key flows.
+- [x] Add security and UI tests and validate security rules and both production builds for the remaining feature work.

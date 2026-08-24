@@ -135,5 +135,10 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt'])
       );
     }
+
+    match /certificates/{certificateId} {
+      allow read: if isAdmin() || canReadOwnBatchRecord();
+      allow create, update, delete: if isAdmin();
+    }
   }
 }

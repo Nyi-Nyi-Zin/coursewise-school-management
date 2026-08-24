@@ -20,6 +20,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/teza-tech-lab-logo.svg",
   },
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = mobileResponsiveEnabled

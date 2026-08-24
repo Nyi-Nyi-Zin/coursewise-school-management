@@ -1,0 +1,13 @@
+import type { CertificateRecord } from "./phase-b-contracts";
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[character] ?? character));
+}
+
+export function printCertificate(record: CertificateRecord) {
+  const popup = window.open("", "_blank", "noopener,noreferrer,width=1120,height=790");
+  if (!popup) throw new Error("Your browser blocked the certificate window. Please allow pop-ups and try again.");
+  const issued = record.issuedAt ? new Date(record.issuedAt).toLocaleDateString() : new Date().toLocaleDateString();
+  popup.document.write(`<!doctype html><html><head><title>${escapeHtml(record.certificateNumber)}</title><style>body{margin:0;background:#edf6f3;font-family:Georgia,serif;color:#0f3f38}.sheet{box-sizing:border-box;width:297mm;min-height:210mm;margin:0 auto;padding:20mm;border:18px solid #143d36;outline:4px solid #b4dd9d;outline-offset:-28px;background:linear-gradient(135deg,#fff 0%,#f4fbf7 100%);text-align:center}.eyebrow{letter-spacing:.35em;font:700 12px Arial,sans-serif;color:#2f7768;text-transform:uppercase;margin-top:12mm}.brand{font:bold 30px Arial,sans-serif;margin-top:8mm}.title{font-size:54px;margin:16mm 0 5mm}.lead{font:18px Arial,sans-serif;color:#4d665f}.name{margin:10mm 0 7mm;font-size:42px;border-bottom:2px solid #b4dd9d;padding-bottom:5mm}.course{font-size:28px;margin:5mm 0}.meta{display:flex;justify-content:space-between;gap:12mm;margin-top:23mm;text-align:left;font:14px Arial,sans-serif;color:#406159}.meta strong{display:block;color:#143d36;margin-top:2mm}.seal{display:inline-grid;place-items:center;width:34mm;height:34mm;border-radius:50%;border:3px double #143d36;color:#143d36;font:bold 13px Arial,sans-serif;margin-top:13mm}@media print{body{background:#fff}.sheet{margin:0;box-shadow:none}}</style></head><body><main class="sheet"><p class="eyebrow">Teza Tech Lab · Certificate Registry</p><div class="brand">TEZA TECH LAB</div><h1 class="title">Certificate of Completion</h1><p class="lead">This is proudly presented to</p><div class="name">${escapeHtml(record.studentName)}</div><p class="lead">for successfully completing</p><div class="course">${escapeHtml(record.courseTitle)}</div><p class="lead">with a recorded completion result of <strong>${record.completionPercent}%</strong>.</p><div class="seal">VERIFIED<br/>LEARNING</div><section class="meta"><div>Certificate number<strong>${escapeHtml(record.certificateNumber)}</strong></div><div>Issued on<strong>${escapeHtml(issued)}</strong></div><div>Verification code<strong>${escapeHtml(record.verificationCode)}</strong></div></section></main><script>window.onload=()=>window.print();<\/script></body></html>`);
+  popup.document.close();
+}

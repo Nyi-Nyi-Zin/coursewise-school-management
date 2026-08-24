@@ -29,6 +29,8 @@ async function seedBatchIsolationFixture() {
       setDoc(doc(db, "gradeRecords", "grade-b"), { studentId: "student-b", courseId: "course-1", batchId: "batch-b", title: "Project", category: "Project", score: 17, maxScore: 20 }),
       setDoc(doc(db, "notifications", "notification-a"), { recipientId: "student-a", courseId: "course-1", batchId: "batch-a", title: "Grade updated", body: "Your project feedback is ready.", kind: "grade", isRead: false }),
       setDoc(doc(db, "notifications", "notification-b"), { recipientId: "student-b", courseId: "course-1", batchId: "batch-b", title: "Batch update", body: "Reminder.", kind: "general", isRead: false }),
+      setDoc(doc(db, "certificates", "certificate-a"), { studentId: "student-a", courseId: "course-1", batchId: "batch-a", certificateNumber: "TTL-2026-0001", status: "issued", completionPercent: 100 }),
+      setDoc(doc(db, "certificates", "certificate-b"), { studentId: "student-b", courseId: "course-1", batchId: "batch-b", certificateNumber: "TTL-2026-0002", status: "issued", completionPercent: 100 }),
       setDoc(doc(db, "quizzes", "quiz-a"), { title: "Batch A Quiz", courseId: "course-1", batchId: "batch-a", isPublished: true }),
       setDoc(doc(db, "quizzes/quiz-a/questions/question-a"), { prompt: "Question", options: ["A", "B"], marks: 1, sortOrder: 1 }),
       setDoc(doc(db, "quizzes/quiz-a/answerKeys/question-a"), { correctAnswerIndex: 1 }),
@@ -71,6 +73,13 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     await assertSucceeds(setDoc(doc(studentA, "notifications", "notification-a"), { isRead: true, readAt: new Date() }, { merge: true }));
     await assertFails(setDoc(doc(studentA, "notifications", "notification-a"), { title: "Tampered" }, { merge: true }));
     await assertFails(getDoc(doc(studentA, "notifications", "notification-b")));
+  });
+
+  it("keeps certificates private to the issued student and their active batch", async () => {
+    await seedBatchIsolationFixture();
+    const studentA = testEnv.authenticatedContext("student-a").firestore();
+    await assertSucceeds(getDoc(doc(studentA, "certificates", "certificate-a")));
+    await assertFails(getDoc(doc(studentA, "certificates", "certificate-b")));
   });
 
   it("allows an administrator to manage unlimited course records", async () => {
