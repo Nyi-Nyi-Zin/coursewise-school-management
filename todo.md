@@ -156,4 +156,5 @@
 - [x] Audit and classify all root, Student, and Admin routes as public indexable or private noindex surfaces.
 - [x] Add robots, sitemaps, canonical/social metadata, and validated public structured data for the SEO rollout.
 - [x] Add private-route noindex safeguards and SEO artifact tests, then build and validate the rollout for GitHub develop publication.
+- [x] Publish the completed public/private SEO rollout to the GitHub develop branch without changing main.
 - [x] Add a visible no-JavaScript semantic landing-page fallback so the generated root artifact includes aligned H1 and H2 content.
