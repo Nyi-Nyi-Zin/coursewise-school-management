@@ -131,3 +131,4 @@
 - [x] Add real Burmese/English translation resources and locale-aware rendering for shared navigation, headings, labels, and key flows in both websites.
 - [x] Apply comprehensive dark/light theme tokens and component styling across both websites, then verify the preference switch with coverage.
 - [x] Add tests, validate both website builds, and publish Phase A commits to the GitHub develop branch.
+- [ ] Keep all future code changes and GitHub publications on develop until an explicit user-approved merge to main.
