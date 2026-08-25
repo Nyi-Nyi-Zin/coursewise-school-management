@@ -82,7 +82,7 @@
 - [x] Add a rendered Admin Dashboard integration test combining actual scope controls, scoped attendance, and ScopedQuizAttemptReview for empty and changing batch states.
 - [x] Test batch isolation, private student records, and password recovery source flows; rebuild websites and push updates to GitHub.
 - [x] Add automated Student Website forgot-password flow coverage for Firebase request success and error states.
-- [x] Add automated Admin Dashboard password-reset workflow coverage for callable invocation and success/error rendering.
+- [x] Add automated Admin Dashboard password-reset workflow coverage for authenticated backend invocation and success/error rendering.
 - [x] Re-run the full suite and web builds after password-recovery coverage, then publish the verification update to GitHub.
 - [x] Treat `student-app/` as an archived reference only and update the root project handoff to identify the Student Website and Admin Website as the active products.
 - [x] Complete the Student Website and Admin Website as the sole active Firebase-ready products; live Firebase connection remains pending project configuration.
@@ -99,11 +99,12 @@
 - [x] Correct the GitHub commit email so Vercel can associate the source commit with the authenticated account and allow the Admin Website deployment.
 - [x] Deploy independent Vercel projects for the Student Website and Admin Website and verify both production URLs load in demo-safe mode.
 - [x] Audit Firebase live-activation readiness for both Vercel websites without adding credentials or connecting a custom domain.
-- [x] Strengthen the Firebase administrator deployment handoff for Authentication, Firestore rules/indexes, callable functions, and Vercel environment variables.
+- [x] Strengthen the Firebase administrator deployment handoff for Authentication, Firestore rules/indexes, backend routes, and Vercel environment variables.
 - [x] Re-run Firebase emulator rules coverage, automated tests, and both production website builds after the activation-readiness work.
 - [x] Add the supplied Firebase Web App configuration and activation flag to both Vercel website projects.
 - [x] Enable Firebase Email/Password Authentication and create the Cloud Firestore database in the approved Firebase project.
-- [ ] Deploy the repository Firestore Rules, indexes, and trusted callable Functions to the approved Firebase project.
+- [x] Migrate trusted quiz and administrator workflows from callable Functions to authenticated Next.js backend routes.
+- [ ] Deploy the repository Firestore Rules, indexes, and Storage Rules to the approved Firebase project, add server-only credentials to both Vercel projects, and validate the backend routes.
 - [x] Verify both live Vercel websites initialize Firebase successfully and retain their student/admin access boundaries.
 - [x] Add a Firebase email/password sign-in route to the Admin Website so authorized administrators have a production access path.
 - [x] Document and implement a secure first-administrator bootstrap procedure that does not weaken Firestore role controls.

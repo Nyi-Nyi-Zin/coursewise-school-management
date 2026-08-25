@@ -1,7 +1,6 @@
 import { FirebaseApp, getApps, initializeApp } from "firebase/app";
 import { Auth, getAuth } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
-import { Functions, getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,5 +22,5 @@ export function getFirebaseClient() {
     throw new Error("Firebase is not configured. Add the required NEXT_PUBLIC_FIREBASE_* variables.");
   }
   app ??= getApps().at(0) ?? initializeApp(firebaseConfig);
-  return { app, auth: getAuth(app) as Auth, db: getFirestore(app) as Firestore, functions: getFunctions(app) as Functions };
+  return { app, auth: getAuth(app) as Auth, db: getFirestore(app) as Firestore };
 }

@@ -1,7 +1,7 @@
 import { addDoc, doc, getDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 import { demoAnnouncements, demoAttendance, demoLessons, type Announcement, type Lesson } from "@/lib/student-data";
-import { firebaseFunctions, firestore } from "@/lib/firebase";
+import { firestore } from "@/lib/firebase";
+import { authenticatedApiFetch } from "@/lib/authenticated-api";
 import { uploadStudentPhotoToCloudinary } from "@/lib/cloudinary-upload-service";
 
 export type StudentProfile = { id: string; name: string; email: string; studentId: string; photoUrl?: string; activeCourseId?: string; activeBatchId?: string };
@@ -38,16 +38,34 @@ export async function getStudentEnrollmentContext(userId: string): Promise<Enrol
   const profileCourseId = String(user.data()?.activeCourseId ?? "");
   const profileBatchId = String(user.data()?.activeBatchId ?? "");
 
-  // The enrollment record is the source of truth; profile fields can go stale
-  // when older admin operations partially failed. Prefer an active enrollment
-  // that matches the profile, else fall back to any active enrollment.
+  // Resolve the student's selected enrollment directly first.  Listing the
+  // enrolments collection can be rejected by older Firestore rules or require
+  // an index that has not reached production, which left a correctly enrolled
+  // student with no course/batch context and therefore no quizzes.
   let active: { courseId: string; batchId: string } | null = null;
+  if (profileCourseId && profileBatchId) {
+    try {
+      const profileEnrollment = await getDoc(doc(firestore, "enrollments", `${profileCourseId}_${profileBatchId}_${userId}`));
+      if (profileEnrollment.exists() && profileEnrollment.data().status === "active") {
+        active = { courseId: profileCourseId, batchId: profileBatchId };
+      }
+    } catch {
+      // Continue to the legacy collection lookup below.
+    }
+  }
+
+  // The enrollment record remains the source of truth when a legacy profile
+  // does not yet have its active course/batch fields.
   try {
-    const snapshot = await getDocs(query(collection(firestore, "enrollments"), where("studentId", "==", userId), where("status", "==", "active"), limit(10)));
-    const records = snapshot.docs.map((item) => ({ courseId: String(item.data().courseId ?? ""), batchId: String(item.data().batchId ?? "") }));
-    active = records.find((record) => record.courseId === profileCourseId && record.batchId === profileBatchId) ?? records.at(0) ?? null;
+    if (!active) {
+      const snapshot = await getDocs(query(collection(firestore, "enrollments"), where("studentId", "==", userId), where("status", "==", "active"), limit(10)));
+      const records = snapshot.docs.map((item) => ({ courseId: String(item.data().courseId ?? ""), batchId: String(item.data().batchId ?? "") }));
+      active = records.find((record) => record.courseId === profileCourseId && record.batchId === profileBatchId) ?? records.at(0) ?? null;
+    }
   } catch {
-    active = profileCourseId && profileBatchId ? { courseId: profileCourseId, batchId: profileBatchId } : null;
+    // A valid direct enrollment above remains usable.  For older data without
+    // an enrollment document, retain the profile fallback for compatibility.
+    active ??= profileCourseId && profileBatchId ? { courseId: profileCourseId, batchId: profileBatchId } : null;
   }
   if (!active?.courseId || !active.batchId) {
     if (!profileCourseId || !profileBatchId) return null;
@@ -131,9 +149,11 @@ export async function getStudentQuizAttempts(studentId: string, courseId?: strin
 
 export async function getBatchQuizzes(courseId?: string, batchId?: string): Promise<BatchQuiz[]> {
   if (!firestore || !courseId || !batchId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "quizzes"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("title", "asc")));
-  const now = Date.now();
-  return snapshot.docs.map((item) => toBatchQuiz(item.id, item.data())).filter((quiz) => (!quiz.opensAt || new Date(quiz.opensAt).getTime() <= now) && (!quiz.closesAt || new Date(quiz.closesAt).getTime() > now));
+  const payload = await authenticatedApiFetch(`/api/quizzes?${new URLSearchParams({ courseId, batchId })}`) as { quizzes?: Array<Record<string, unknown> & { id: string }> };
+  const records = Array.isArray(payload.quizzes) ? payload.quizzes : [];
+  return records
+    .map((item) => toBatchQuiz(item.id, item))
+    .sort((left, right) => left.title.localeCompare(right.title));
 }
 
 function toBatchQuiz(id: string, data: Record<string, unknown>): BatchQuiz {
@@ -153,18 +173,12 @@ export async function getQuizQuestions(quizId: string): Promise<QuizQuestion[]> 
 }
 
 export async function submitQuizAttempt(quizId: string, answers: SubmittedQuizAnswer[], startedAt?: number): Promise<QuizSubmissionResult> {
-  if (!firebaseFunctions) throw new Error("Assessment submission is only available in Firebase mode.");
-  const callable = httpsCallable<{ quizId: string; answers: SubmittedQuizAnswer[]; startedAt?: number }, QuizSubmissionResult>(firebaseFunctions, "submitQuizAttempt");
-  const response = await callable({ quizId, answers, ...(typeof startedAt === "number" ? { startedAt } : {}) });
-  const data = response.data;
+  const data = await authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/submit`, { method: "POST", body: JSON.stringify({ answers, ...(typeof startedAt === "number" ? { startedAt } : {}) }) }) as QuizSubmissionResult;
   return { ...data, score: Number(data.score ?? 0), totalMarks: Number(data.totalMarks ?? 0), percentage: Number(data.percentage ?? 0), attemptNumber: Number(data.attemptNumber ?? 1), attemptCount: Number(data.attemptCount ?? 1), remainingAttempts: typeof data.remainingAttempts === "number" ? data.remainingAttempts : null, timeSpentSeconds: Number(data.timeSpentSeconds ?? 0), passed: Boolean(data.passed), kind: data.kind ?? "chapter_quiz", review: Array.isArray(data.review) ? data.review : undefined };
 }
 
 export async function getMyQuizResults(quizId: string): Promise<QuizResultsSummary> {
-  if (!firebaseFunctions) throw new Error("Results are only available in Firebase mode.");
-  const callable = httpsCallable<{ quizId: string }, QuizResultsSummary>(firebaseFunctions, "getMyQuizResults");
-  const response = await callable({ quizId });
-  return response.data;
+  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/results`) as Promise<QuizResultsSummary>;
 }
 
 function stringOrUndefined(value: unknown) { return typeof value === "string" && value ? value : undefined; }

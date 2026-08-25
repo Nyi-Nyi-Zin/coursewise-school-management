@@ -15,6 +15,7 @@ vi.mock("./firebase", () => ({ hasFirebaseConfiguration: true, getFirebaseClient
 describe("administrator authentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("window", { location: { origin: "https://admin.teza.test" } });
     getFirebaseClient.mockReturnValue({ auth: "auth-client", db: "firestore-client" });
     firestore.doc.mockReturnValue("admin-profile");
   });

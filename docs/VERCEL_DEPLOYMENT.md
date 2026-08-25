@@ -22,18 +22,19 @@ Add the following values to **both** Vercel projects in **Settings → Environme
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Complete Firebase service-account JSON; server-only, never `NEXT_PUBLIC_*` |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary product environment cloud name |
 | `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Restricted unsigned upload preset for school media |
 
-Enable **Email/Password** in Firebase Authentication before the Student Website goes live. Deploy the repository Firestore Rules and Firebase Functions before entering production data; the rules enforce `auth.uid`, course, and `batchId` isolation for student records.
+Enable **Email/Password** in Firebase Authentication before the Student Website goes live. Deploy the repository Firestore and Storage Rules before entering production data; the rules enforce `auth.uid`, course, and `batchId` isolation for student records. Privileged operations run in the two Vercel Next.js backends and require `FIREBASE_SERVICE_ACCOUNT_JSON` in both projects.
 
-The independent Vercel projects have already been deployed in demo-safe mode. Their live Firebase activation procedure, including callable Functions and authorized-domain requirements, is maintained in [FIREBASE_HANDOFF.md](./FIREBASE_HANDOFF.md).
+The independent Vercel projects have already been deployed in demo-safe mode. Their live Firebase activation procedure, including backend credentials and authorized-domain requirements, is maintained in [FIREBASE_HANDOFF.md](./FIREBASE_HANDOFF.md).
 
 ## Custom-domain routing
 
 After each Vercel project has a successful production deployment, add `student.<your-domain>` to the Student Vercel project and `admin.<your-domain>` to the Admin Vercel project. Vercel will display the precise DNS record required for each hostname. Add those records at the current DNS provider and wait until Vercel verifies them.
 
-> Use distinct Vercel projects because the Student and Admin websites have different build roots and independently deployed static outputs.
+> Use distinct Vercel projects because the Student and Admin applications have different build roots and independently deployed frontend/server outputs.
 
 ## Final production validation
 

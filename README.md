@@ -1,6 +1,6 @@
 # Teza Tech Lab Learning Platform
 
-Teza Tech Lab is now delivered as two independent Next.js websites that share one Firebase data contract, role model, and Firestore security boundary.
+Teza Tech Lab is delivered as two independent Next.js applications that share one Firebase data contract, role model, and Firestore security boundary. Privileged workflows run in authenticated Next.js backend Route Handlers, so production does not depend on Firebase Cloud Functions.
 
 | Application | Directory | Command | Responsibility |
 |---|---|---|---|
@@ -13,6 +13,6 @@ The repository-level Vite application has been retired from normal project comma
 
 Run `pnpm test`, `pnpm admin:build`, and `pnpm student:web:build` from the repository root. The full suite covers shared data contracts, batch isolation, password recovery UI, Admin Dashboard query behavior, and Firestore Rules emulator behavior.
 
-## Firebase activation
+## Backend and Firebase activation
 
-Follow `docs/FIREBASE_HANDOFF.md`, `docs/FIREBASE_WEB_CONFIG_TEMPLATE.md`, and `docs/NEXT_SUBDOMAIN_DEPLOYMENT.md` to connect one Firebase project and map the existing domain to `student.<domain>` and `admin.<domain>`. The Firestore rules and indexes live in `firebase/` and are referenced by `firebase.json`.
+Follow `docs/FIREBASE_HANDOFF.md`, `docs/FIREBASE_WEB_CONFIG_TEMPLATE.md`, and `docs/NEXT_SUBDOMAIN_DEPLOYMENT.md` to connect one Firebase project and map the existing domain to `student.<domain>` and `admin.<domain>`. Both Vercel projects require the same server-only `FIREBASE_SERVICE_ACCOUNT_JSON`. Firestore rules and indexes live in `firebase/` and are referenced by `firebase.json`.

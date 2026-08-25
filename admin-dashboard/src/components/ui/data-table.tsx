@@ -6,9 +6,9 @@ import type { ReactNode } from "react";
 type DataTableProps = {
   title: string;
   subtitle: string;
-  searchValue: string;
-  onSearchChange: (value: string) => void;
-  searchPlaceholder: string;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
   children: ReactNode;
 };
 
@@ -16,7 +16,7 @@ export function DataTable({ title, subtitle, searchValue, onSearchChange, search
   return <div className="overflow-hidden rounded-2xl border border-stone-200">
     <div className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
       <div><p className="font-bold">{title}</p><p className="text-xs text-stone-500">{subtitle}</p></div>
-      <label className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} /><input value={searchValue} onChange={event => onSearchChange(event.target.value)} className="h-10 w-full rounded-xl border border-stone-200 pl-9 pr-3 text-sm sm:w-56" placeholder={searchPlaceholder} /></label>
+      {onSearchChange ? <label className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} /><input value={searchValue ?? ""} onChange={event => onSearchChange(event.target.value)} className="h-10 w-full rounded-xl border border-stone-200 pl-9 pr-3 text-sm sm:w-56" placeholder={searchPlaceholder} /></label> : null}
     </div>
     <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm">{children}</table></div>
   </div>;

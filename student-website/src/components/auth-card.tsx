@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { loginStudent, registerStudent } from "@/lib/auth-service";
 import { getStudentAuthenticationErrorMessage } from "@/lib/auth-error";
-import { TurnstileWidget } from "@/components/turnstile-widget";
 
 export function AuthCard({ mode }: { mode: "login" | "register" }) {
   const [name, setName] = useState("");
@@ -20,7 +19,6 @@ export function AuthCard({ mode }: { mode: "login" | "register" }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const isRegister = mode === "register";
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -31,11 +29,10 @@ export function AuthCard({ mode }: { mode: "login" | "register" }) {
     }
     if (isRegister && password !== confirmPassword) { toast.error("Passwords do not match."); return; }
     if (isRegister && name.trim().length < 2) { toast.error("Enter your full name."); return; }
-    if (isRegister && !turnstileToken) { toast.error("Complete the security verification."); return; }
     setSubmitting(true);
     try {
       if (isRegister) {
-        await registerStudent({ name, email, password, turnstileToken: turnstileToken! });
+        await registerStudent({ name, email, password });
         toast.success("Your Teza Tech Lab account is ready.");
       } else {
         await loginStudent({ email, password });
@@ -57,7 +54,6 @@ export function AuthCard({ mode }: { mode: "login" | "register" }) {
           <Field icon={LockKeyhole} label="Password"><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 6 characters" autoComplete={isRegister ? "new-password" : "current-password"} required minLength={6} className="pr-11" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-stone-400 hover:text-emerald-700" aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div></Field>
           {isRegister ? <Field icon={LockKeyhole} label="Confirm password"><Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repeat your password" autoComplete="new-password" required minLength={6} /></Field> : null}
           <Button className="w-full" size="lg" disabled={submitting}>{submitting ? "Please wait…" : isRegister ? "Create account" : "Sign in"}<ArrowRight className="size-4" /></Button>
-          {isRegister ? <TurnstileWidget onTokenChange={setTurnstileToken} /> : null}
           <p className="text-center text-sm text-stone-500">{isRegister ? "Already have an account? " : "New to Teza Tech Lab? "}<Link className="font-semibold text-emerald-700 hover:text-emerald-800" href={isRegister ? "/login" : "/register"}>{isRegister ? "Sign in" : "Register now"}</Link></p>
           {!isRegister ? <p className="text-center text-sm"><Link className="font-semibold text-emerald-700 hover:text-emerald-800" href="/forgot-password">Forgot password?</Link></p> : null}
           {!isFirebaseConfigured ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 ring-1 ring-inset ring-amber-200">Live accounts will activate when the Firebase web project configuration is added.</p> : null}

@@ -22,7 +22,7 @@ export function StudentResultsPanel({ studentName, studentUid, onClose }: { stud
       <div className="flex-1 overflow-y-auto p-6">
         {!hasFirebaseConfiguration ? <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Connect Firebase to view recorded scores.</p>
           : results.isLoading ? <p className="py-8 text-center text-sm text-stone-500">Loading recorded results…</p>
-          : results.isError ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Could not load results. Confirm this account is an administrator and the functions are deployed.</p>
+          : results.isError ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Could not load results. Confirm this account is an administrator, then try again.</p>
           : rows.length ? <div className="overflow-hidden rounded-2xl border border-stone-200"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-400"><tr><Th>Assessment</Th><Th>Attempts</Th><Th>Best score</Th><Th>Latest %</Th><Th>Status</Th><Th>Last submitted</Th><Th align="right">Time spent</Th></tr></thead><tbody>{rows.map(row => <tr key={row.quizId} className="border-t border-stone-100">
             <td className="px-4 py-3"><span className="font-semibold text-stone-800">{row.quizTitle}</span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-emerald-700">{row.kind === "final_exam" ? "Final exam" : "Chapter quiz"}{row.chapter ? ` · ${row.chapter}` : ""}</span></td>
             <td className="px-4 py-3 text-stone-600">{row.attemptCount}</td>

@@ -104,11 +104,11 @@ service cloud.firestore {
 
     match /quizAttempts/{attemptId} {
       allow read: if isAdmin() || canReadOwnBatchRecord();
-      // Callable functions calculate scores and persist attempts with the Admin SDK.
+      // Authenticated backend routes calculate scores and persist attempts with the Admin SDK.
       allow create, update, delete: if isAdmin();
     }
 
-    // Trusted per-student roll-ups written only by the grading function.
+    // Trusted per-student roll-ups written only by the grading backend.
     match /quizSummaries/{summaryId} {
       allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
       allow write: if isAdmin();

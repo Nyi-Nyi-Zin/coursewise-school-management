@@ -43,8 +43,23 @@ function parseSubmittedAnswers(raw: unknown): SubmittedQuizAnswer[] {
 }
 
 function epochMillis(value: unknown): number | null {
+  if (value && typeof value === 'object' && 'toMillis' in value && typeof value.toMillis === 'function') {
+    const millis = Number(value.toMillis());
+    return Number.isFinite(millis) ? millis : null;
+  }
   const parsed = typeof value === 'string' || typeof value === 'number' ? new Date(value).getTime() : NaN;
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function callableDateString(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+    return value.toDate().toISOString();
+  }
+  return null;
 }
 
 type AnswerKeyRecord = { correctAnswerIndex: number; correctAnswerIndices?: number[] };
@@ -137,60 +152,71 @@ export const submitQuizAttempt = onCall(async request => {
   const summaryReference = context.db.doc(`quizSummaries/${quizId}_${studentId}`);
   const counterReference = context.db.doc(`quizAttemptCounters/${quizId}_${studentId}`);
 
-  const committed = await context.db.runTransaction(async transaction => {
-    const [summarySnapshot, counterSnapshot] = await Promise.all([transaction.get(summaryReference), transaction.get(counterReference)]);
-    const previousSummary = summarySnapshot.exists ? (summarySnapshot.data() as StoredQuizSummary) : undefined;
-    const recordedAttempts = counterSnapshot.exists ? Math.trunc(Number(counterSnapshot.data()?.count ?? 0)) : previousSummary?.attemptCount ?? 0;
+  let committed: { outcome: AttemptOutcome; attemptNumber: number };
+  try {
+    committed = await context.db.runTransaction(async transaction => {
+      // Read both records in one transaction operation. Concurrent transaction
+      // reads can be rejected by Firestore as an internal RPC error, which was
+      // exposed to students as "internal [0]" during submission.
+      const [summarySnapshot, counterSnapshot] = await transaction.getAll(summaryReference, counterReference);
+      const previousSummary = summarySnapshot.exists ? (summarySnapshot.data() as StoredQuizSummary) : undefined;
+      const recordedAttempts = counterSnapshot.exists ? Math.trunc(Number(counterSnapshot.data()?.count ?? 0)) : previousSummary?.attemptCount ?? 0;
 
-    const eligibility = evaluateAttemptEligibility({
-      kind: context.kind,
-      now,
-      opensAt: context.opensAt,
-      closesAt: context.closesAt,
-      durationSeconds: context.durationSeconds,
-      startedAt,
-      previousAttempts: recordedAttempts,
-      alreadyPassed: previousSummary?.passed === true,
-      maxRetakes: context.maxRetakes,
+      const eligibility = evaluateAttemptEligibility({
+        kind: context.kind,
+        now,
+        opensAt: context.opensAt,
+        closesAt: context.closesAt,
+        durationSeconds: context.durationSeconds,
+        startedAt,
+        previousAttempts: recordedAttempts,
+        alreadyPassed: previousSummary?.passed === true,
+        maxRetakes: context.maxRetakes,
+      });
+      if (!eligibility.ok) throw new HttpsError('failed-precondition', eligibility.message);
+
+      const attemptReference = context.db.collection('quizAttempts').doc();
+      const attemptNumber = recordedAttempts + 1;
+      const passingThreshold = context.passingPercent ?? 50;
+      const passed = grading.percentage >= passingThreshold;
+      const outcome: AttemptOutcome = {
+        attemptId: attemptReference.id,
+        attemptNumber,
+        score: grading.score,
+        totalMarks: grading.totalMarks,
+        percentage: grading.percentage,
+        passed,
+        timeSpentSeconds: eligibility.elapsedSeconds,
+        submittedAtMillis: now,
+      };
+
+      transaction.set(attemptReference, {
+        quizId,
+        kind: context.kind,
+        studentId,
+        courseId: context.courseId,
+        batchId: context.batchId,
+        attemptNumber,
+        answers,
+        score: grading.score,
+        totalMarks: grading.totalMarks,
+        percentage: grading.percentage,
+        passed,
+        timeSpentSeconds: eligibility.elapsedSeconds,
+        submittedAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      transaction.set(counterReference, { quizId, studentId, count: attemptNumber, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      transaction.set(summaryReference, mergeQuizSummary(previousSummary, outcome, context.kind, quizId, studentId), { merge: true });
+
+      return { outcome, attemptNumber };
     });
-    if (!eligibility.ok) throw new HttpsError('failed-precondition', eligibility.message);
-
-    const attemptReference = context.db.collection('quizAttempts').doc();
-    const attemptNumber = recordedAttempts + 1;
-    const passingThreshold = context.passingPercent ?? 50;
-    const passed = grading.percentage >= passingThreshold;
-    const outcome: AttemptOutcome = {
-      attemptId: attemptReference.id,
-      attemptNumber,
-      score: grading.score,
-      totalMarks: grading.totalMarks,
-      percentage: grading.percentage,
-      passed,
-      timeSpentSeconds: eligibility.elapsedSeconds,
-      submittedAtMillis: now,
-    };
-
-    transaction.set(attemptReference, {
-      quizId,
-      kind: context.kind,
-      studentId,
-      courseId: context.courseId,
-      batchId: context.batchId,
-      attemptNumber,
-      answers,
-      score: grading.score,
-      totalMarks: grading.totalMarks,
-      percentage: grading.percentage,
-      passed,
-      timeSpentSeconds: eligibility.elapsedSeconds,
-      submittedAt: FieldValue.serverTimestamp(),
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    transaction.set(counterReference, { quizId, studentId, count: attemptNumber, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    transaction.set(summaryReference, mergeQuizSummary(previousSummary, outcome, context.kind, quizId, studentId), { merge: true });
-
-    return { outcome, attemptNumber };
-  });
+  } catch (error) {
+    // Expected assessment errors carry a safe, specific message for the student.
+    if (error instanceof HttpsError) throw error;
+    console.error('Quiz attempt transaction failed', { quizId, studentId, error });
+    throw new HttpsError('internal', 'Your answers could not be saved. Please try again.');
+  }
 
   return {
     id: committed.outcome.attemptId,
@@ -250,6 +276,40 @@ export const getMyQuizResults = onCall(async request => {
       submittedAtMillis: summary.latestSubmittedAtMillis,
     } : null,
     ...(review ? { review } : {}),
+  };
+});
+
+export const getMyBatchQuizzes = onCall(async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in before viewing quizzes.');
+  const courseId = typeof request.data?.courseId === 'string' ? request.data.courseId.trim() : '';
+  const batchId = typeof request.data?.batchId === 'string' ? request.data.batchId.trim() : '';
+  if (!courseId || !batchId) throw new HttpsError('invalid-argument', 'A course and batch are required.');
+
+  await assertBatchEnrollment(request.auth.uid, courseId, batchId);
+  const snapshot = await getFirestore()
+    .collection('quizzes')
+    .where('courseId', '==', courseId)
+    .where('batchId', '==', batchId)
+    .where('isPublished', '==', true)
+    .get();
+
+  return {
+    quizzes: snapshot.docs.map(document => {
+      const data = document.data();
+      return {
+        id: document.id,
+        title: String(data.title ?? 'Quiz'),
+        description: String(data.description ?? ''),
+        durationMinutes: Number(data.durationMinutes ?? 0),
+        totalMarks: Number(data.totalMarks ?? 0),
+        kind: data.kind === 'final_exam' ? 'final_exam' : 'chapter_quiz',
+        chapter: String(data.chapter ?? ''),
+        passingPercent: Number(data.passingPercent ?? 50),
+        maxRetakes: Number(data.maxRetakes ?? -1),
+        opensAt: callableDateString(data.opensAt),
+        closesAt: callableDateString(data.closesAt),
+      };
+    }),
   };
 });
 

@@ -16,7 +16,7 @@ The current codebase already covers most day-to-day learning workflows. The high
 | Student enrollment and management | Available | Student profiles, Firebase accounts, batch assignment, and role boundaries are available. |
 | Announcements | Available | Admin publishing and student visibility are implemented. |
 | Lessons and assignments | Available | Both portals contain lesson and assignment modules; current assignments support briefs, due dates, and submission instructions. |
-| Quizzes | Available with a deployment dependency | Quiz UI, scheduling fields, question/answer-key separation, and trusted callable scoring are implemented. Production scoring requires the deferred Cloud Functions deployment. |
+| Quizzes | Available | Quiz UI, scheduling fields, question/answer-key separation, and trusted scoring are implemented through authenticated Next.js backend routes. |
 | Attendance | Available | The underlying module, batch scoping, and private student visibility exist. The latest Admin navigation currently hides the Attendance link and should expose it again. |
 | Student progress monitoring | Partial | Quiz attempts, attendance, assignments, and enrollment data exist, but there is no unified progress model or dashboard calculation. |
 | Grade and result management | Partial | Quiz scores are present. A subject/course gradebook, grading policy, term result, and report-card model are missing. |
@@ -39,15 +39,15 @@ Most requested features can use Firestore collections protected by the existing 
 | Feature family | Recommended Firebase design | Billing/deployment implication |
 |---|---|---|
 | Gradebook and progress | `gradeCategories`, `gradeItems`, `gradeRecords`, and batch-scoped progress summaries; admins write, students read only their own records | Firestore rules/indexes plus UI; no Cloud Functions required for an initial implementation. |
-| Certificates | `certificates` collection with immutable issue number, verification code, status, and recipient snapshot | Secure PDF issuance and verification should use callable Functions; Functions deployment requires the Blaze plan. [1] [2] |
+| Certificates | `certificates` collection with immutable issue number, verification code, status, and recipient snapshot | Secure PDF issuance and verification should use the authenticated backend server. |
 | CSV/Excel/PDF reports | Admin-scoped Firestore queries and report templates; export access must be checked by role and course/batch scope | CSV may begin client-side. Large reports, scheduled reports, and secure file generation should use Functions/Storage. |
 | In-app notifications | `notifications/{id}` plus recipient, course, batch, and read-state fields | Firestore-only for in-app notifications; no Functions needed initially. |
 | Browser push notifications | Firebase Cloud Messaging installation IDs, VAPID key, service worker, consent UX, and an admin sending workflow | FCM requires HTTPS, VAPID credentials, and a service worker. [4] Sending individualized notifications safely should use trusted server code. |
-| Audit logs | Append-only `auditLogs` entries written by trusted operations | Requires callable Functions or Firestore triggers to avoid client-side tampering; therefore needs Blaze for deployment. [1] |
+| Audit logs | Append-only `auditLogs` entries written by trusted operations | Use backend server operations to avoid client-side tampering; Firestore triggers remain optional. |
 | Analytics and growth charts | Vercel/Firebase analytics plus Firestore aggregate metrics | Basic traffic analytics can be configured independently. Trusted aggregates and scheduled rollups are best implemented with Functions. |
 | PWA and offline | Web manifest, service worker, cache policy, offline indicator, and opt-in Firestore persistent cache | No Functions required. The UI must warn users that browser persistence retains cached data on the device. [3] |
 
-Firebase documents state that Cloud Functions can be emulated on any Firebase project but require the **Blaze pricing plan** for deployment. [1] The current project therefore correctly keeps trusted quiz scoring, administrator-created password reset links, certificate generation, protected audit logs, and server-initiated notifications deferred until billing is intentionally enabled. The Blaze plan supplies a no-cost usage quota but links a billing account; budget alerts and spend caps should be configured before deployment. [2]
+Trusted quiz scoring and administrator-created password reset links now run in the Vercel-hosted Next.js backends and do not require a Firebase Blaze plan. Future certificate generation, audit logging, and server-initiated notifications should extend that authenticated backend boundary. Firebase triggers or scheduled Functions may still be selected later when their event or scheduling model is specifically useful.
 
 ## Recommended implementation order
 
@@ -55,7 +55,7 @@ Firebase documents state that Cloud Functions can be emulated on any Firebase pr
 
 First, re-enable genuine responsive mobile/tablet behavior, restore the Admin Attendance navigation item, and complete the latest portal UX regression review. Next, add the unified progress/grade data model and its Admin gradebook plus Student results view. These steps leverage current Firestore data and improve the features students and administrators already use.
 
-| Work item | Deliverable | Cloud Functions required |
+| Work item | Deliverable | Trusted backend required |
 |---|---|---|
 | Responsive correction | Mobile/tablet layout enabled, tested on portal routes | No |
 | Attendance navigation | Visible Admin Attendance item with existing course/batch filters | No |
@@ -67,7 +67,7 @@ First, re-enable genuine responsive mobile/tablet behavior, restore the Admin At
 
 The next phase should add certificate records, a downloadable certificate view, CSV exports, report templates, basic chart widgets, and traffic analytics configuration. Certificate records can be prepared without server deployment, but final trusted PDF issuance should wait for the server-side phase.
 
-| Work item | Deliverable | Cloud Functions required |
+| Work item | Deliverable | Trusted backend required |
 |---|---|---|
 | Certificate registry | Issue/revoke states, unique verification codes, Student certificate list | No for registry; yes for trusted final PDF issuance |
 | Export center | Batch-scoped CSV exports, printable result/attendance reports | No for basic CSV; recommended for heavy PDF/Excel generation |
@@ -77,21 +77,21 @@ The next phase should add certificate records, a downloadable certificate view, 
 
 ### Phase C — Trusted automation and push delivery
 
-After the project owner elects to use Blaze, deploy the existing callable Functions and add the new protected server operations. This is the appropriate time for trusted quiz scoring, secure certificate PDF generation, tamper-resistant audit logs, scheduled rollups, and targeted FCM notifications.
+Add new protected operations to the existing authenticated Next.js backend. Use this boundary for secure certificate PDF generation, tamper-resistant audit logs, scheduled rollups, and targeted notifications; adopt managed schedulers or event triggers only where the feature requires them.
 
 | Work item | Deliverable | Prerequisite |
 |---|---|---|
-| Existing callable Functions | Trusted quiz scoring, admin password-reset link, admin student account creation | Blaze plan and Functions deployment |
-| Certificate PDF signing | Server-generated certificate output and verification endpoint | Blaze plan, storage policy, certificate template |
-| Audit logs | Trusted create/update/delete event trail | Blaze plan |
-| Browser push delivery | FCM send functions, device registration, targeted notices | Blaze plan, VAPID key, service worker, consent UX |
-| Scheduled summaries | Attendance/grade reminders and data-growth snapshots | Blaze plan and scheduled functions |
+| Existing backend Route Handlers | Trusted quiz scoring, admin password-reset link, admin student account creation | Vercel server deployment and server-only Firebase credentials |
+| Certificate PDF signing | Server-generated certificate output and verification endpoint | Storage policy, certificate template, backend route |
+| Audit logs | Trusted create/update/delete event trail | Backend audit service and retention policy |
+| Browser push delivery | FCM send service, device registration, targeted notices | Backend credentials, VAPID key, service worker, consent UX |
+| Scheduled summaries | Attendance/grade reminders and data-growth snapshots | Backend scheduled job provider |
 
 ## Delivery decision required
 
 The platform can support the full requested feature set, but it should not be added as one unprioritized change. The recommended starting scope is **Phase A**: responsive correction, Attendance navigation, gradebook/progress, in-app notifications, and theme/localization foundation. This phase produces immediately visible value without changing the current billing decision.
 
-After Phase A, the next decision is whether to proceed with document/report features under Phase B or to enable Blaze and unlock the trusted automation under Phase C.
+After Phase A, the next decision is whether to proceed with document/report features under Phase B or extend the existing backend with the trusted automation under Phase C.
 
 ## References
 

@@ -1,10 +1,8 @@
-import { httpsCallable } from "firebase/functions";
-import { getFirebaseClient, hasFirebaseConfiguration } from "./firebase";
+import { authenticatedApiFetch } from "./authenticated-api";
+import { hasFirebaseConfiguration } from "./firebase";
 
 export async function createAdminPasswordResetLink(email: string) {
   if (!hasFirebaseConfiguration) throw new Error("Firebase is not configured.");
-  const { functions } = getFirebaseClient();
-  const call = httpsCallable<{ email: string }, { link: string }>(functions, "adminCreatePasswordResetLink");
-  const result = await call({ email: email.trim() });
-  return result.data.link;
+  const result = await authenticatedApiFetch("/api/password-reset-link", { method: "POST", body: JSON.stringify({ email: email.trim() }) }) as { link: string };
+  return result.link;
 }

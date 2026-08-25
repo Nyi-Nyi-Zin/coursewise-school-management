@@ -47,21 +47,6 @@ async function enforceRateLimit(request: Request) {
   });
 }
 
-async function verifyTurnstile(token: unknown, ip: string) {
-  if (typeof token !== "string" || !token) throw new RegistrationError(400, "Complete the security verification.");
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) throw new RegistrationError(500, "Registration is temporarily unavailable.");
-  const form = new URLSearchParams({ secret, response: token, remoteip: ip });
-  let result: { success?: boolean };
-  try {
-    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: form });
-    result = await response.json() as { success?: boolean };
-  } catch {
-    throw new RegistrationError(503, "Security verification is temporarily unavailable.");
-  }
-  if (!result.success) throw new RegistrationError(400, "Security verification failed. Please try again.");
-}
-
 async function createNumberedStudentProfile(userId: string, input: { name: string; email: string }) {
   const { db } = getFirebaseAdmin();
   return db.runTransaction(async transaction => {
@@ -101,8 +86,6 @@ export async function POST(request: Request) {
       throw new RegistrationError(400, "A name, valid email address, and password of at least 6 characters are required.");
     }
 
-    const ip = clientIp(request);
-    await verifyTurnstile(body?.turnstileToken, ip);
     await enforceRateLimit(request);
 
     const { auth } = getFirebaseAdmin();

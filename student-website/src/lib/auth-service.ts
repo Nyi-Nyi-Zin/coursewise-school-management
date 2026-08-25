@@ -3,12 +3,12 @@ import { firebaseAuth, isFirebaseConfigured } from "./firebase";
 
 export type PortalRole = "admin" | "student" | null;
 
-export async function registerStudent({ name, email, password, turnstileToken }: { name: string; email: string; password: string; turnstileToken: string }) {
+export async function registerStudent({ name, email, password }: { name: string; email: string; password: string }) {
   if (!firebaseAuth || !isFirebaseConfigured) throw new Error("Firebase Authentication is not configured.");
   const response = await fetch("/api/register-student", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: name.trim(), email: email.trim(), password, turnstileToken }),
+    body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
   });
   const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
   if (!response.ok) throw new Error(payload?.message || payload?.error || "Unable to register your account.");
