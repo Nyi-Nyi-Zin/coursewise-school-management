@@ -32,7 +32,9 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
-import { useAdminRecords } from "@/lib/use-admin-records";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAdminRecords, optimisticallySaveAdminRecord } from "@/lib/use-admin-records";
+import { adminRecordQueryKey } from "@/lib/admin-records-query";
 import type { CourseBatchScope } from "@/lib/course-batch-scope";
 import { buildCourseBatchDashboardData } from "@/lib/course-batch-dashboard";
 import { CourseBatchScopeControls } from "@/components/course-batch-scope-controls";
@@ -103,9 +105,10 @@ const headings: Record<
       "Track your learning space and begin the work that matters most.",
   },
   courses: {
-    eyebrow: "",
-    title: "",
-    description: "",
+    eyebrow: "Academic structure",
+    title: "Courses & Batches",
+    description:
+      "Organize your programs into courses, group learners into batches, and manage student enrollments.",
   },
   students: {
     eyebrow: "People",
@@ -160,6 +163,7 @@ export function AdminShell() {
     batchId: "",
   });
   const { recordsQuery, saveMutation, deleteMutation } = useAdminRecords();
+  const queryClient = useQueryClient();
   const records = recordsQuery.data ?? emptyOfflineRecords;
   const visibleRecords =
     section === "quizzes" || section === "attendance"
@@ -190,13 +194,24 @@ export function AdminShell() {
     if (!isRecordSection(section)) return;
     if (section === "students" && !editingItem) {
       try {
-        await createStudentAccount({ name: draft.title, email: draft.fields?.email ?? "", studentId: draft.fields?.studentId ?? "", photoUrl: draft.fields?.photoUrl, isActive: draft.status === "Active" });
+        const account = await createStudentAccount({ name: draft.title, email: draft.fields?.email ?? "", studentId: draft.fields?.studentId ?? "", photoUrl: draft.fields?.photoUrl, isActive: draft.status === "Active" });
+        const item: OfflineItem = {
+          id: account.uid,
+          title: draft.title,
+          description: "",
+          status: draft.status,
+          createdAt: "Firebase",
+          fields: { ...draft.fields, studentId: account.studentId },
+        };
+        await optimisticallySaveAdminRecord(queryClient, "students", item);
         toast.success("Student account was created.");
       } catch (error) {
         toast.error(error instanceof Error ? error.message.replace("Firebase: ", "") : "The student account could not be created.");
+      } finally {
+        setPanelOpen(false);
+        setEditingItem(null);
+        void queryClient.invalidateQueries({ queryKey: adminRecordQueryKey });
       }
-      setPanelOpen(false);
-      setEditingItem(null);
       return;
     }
     const batchScopedDraft =
@@ -323,7 +338,7 @@ export function AdminShell() {
           </div>
         </header>
         <div className="p-5 lg:p-9">
-          {section !== "courses" && <section className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <section className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[.2em] text-emerald-800/55">
                 {content.eyebrow}
@@ -340,7 +355,7 @@ export function AdminShell() {
                 </p>
               )}
             </div>
-          </section>}
+          </section>
           {section === "courses" ? (
             <CourseBatchManager />
           ) : section === "assignments" ? (
@@ -441,16 +456,44 @@ function ConnectionStatus() {
   const [online, setOnline] = useState(true);
   useEffect(() => {
     let cancelled = false;
-    const update = () => {
-      if (!cancelled) setOnline(navigator.onLine);
+    let controller: AbortController | null = null;
+    // navigator.onLine alone is unreliable: it reports "online" whenever a
+    // network adapter exists, even without working internet access. Probe an
+    // always-available endpoint to verify real reachability.
+    const probe = async () => {
+      if (!navigator.onLine) {
+        if (!cancelled) setOnline(false);
+        return;
+      }
+      controller?.abort();
+      controller = new AbortController();
+      const timeout = setTimeout(() => controller?.abort(), 6000);
+      try {
+        await fetch("https://www.gstatic.com/generate_204", {
+          method: "HEAD",
+          mode: "no-cors",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!cancelled) setOnline(true);
+      } catch {
+        if (!cancelled) setOnline(false);
+      } finally {
+        clearTimeout(timeout);
+      }
     };
-    Promise.resolve().then(update);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
+    Promise.resolve().then(probe);
+    const interval = setInterval(probe, 15000);
+    window.addEventListener("online", probe);
+    window.addEventListener("offline", probe);
+    window.addEventListener("focus", probe);
     return () => {
       cancelled = true;
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
+      clearInterval(interval);
+      controller?.abort();
+      window.removeEventListener("online", probe);
+      window.removeEventListener("offline", probe);
+      window.removeEventListener("focus", probe);
     };
   }, []);
   return (

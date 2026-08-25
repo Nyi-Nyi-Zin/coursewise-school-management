@@ -3,7 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  BookMarked,
   BookPlus,
+  CircleCheck,
+  CircleX,
   Eye,
   Filter,
   Layers3,
@@ -422,8 +425,19 @@ export function CourseBatchManager() {
     ] });
   }
   const hasCourse = Boolean(activeCourseId);
+  const metricLabel = tab === "enrollment" ? "enrolments" : tab === "batches" || tab === "links" ? "batches" : "courses";
+  const metricItems = tab === "enrollment" ? enrollments : tab === "batches" || tab === "links" ? batches : courses;
+  const metricActive = tab === "enrollment"
+    ? metricItems.filter(item => (item as EnrollmentRecord).status === "active").length
+    : metricItems.filter(item => (item as CourseRecord | BatchRecord).isActive).length;
   return (
-    <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Metric label={`Total ${metricLabel}`} value={metricItems.length} icon={BookMarked} tone="blue" />
+        <Metric label={`Active ${metricLabel}`} value={metricActive} icon={CircleCheck} tone="green" />
+        <Metric label={`Inactive ${metricLabel}`} value={metricItems.length - metricActive} icon={CircleX} tone="red" />
+      </div>
+      <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
       {coursesQuery.isError ? (
         <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           Could not load courses.
@@ -434,11 +448,6 @@ export function CourseBatchManager() {
           Could not load enrolments. Confirm this Firebase account has <code>role: admin</code> and that the current Firestore rules are deployed.
         </p>
       ) : null}
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Metric label={tab === "enrollment" ? "All enrolments" : tab === "batches" || tab === "links" ? "All batches" : "All courses"} value={tab === "enrollment" ? enrollments.length : tab === "batches" || tab === "links" ? batches.length : courses.length} />
-        <Metric label={tab === "enrollment" ? "Active enrolments" : tab === "batches" || tab === "links" ? "Active batches" : "Active courses"} value={tab === "enrollment" ? enrollments.filter(item => item.status === "active").length : (tab === "batches" || tab === "links" ? batches : courses).filter(item => item.isActive).length} />
-        <Metric label={tab === "enrollment" ? "Inactive enrolments" : tab === "batches" || tab === "links" ? "Inactive batches" : "Inactive courses"} value={tab === "enrollment" ? enrollments.filter(item => item.status !== "active").length : (tab === "batches" || tab === "links" ? batches : courses).filter(item => !item.isActive).length} />
-      </div>
       <div className="mt-6 flex gap-6 overflow-x-auto border-b border-stone-200">
         {(["courses", "batches", "links", "enrollment"] as Tab[]).map(item => (
           <button
@@ -459,15 +468,25 @@ export function CourseBatchManager() {
           <span className="mr-auto text-xs text-stone-400">Use filters to narrow the listing.</span>
           <button type="button" onClick={() => setStatus(status === "all" ? "active" : status === "active" ? "inactive" : "all")} className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-600 hover:bg-stone-50"><Filter size={14} />{status === "all" ? "Filters" : `${status[0].toUpperCase()}${status.slice(1)}`}</button>
           <button type="button" onClick={() => { setQuery(""); setStatus("all"); }} className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-600 hover:bg-stone-50"><X size={14} />Clear all</button>
-      </div>
-      {tab === "courses" ? (
-        <div className="mt-5">
-          <div className="mb-3 flex justify-end">
+          {tab === "courses" ? (
             <Button onClick={() => openCourseModal()}>
               <BookPlus size={16} />
               Add course
             </Button>
-          </div>
+          ) : tab === "batches" ? (
+            <Button onClick={() => openBatchModal()}>
+              <Layers3 size={16} />
+              Add batch
+            </Button>
+          ) : tab === "enrollment" ? (
+            <Button onClick={() => { setBatchId(current => current || allBatches[0]?.id || ""); setStudentId(""); setEnrollmentModalOpen(true); }} disabled={!allBatches.length}>
+              <UserPlus size={16} />
+              Enroll student
+            </Button>
+          ) : null}
+      </div>
+      {tab === "courses" ? (
+        <div className="mt-5">
           <DataTable
             title="Courses"
             subtitle={`${visibleCourses.length} shown on this page`}
@@ -514,12 +533,6 @@ export function CourseBatchManager() {
         </div>
       ) : tab === "batches" ? (
         <div className="mt-5">
-          <div className="mb-3 flex justify-end">
-            <Button onClick={() => openBatchModal()}>
-              <Layers3 size={16} />
-              Add batch
-            </Button>
-          </div>
           <DataTable
             title={`${activeCourse?.title ?? "Course"} batches`}
             subtitle={`${visibleBatches.length} shown on this page`}
@@ -577,12 +590,6 @@ export function CourseBatchManager() {
         </div>
       ) : (
         <div className="mt-5">
-          <div className="mb-3 flex justify-end">
-            <Button onClick={() => { setBatchId(current => current || allBatches[0]?.id || ""); setStudentId(""); setEnrollmentModalOpen(true); }} disabled={!allBatches.length}>
-              <UserPlus size={16} />
-              Enroll student
-            </Button>
-          </div>
           {!allBatches.length ? (
             <div className="rounded-2xl border border-dashed border-stone-300 p-6 text-sm text-stone-500">Add a batch first, then enrol students here.</div>
           ) : (
@@ -612,7 +619,8 @@ export function CourseBatchManager() {
       {enrollmentModalOpen ? <EnrollmentModal batches={allBatches} courses={courses} students={studentsQuery.data ?? []} batchId={batchId} studentId={studentId} setBatchId={setBatchId} setStudentId={setStudentId} pending={enrollMutation.isPending} onClose={() => setEnrollmentModalOpen(false)} onSubmit={() => void enroll()} /> : null}
       {viewModal ? <DetailsModal {...viewModal} onClose={() => setViewModal(null)} /> : null}
       {editingEnrollment ? <EnrollmentBatchModal enrollment={editingEnrollment} batches={enrollmentBatches} students={studentsQuery.data ?? []} pending={enrollmentBatchMutation.isPending} onClose={() => setEditingEnrollment(null)} onSubmit={batchId => void updateEnrollmentBatchForStudent(batchId)} /> : null}
-    </section>
+      </section>
+    </div>
   );
 }
 function Actions({ onView, onEdit, onDelete, deleteTitle, deleteDescription }: { onView: () => void; onEdit: () => void; onDelete: () => void; deleteTitle?: string; deleteDescription?: string }) {
@@ -623,51 +631,87 @@ function Actions({ onView, onEdit, onDelete, deleteTitle, deleteDescription }: {
   </div>;
 }
 function DetailsModal({ title, fields, onClose }: { title: string; fields: { label: string; value: ReactNode }[]; onClose: () => void }) {
-  return <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4" onMouseDown={onClose}>
-    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onMouseDown={event => event.stopPropagation()}>
-      <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 text-xl font-bold">{title}</h4></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 hover:bg-stone-100"><X size={18} /></button></div>
-      <dl className="mt-6 divide-y divide-stone-100 rounded-xl border border-stone-200">{fields.map(field => <div key={field.label} className="grid gap-1 px-4 py-3 sm:grid-cols-3 sm:gap-4"><dt className="text-xs font-bold uppercase tracking-wide text-stone-500">{field.label}</dt><dd className="break-words text-sm font-medium text-stone-800 sm:col-span-2">{field.value}</dd></div>)}</dl>
-      <div className="mt-6 flex justify-end"><Button type="button" onClick={onClose}>Close</Button></div>
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
+      <section className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()}>
+        <header className="flex items-center justify-between border-b border-stone-100 p-6">
+          <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 font-display text-xl font-semibold">{title}</h4></div>
+          <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
+        </header>
+        <div className="flex-1 overflow-y-auto p-6">
+          <dl className="divide-y divide-stone-100 rounded-xl border border-stone-200">{fields.map(field => <div key={field.label} className="grid gap-1 px-4 py-3 sm:grid-cols-3 sm:gap-4"><dt className="text-xs font-bold uppercase tracking-wide text-stone-500">{field.label}</dt><dd className="break-words text-sm font-medium text-stone-800 sm:col-span-2">{field.value}</dd></div>)}</dl>
+        </div>
+        <div className="flex justify-end border-t border-stone-100 p-6"><Button type="button" onClick={onClose}>Close</Button></div>
+      </section>
     </div>
-  </div>;
+  );
 }
 function EnrollmentBatchModal({ enrollment, batches, students, pending, onClose, onSubmit }: { enrollment: EnrollmentRecord; batches: BatchRecord[]; students: { id: string; name: string; studentId: string }[]; pending: boolean; onClose: () => void; onSubmit: (batchId: string) => void }) {
   const [batchId, setBatchId] = useState(enrollment.batchId);
   const student = students.find(item => item.id === enrollment.studentId);
-  return <div role="dialog" aria-modal="true" aria-label="Update student enrolment" className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4" onMouseDown={onClose}>
-    <form className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(batchId); }}>
-      <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Student enrolment</p><h4 className="mt-1 text-xl font-bold">Update enrolment</h4></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 hover:bg-stone-100"><X size={18} /></button></div>
-      <label className="mt-6 block text-xs font-bold text-stone-700">Student<select value={enrollment.studentId} disabled className="mt-2 h-11 w-full cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-3 text-sm font-normal text-stone-500"><option value={enrollment.studentId}>{student ? `${student.name}${student.studentId ? ` · ${student.studentId}` : ""}` : "Unknown student"}</option></select></label>
-      <label className="mt-4 block text-xs font-bold text-stone-700">Batch<select value={batchId} onChange={event => setBatchId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal">{batches.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending || batchId === enrollment.batchId}>{pending ? "Saving..." : "Save changes"}</Button></div>
-    </form>
-  </div>;
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Update student enrolment" className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
+      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(batchId); }}>
+        <header className="flex items-center justify-between border-b border-stone-100 p-6">
+          <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Student enrolment</p><h4 className="mt-1 font-display text-xl font-semibold">Update enrolment</h4></div>
+          <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
+        </header>
+        <div className="flex-1 space-y-5 overflow-y-auto p-6">
+          <label className="block text-xs font-bold text-stone-700">Student<select value={enrollment.studentId} disabled className="mt-2 h-11 w-full cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-3 text-sm font-normal text-stone-500"><option value={enrollment.studentId}>{student ? `${student.name}${student.studentId ? ` · ${student.studentId}` : ""}` : "Unknown student"}</option></select></label>
+          <label className="block text-xs font-bold text-stone-700">Batch<select value={batchId} onChange={event => setBatchId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal">{batches.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-stone-100 p-6"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending || batchId === enrollment.batchId}>{pending ? "Saving..." : "Save changes"}</Button></div>
+      </form>
+    </div>
+  );
 }
 function CourseModal({ title, setTitle, editing, pending, onClose, onSubmit }: { title: string; setTitle: (value: string) => void; editing: boolean; pending: boolean; onClose: () => void; onSubmit: () => void }) {
-  return <div role="dialog" aria-modal="true" aria-label={editing ? "Edit course" : "Add course"} className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4" onMouseDown={onClose}>
-    <form className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
-      <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 text-xl font-bold">{editing ? "Edit course" : "Add course"}</h4></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 hover:bg-stone-100"><X size={18} /></button></div>
-      <Field label="Course name" value={title} setValue={setTitle} placeholder="e.g. Web development" />
-      <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!title.trim() || pending}><BookPlus size={16} />{editing ? "Save changes" : "Add course"}</Button></div>
-    </form>
-  </div>;
+  return (
+    <div role="dialog" aria-modal="true" aria-label={editing ? "Edit course" : "Add course"} className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
+      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+        <header className="flex items-center justify-between border-b border-stone-100 p-6">
+          <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 font-display text-xl font-semibold">{editing ? "Edit course" : "Add course"}</h4></div>
+          <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
+        </header>
+        <div className="flex-1 space-y-5 overflow-y-auto p-6">
+          <Field label="Course name" value={title} setValue={setTitle} placeholder="e.g. Web development" />
+        </div>
+        <div className="flex justify-end gap-2 border-t border-stone-100 p-6"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!title.trim() || pending}><BookPlus size={16} />{editing ? "Save changes" : "Add course"}</Button></div>
+      </form>
+    </div>
+  );
 }
 function BatchModal({ name, setName, editing, pending, onClose, onSubmit }: { name: string; setName: (value: string) => void; editing: boolean; pending: boolean; onClose: () => void; onSubmit: () => void }) {
-  return <div role="dialog" aria-modal="true" aria-label={editing ? "Edit batch" : "Add batch"} className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4" onMouseDown={onClose}>
-    <form className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
-      <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 flex items-center gap-2 text-xl font-bold"><Layers3 size={19} className="text-emerald-700" />{editing ? "Edit batch" : "Add a batch"}</h4><p className="mt-1 text-xs text-stone-500">You can link this batch to a course later.</p></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 hover:bg-stone-100"><X size={18} /></button></div>
-      <Field label="Batch name" value={name} setValue={setName} placeholder="e.g. Weekend batch" />
-      <Button type="submit" className="mt-4 w-full" disabled={!name.trim() || pending}>{editing ? "Save batch" : "Add batch"}</Button>
-    </form>
-  </div>;
-}
-function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl bg-emerald-50 px-4 py-2 text-center">
-      <p className="text-lg font-bold text-emerald-900">{value}</p>
-      <p className="text-[10px] font-bold uppercase text-emerald-800/60">
-        {label}
-      </p>
+    <div role="dialog" aria-modal="true" aria-label={editing ? "Edit batch" : "Add batch"} className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
+      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+        <header className="flex items-center justify-between border-b border-stone-100 p-6">
+          <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 flex items-center gap-2 font-display text-xl font-semibold"><Layers3 size={19} className="text-emerald-700" />{editing ? "Edit batch" : "Add a batch"}</h4><p className="mt-1 text-xs text-stone-500">You can link this batch to a course later.</p></div>
+          <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
+        </header>
+        <div className="flex-1 space-y-5 overflow-y-auto p-6">
+          <Field label="Batch name" value={name} setValue={setName} placeholder="e.g. Weekend batch" />
+        </div>
+        <div className="flex justify-end gap-2 border-t border-stone-100 p-6"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!name.trim() || pending}>{editing ? "Save batch" : "Add batch"}</Button></div>
+      </form>
+    </div>
+  );
+}
+function Metric({ label, value, icon: Icon, tone }: { label: string; value: number; icon: typeof BookMarked; tone: "blue" | "green" | "red" }) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-600",
+    green: "bg-emerald-50 text-emerald-600",
+    red: "bg-red-50 text-red-500",
+  } as const;
+  return (
+    <div className="flex items-center gap-4 rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
+      <span className={`grid size-12 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>
+        <Icon size={20} />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-stone-500">{label}</p>
+        <p className="mt-0.5 text-2xl font-bold text-stone-900">{value}</p>
+      </div>
     </div>
   );
 }
@@ -698,7 +742,22 @@ function Td({
   );
 }
 function StatusToggle({ active, onToggle, disabled }: { active: boolean; onToggle: () => void; disabled?: boolean }) {
-  return <button type="button" role="switch" aria-checked={active} aria-label={`Set status to ${active ? "inactive" : "active"}`} disabled={disabled} onClick={onToggle} className={`inline-flex items-center gap-2 rounded-full px-1 py-1 text-[10px] font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${active ? "bg-emerald-50 text-emerald-800" : "bg-stone-100 text-stone-500"}`}><span className={`size-4 rounded-full transition ${active ? "bg-emerald-600" : "bg-stone-400"}`} /><span className="pr-2">{active ? "Active" : "Inactive"}</span></button>;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={active}
+      aria-label={`Set status to ${active ? "inactive" : "active"}`}
+      title={active ? "Active — click to deactivate" : "Inactive — click to activate"}
+      disabled={disabled}
+      onClick={onToggle}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${active ? "bg-emerald-500" : "bg-stone-300"}`}
+    >
+      <span
+        className={`inline-block size-5 transform rounded-full bg-white shadow-md ring-1 ring-black/5 transition-transform duration-200 ${active ? "translate-x-[22px]" : "translate-x-0.5"}`}
+      />
+    </button>
+  );
 }
 function LoadingRow({ columns = 5 }: { columns?: number }) {
   return (
@@ -753,10 +812,14 @@ function EnrollmentModal({ batches, courses, students, batchId, studentId, setBa
   onSubmit: () => void;
 }) {
   return (
-    <div role="dialog" aria-modal="true" aria-label="Enroll student" className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4" onMouseDown={onClose}>
-      <form className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
-        <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Student enrolment</p><h4 className="mt-1 flex items-center gap-2 text-xl font-bold"><UserPlus size={19} className="text-emerald-700" />Enroll student</h4></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 hover:bg-stone-100"><X size={18} /></button></div>
-      <label className="mt-5 block text-xs font-bold">
+    <div role="dialog" aria-modal="true" aria-label="Enroll student" className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
+      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+        <header className="flex items-center justify-between border-b border-stone-100 p-6">
+          <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Student enrolment</p><h4 className="mt-1 flex items-center gap-2 font-display text-xl font-semibold"><UserPlus size={19} className="text-emerald-700" />Enroll student</h4></div>
+          <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
+        </header>
+        <div className="flex-1 space-y-5 overflow-y-auto p-6">
+      <label className="block text-xs font-bold">
         Batch
         <select
           value={batchId}
@@ -774,7 +837,7 @@ function EnrollmentModal({ batches, courses, students, batchId, studentId, setBa
           })}
         </select>
       </label>
-      <label className="mt-4 block text-xs font-bold">
+      <label className="block text-xs font-bold">
         Student
         <select
           value={studentId}
@@ -790,14 +853,16 @@ function EnrollmentModal({ batches, courses, students, batchId, studentId, setBa
           ))}
         </select>
       </label>
-      <Button
-        type="submit"
-        className="mt-6 w-full"
-        disabled={!studentId || pending}
-      >
-        <UserPlus size={16} />
-        {pending ? "Enrolling..." : "Enroll student"}
-      </Button>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-stone-100 p-6">
+          <Button
+            type="submit"
+            disabled={!studentId || pending}
+          >
+            <UserPlus size={16} />
+            {pending ? "Enrolling..." : "Enroll student"}
+          </Button>
+        </div>
       </form>
     </div>
   );

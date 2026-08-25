@@ -101,18 +101,32 @@ export async function getPublishedAnnouncements(courseId?: string, batchId?: str
 export async function getPublishedLessons(courseId?: string): Promise<Lesson[]> {
   if (!firestore) return demoLessons;
   if (!courseId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "lessons"), where("courseId", "==", courseId), where("isPublished", "==", true), orderBy("sortOrder", "asc")));
-  return snapshot.docs.map((item) => {
-    const data = item.data();
-    return { id: item.id, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson;
-  });
+  // The security rules require the query itself to constrain isPublished, so
+  // it must stay in the query. Equality-only filters are served without a
+  // composite index (unlike orderBy sortOrder, which needs one that is not
+  // deployed), so ordering happens in memory.
+  const snapshot = await getDocs(query(collection(firestore, "lessons"), where("courseId", "==", courseId), where("isPublished", "==", true)));
+  return snapshot.docs
+    .map((item) => {
+      const data = item.data();
+      return { sortOrder: Number(data.sortOrder ?? 0), lesson: { id: item.id, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson };
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map(({ lesson }) => lesson);
 }
 
 export async function getStudentAttendance(studentId: string, courseId?: string, batchId?: string) {
   if (!firestore) return demoAttendance;
   if (!courseId || !batchId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "attendance"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId), orderBy("date", "desc"), limit(30)));
-  return snapshot.docs.map((item) => item.data());
+  // The security rules evaluate ownership and batch fields against the query
+  // constraints, so studentId, courseId, and batchId must all be equality
+  // filters. Equality-only queries need no composite index (orderBy date
+  // would), so sorting and the 30-record limit happen in memory.
+  const snapshot = await getDocs(query(collection(firestore, "attendance"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId)));
+  return snapshot.docs
+    .map((item) => item.data())
+    .sort((left, right) => String(right.date ?? "").localeCompare(String(left.date ?? "")))
+    .slice(0, 30);
 }
 
 export async function getPublishedAssignments(courseId?: string, batchId?: string): Promise<Assignment[]> {

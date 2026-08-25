@@ -110,9 +110,8 @@ export function AssignmentManager() {
     onSuccess: () => client.invalidateQueries({ queryKey: assignmentsKey }),
   });
 
-  const batchOptions = batchId ? batches.filter(item => item.id === batchId) : batches;
   const activeCourseId = courseId || courses[0]?.id || "";
-  const activeBatchId = batchId || batchOptions.find(item => item.courseId === activeCourseId)?.id || "";
+  const activeBatchId = batchId || "";
 
   const needle = query.trim().toLowerCase();
   const matchesStatus = (published: boolean) =>
@@ -205,25 +204,10 @@ export function AssignmentManager() {
         <Metric label="Published" value={publishedTotal} />
         <Metric label="Draft" value={draftsTotal} />
       </div>
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="text-xs font-bold text-stone-600">Course
-            <select value={activeCourseId} onChange={event => { setCourseId(event.target.value); setBatchId(""); }} disabled={!courses.length} className="mt-1 h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm disabled:opacity-50">
-              {courses.length ? courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>) : <option value="">No courses</option>}
-            </select>
-          </label>
-          <label className="text-xs font-bold text-stone-600">Batch
-            <select value={activeBatchId} onChange={event => setBatchId(event.target.value)} className="mt-1 h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm">
-              <option value="">All batches</option>
-              {batchOptions.filter(b => b.courseId === activeCourseId).map(batch => <option key={batch.id} value={batch.id}>{batch.name}</option>)}
-            </select>
-          </label>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
           <span className="mr-auto text-xs text-stone-400">Use filters to narrow the listing.</span>
           <button type="button" onClick={() => setStatus(status === "all" ? "published" : status === "published" ? "draft" : "all")} className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-600 hover:bg-stone-50"><Filter size={14} />{status === "all" ? "Filters" : `${status[0].toUpperCase()}${status.slice(1)}`}</button>
           <button type="button" onClick={() => { setCourseId(""); setBatchId(""); setQuery(""); setStatus("all"); }} className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-600 hover:bg-stone-50"><X size={14} />Clear all</button>
-        </div>
       </div>
       <div className="mt-6">
         <div className="mb-3 flex justify-end">

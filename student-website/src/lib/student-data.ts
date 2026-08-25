@@ -13,7 +13,7 @@ export const studentQueryKeys = {
 
 export const demoAnnouncements: Announcement[] = [
   { id: "orientation", title: "Welcome to Teza Tech Lab", description: "Your next learning chapter starts here. Explore your courses and stay on track.", accent: "from-sky-400/30 via-blue-500/20 to-transparent", publishedAt: "Today" },
-  { id: "quiz-week", title: "Quiz week is open", description: "Review your lessons and complete each published quiz before its due date.", accent: "from-lime-300/20 via-emerald-400/10 to-transparent", publishedAt: "This week" },
+  { id: "quiz-week", title: "Quiz week is open", description: "Review your lessons and complete each published quiz before its due date.", accent: "from-lime-300/20 via-teal-400/10 to-transparent", publishedAt: "This week" },
 ];
 
 export const demoLessons: Lesson[] = [

@@ -3,14 +3,14 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97]",
   {
     variants: {
       variant: {
-        default: "bg-emerald-700 text-white shadow-[0_10px_24px_rgba(4,120,87,0.20)] hover:bg-emerald-800",
-        secondary: "bg-stone-100 text-stone-700 hover:bg-stone-200",
-        outline: "border border-stone-300 bg-white text-stone-700 hover:bg-stone-100",
-        ghost: "text-stone-600 hover:bg-stone-100 hover:text-stone-900",
+        default: "bg-teal-700 text-white shadow-[0_10px_24px_rgba(15,118,110,0.20)] hover:bg-teal-800",
+        secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
+        outline: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
+        ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
       },
       size: {
         default: "h-11 px-4",
