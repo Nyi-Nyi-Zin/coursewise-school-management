@@ -83,14 +83,6 @@
         { "fieldPath": "studentId", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "batches",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "courseIds", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "name", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

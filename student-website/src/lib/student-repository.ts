@@ -80,10 +80,10 @@ export async function getPublishedAnnouncements(courseId?: string, batchId?: str
   });
 }
 
-export async function getPublishedLessons(courseId?: string, batchId?: string): Promise<Lesson[]> {
+export async function getPublishedLessons(courseId?: string): Promise<Lesson[]> {
   if (!firestore) return demoLessons;
-  if (!courseId || !batchId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "lessons"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("sortOrder", "asc")));
+  if (!courseId) return [];
+  const snapshot = await getDocs(query(collection(firestore, "lessons"), where("courseId", "==", courseId), where("isPublished", "==", true), orderBy("sortOrder", "asc")));
   return snapshot.docs.map((item) => {
     const data = item.data();
     return { id: item.id, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson;

@@ -1,21 +1,18 @@
-import { arrayRemove, arrayUnion, collection, deleteDoc, doc, DocumentSnapshot, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter } from "firebase/firestore";
+import { arrayRemove, arrayUnion, collection, deleteDoc, doc, DocumentSnapshot, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter, where } from "firebase/firestore";
 import { getFirebaseClient } from "./firebase";
 
 export type CourseRecord = { id: string; title: string; isActive: boolean; enrolledStudentIds: string[] };
-export type BatchRecord = { id: string; courseIds: string[]; name: string; isActive: boolean; enrolledStudentIds: string[] };
-export type StudentProfile = { id: string; name: string; email: string; studentId: string };
+export type BatchRecord = { id: string; courseId: string; name: string; isActive: boolean; enrolledStudentIds: string[] };
+export type StudentProfile = { id: string; name: string; email: string; studentId: string; activeBatchId?: string };
 export type EnrollmentRecord = { id: string; courseId: string; batchId: string; studentId: string; status: string };
 export type CursorPage<T> = { items: T[]; nextCursor: DocumentSnapshot | null };
 
 const toCourse = (item: DocumentSnapshot): CourseRecord => ({ id: item.id, title: String(item.data()?.title ?? "Untitled course"), isActive: item.data()?.isActive !== false, enrolledStudentIds: Array.isArray(item.data()?.enrolledStudentIds) ? item.data()!.enrolledStudentIds.map(String) : [] });
 const toBatch = (item: DocumentSnapshot): BatchRecord => {
   const data = item.data() ?? {};
-  // Older batch documents stored one `courseId`; newer ones use `courseIds`.
-  // Read both so existing data is never silently hidden from the dashboard.
-  const courseIds = Array.isArray(data.courseIds)
-    ? data.courseIds.map(String)
-    : data.courseId ? [String(data.courseId)] : [];
-  return { id: item.id, courseIds, name: String(data.name ?? "Untitled batch"), isActive: data.isActive !== false, enrolledStudentIds: Array.isArray(data.enrolledStudentIds) ? data.enrolledStudentIds.map(String) : [] };
+  // Read legacy courseIds so existing data remains visible, but retain one owner.
+  const courseId = data.courseId ? String(data.courseId) : Array.isArray(data.courseIds) ? String(data.courseIds[0] ?? "") : "";
+  return { id: item.id, courseId, name: String(data.name ?? "Untitled batch"), isActive: data.isActive !== false, enrolledStudentIds: Array.isArray(data.enrolledStudentIds) ? data.enrolledStudentIds.map(String) : [] };
 };
 
 export async function loadCoursesPage(pageSize: number, cursor?: DocumentSnapshot | null): Promise<CursorPage<CourseRecord>> {
@@ -31,8 +28,19 @@ export async function loadBatchesPage(courseId: string, pageSize: number, cursor
   const { db } = getFirebaseClient();
   const snapshot = await getDocs(collection(db, "batches"));
   const matched = snapshot.docs
-    .filter(item => toBatch(item).courseIds.includes(courseId))
+    .filter(item => toBatch(item).courseId === courseId)
     .sort((a, b) => toBatch(a).name.localeCompare(toBatch(b).name));
+  const cursorIndex = cursor ? matched.findIndex(item => item.id === cursor.id) : -1;
+  const startIndex = cursorIndex + 1;
+  const docs = matched.slice(startIndex, startIndex + pageSize);
+  return { items: docs.map(toBatch), nextCursor: startIndex + pageSize < matched.length ? docs.at(-1) ?? null : null };
+}
+
+/** Batches are created independently and may be linked to a course later. */
+export async function loadAllBatchesPage(pageSize: number, cursor?: DocumentSnapshot | null): Promise<CursorPage<BatchRecord>> {
+  const { db } = getFirebaseClient();
+  const snapshot = await getDocs(collection(db, "batches"));
+  const matched = snapshot.docs.sort((a, b) => toBatch(a).name.localeCompare(toBatch(b).name));
   const cursorIndex = cursor ? matched.findIndex(item => item.id === cursor.id) : -1;
   const startIndex = cursorIndex + 1;
   const docs = matched.slice(startIndex, startIndex + pageSize);
@@ -48,7 +56,7 @@ export async function loadCourses(): Promise<CourseRecord[]> {
 export async function loadBatches(courseId: string): Promise<BatchRecord[]> {
   const { db } = getFirebaseClient();
   const snapshot = await getDocs(collection(db, "batches"));
-  return snapshot.docs.map(toBatch).filter(batch => batch.courseIds.includes(courseId)).sort((a, b) => a.name.localeCompare(b.name));
+  return snapshot.docs.map(toBatch).filter(batch => batch.courseId === courseId).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function loadAllBatches(): Promise<BatchRecord[]> {
@@ -62,16 +70,19 @@ export async function loadStudentProfiles(): Promise<StudentProfile[]> {
   const snapshot = await getDocs(collection(db, "users"));
   return snapshot.docs
     .filter(item => item.data().role === "student")
-    .map(item => ({ id: item.id, name: String(item.data().name ?? "Student"), email: String(item.data().email ?? ""), studentId: String(item.data().studentId ?? "") }))
+    .map(item => ({ id: item.id, name: String(item.data().name ?? "Student"), email: String(item.data().email ?? ""), studentId: String(item.data().studentId ?? ""), activeBatchId: String(item.data().activeBatchId ?? "") }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function loadEnrollmentsPage(courseId: string, pageSize: number, cursor?: DocumentSnapshot | null): Promise<CursorPage<EnrollmentRecord>> {
+/**
+ * The enrolment workspace is a school-wide register.  Do not scope this read
+ * to the currently selected course: that selection is paginated and otherwise
+ * hides valid records belonging to another course.
+ */
+export async function loadEnrollmentsPage(pageSize: number, cursor?: DocumentSnapshot | null): Promise<CursorPage<EnrollmentRecord>> {
   const { db } = getFirebaseClient();
   const snapshot = await getDocs(collection(db, "enrollments"));
-  const matched = snapshot.docs
-    .filter(item => String(item.data().courseId ?? "") === courseId)
-    .sort((a, b) => a.id.localeCompare(b.id));
+  const matched = snapshot.docs.sort((a, b) => a.id.localeCompare(b.id));
   const cursorIndex = cursor ? matched.findIndex(item => item.id === cursor.id) : -1;
   const startIndex = cursorIndex + 1;
   const docs = matched.slice(startIndex, startIndex + pageSize);
@@ -91,7 +102,7 @@ export async function saveCourse(course: CourseRecord) {
 
 export async function saveBatch(batch: BatchRecord) {
   const { db } = getFirebaseClient();
-  await setDoc(doc(db, "batches", batch.id), { name: batch.name, courseIds: batch.courseIds, courseId: batch.courseIds[0] ?? null, isActive: batch.isActive, enrolledStudentIds: batch.enrolledStudentIds, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, "batches", batch.id), { name: batch.name, courseId: batch.courseId, isActive: batch.isActive, enrolledStudentIds: batch.enrolledStudentIds, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function saveEnrollmentStatus(enrollmentId: string, status: "active" | "inactive") {
@@ -116,7 +127,7 @@ export async function deleteEnrollment(enrollmentId: string) {
 
 export async function linkBatchToCourse(batchId: string, courseId: string) {
   const { db } = getFirebaseClient();
-  await setDoc(doc(db, "batches", batchId), { courseIds: arrayUnion(courseId), updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, "batches", batchId), { courseId, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function enrollStudent(courseId: string, batchId: string, studentId: string) {
@@ -125,6 +136,10 @@ export async function enrollStudent(courseId: string, batchId: string, studentId
   const batchRef = doc(db, "batches", batchId);
   const enrollmentRef = doc(db, "enrollments", `${courseId}_${batchId}_${studentId}`);
   const studentRef = doc(db, "users", studentId);
+  const existingActiveEnrollments = await getDocs(query(collection(db, "enrollments"), where("studentId", "==", studentId), where("status", "==", "active")));
+  if (existingActiveEnrollments.docs.length > 0) {
+    throw new Error("This student is already enrolled. Use Update to move them instead.");
+  }
   await runTransaction(db, async transaction => {
     transaction.set(enrollmentRef, { studentId, courseId, batchId, status: "active", enrolledAt: serverTimestamp() }, { merge: true });
     transaction.update(courseRef, { enrolledStudentIds: arrayUnion(studentId), updatedAt: serverTimestamp() });

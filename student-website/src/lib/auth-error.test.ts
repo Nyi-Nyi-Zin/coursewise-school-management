@@ -13,4 +13,10 @@ describe("getStudentAuthenticationErrorMessage", () => {
       "This email already has an account. Please sign in instead.",
     );
   });
+
+  it("gives clear guidance when the registration function is unavailable", () => {
+    expect(getStudentAuthenticationErrorMessage(new Error("Firebase: Error (functions/not-found)."))).toBe(
+      "Account registration is temporarily unavailable. Please try again shortly.",
+    );
+  });
 });

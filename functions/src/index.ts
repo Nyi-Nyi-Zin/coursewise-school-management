@@ -288,28 +288,71 @@ export const adminCreateStudentAccount = onCall(async request => {
 
   const name = String(request.data?.name ?? '').trim();
   const email = String(request.data?.email ?? '').trim().toLowerCase();
-  const studentId = String(request.data?.studentId ?? '').trim();
   const photoUrl = typeof request.data?.photoUrl === 'string' ? request.data.photoUrl.trim() : '';
   const isActive = request.data?.isActive !== false;
-  if (!name || !email.includes('@') || !studentId) {
-    throw new HttpsError('invalid-argument', 'A student name, email address, and student ID are required.');
+  if (!name || !email.includes('@')) {
+    throw new HttpsError('invalid-argument', 'A student name and email address are required.');
   }
 
   const auth = getAuth();
   try {
     const user = await auth.createUser({ email, password: randomBytes(18).toString('base64url'), displayName: name });
-    await getFirestore().collection('users').doc(user.uid).set({
-      name,
-      email,
+    const studentId = await createNumberedStudentProfile(user.uid, { name, email, isActive, photoUrl });
+    const resetLink = await auth.generatePasswordResetLink(email);
+    return { uid: user.uid, studentId, resetLink };
+  } catch (error) {
+    if (typeof error === 'object' && error && 'errorInfo' in error) {
+      const code = (error as { errorInfo?: { code?: string } }).errorInfo?.code ?? '';
+      if (code.includes('email-already-exists')) throw new HttpsError('already-exists', 'An account with this email already exists.');
+      if (code.includes('invalid-email')) throw new HttpsError('invalid-argument', 'The email address is not valid.');
+    }
+    throw new HttpsError('internal', 'Could not create the student account.');
+  }
+});
+
+async function createNumberedStudentProfile(userId: string, input: { name: string; email: string; isActive?: boolean; photoUrl?: string }) {
+  const db = getFirestore();
+  return db.runTransaction(async transaction => {
+    const counterRef = db.collection('system').doc('studentCounter');
+    const counter = await transaction.get(counterRef);
+    // On first use, continue from any existing numeric IDs instead of reusing one.
+    let lastIssued = Number(counter.data()?.lastIssued ?? 0);
+    if (!counter.exists) {
+      const existingStudents = await transaction.get(db.collection('users').where('role', '==', 'student'));
+      lastIssued = existingStudents.docs.reduce((highest, student) => {
+        const value = Number(student.data().studentId);
+        return Number.isSafeInteger(value) && value >= 0 ? Math.max(highest, value) : highest;
+      }, 0);
+    }
+    const nextNumber = Number.isSafeInteger(lastIssued) && lastIssued >= 0 ? lastIssued + 1 : 1;
+    const studentId = String(nextNumber);
+    transaction.set(counterRef, { lastIssued: nextNumber, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    transaction.set(db.collection('users').doc(userId), {
+      name: input.name,
+      email: input.email,
       role: 'student',
       studentId,
-      isActive,
-      ...(photoUrl ? { photoUrl } : {}),
+      isActive: input.isActive !== false,
+      ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    const resetLink = await auth.generatePasswordResetLink(email);
-    return { uid: user.uid, resetLink };
+    return studentId;
+  });
+}
+
+export const registerStudentAccount = onCall(async request => {
+  const name = String(request.data?.name ?? '').trim();
+  const email = String(request.data?.email ?? '').trim().toLowerCase();
+  const password = String(request.data?.password ?? '');
+  if (!name || !email.includes('@') || password.length < 6) {
+    throw new HttpsError('invalid-argument', 'A name, valid email address, and password of at least 6 characters are required.');
+  }
+  const auth = getAuth();
+  try {
+    const user = await auth.createUser({ email, password, displayName: name });
+    const studentId = await createNumberedStudentProfile(user.uid, { name, email });
+    return { uid: user.uid, studentId };
   } catch (error) {
     if (typeof error === 'object' && error && 'errorInfo' in error) {
       const code = (error as { errorInfo?: { code?: string } }).errorInfo?.code ?? '';

@@ -25,7 +25,7 @@ import {
   deleteEnrollment,
   linkBatchToCourse,
   loadAllBatches,
-  loadBatchesPage,
+  loadAllBatchesPage,
   loadCoursesPage,
   loadEnrollmentsPage,
   loadStudentProfiles,
@@ -40,12 +40,11 @@ import {
 
 const coursesKey = ["admin", "courses"] as const;
 const studentsKey = ["admin", "student-profiles"] as const;
-const batchesKey = (courseId: string) =>
-  ["admin", "batches", courseId] as const;
+const batchesKey = ["admin", "batches"] as const;
 const allBatchesKey = ["admin", "batches", "all"] as const;
-const enrollmentsKey = (courseId: string) => ["admin", "enrollments", courseId] as const;
+const enrollmentsKey = ["admin", "enrollments"] as const;
 const PAGE_SIZE = 10;
-type Tab = "courses" | "batches" | "enrollment";
+type Tab = "courses" | "batches" | "links" | "enrollment";
 
 function writeErrorCode(error: unknown) {
   return typeof error === "object" && error && "code" in error ? String(error.code) : "";
@@ -82,6 +81,7 @@ export function CourseBatchManager() {
   const [localEnrollments, setLocalEnrollments] = useState<EnrollmentRecord[]>([]);
   const [courseId, setCourseId] = useState("");
   const [batchId, setBatchId] = useState("");
+  const [linkBatchId, setLinkBatchId] = useState("");
   const [tab, setTab] = useState<Tab>("courses");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
@@ -91,7 +91,6 @@ export function CourseBatchManager() {
   const [batchName, setBatchName] = useState("");
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
-  const [existingBatchId, setExistingBatchId] = useState("");
   const [studentId, setStudentId] = useState("");
   const [enrollmentModalOpen, setEnrollmentModalOpen] = useState(false);
   const [viewModal, setViewModal] = useState<{ title: string; fields: { label: string; value: ReactNode }[] } | null>(null);
@@ -113,40 +112,38 @@ export function CourseBatchManager() {
   );
   const activeCourseId = courseId || courses[0]?.id || "";
   const batchesQuery = useQuery({
-    queryKey: [...batchesKey(activeCourseId), batchPage],
-    queryFn: () => loadBatchesPage(activeCourseId, PAGE_SIZE, batchCursors[batchPage]),
-    enabled: hasFirebaseConfiguration && Boolean(activeCourseId),
+    queryKey: [...batchesKey, batchPage],
+    queryFn: () => loadAllBatchesPage(PAGE_SIZE, batchCursors[batchPage]),
+    enabled: hasFirebaseConfiguration,
   });
   const batches = hasFirebaseConfiguration
     ? (batchesQuery.data?.items ?? [])
-    : (localBatches[activeCourseId] ?? []);
-  const allBatchesQuery = useQuery({
-    queryKey: allBatchesKey,
-    queryFn: loadAllBatches,
-    enabled: hasFirebaseConfiguration,
-  });
+    : Object.values(localBatches).flat();
+  const allBatchesQuery = useQuery({ queryKey: allBatchesKey, queryFn: loadAllBatches, enabled: hasFirebaseConfiguration });
   const studentsQuery = useQuery({
     queryKey: studentsKey,
     queryFn: loadStudentProfiles,
     enabled: hasFirebaseConfiguration,
   });
   const enrollmentsQuery = useQuery({
-    queryKey: [...enrollmentsKey(activeCourseId), enrollmentPage],
-    queryFn: () => loadEnrollmentsPage(activeCourseId, PAGE_SIZE, enrollmentCursors[enrollmentPage]),
-    enabled: hasFirebaseConfiguration && Boolean(activeCourseId),
+    queryKey: [...enrollmentsKey, enrollmentPage],
+    queryFn: () => loadEnrollmentsPage(PAGE_SIZE, enrollmentCursors[enrollmentPage]),
+    enabled: hasFirebaseConfiguration,
   });
   const activeCourse = useMemo(
     () => courses.find(item => item.id === activeCourseId),
     [courses, activeCourseId]
   );
-  const enrollmentBatches = (allBatchesQuery.data ?? batches).filter(item => item.courseIds.includes(activeCourseId));
-  const enrollments = hasFirebaseConfiguration ? (enrollmentsQuery.data?.items ?? []) : localEnrollments.filter(item => item.courseId === activeCourseId);
+  const allBatches = hasFirebaseConfiguration ? (allBatchesQuery.data ?? []) : batches;
+  // The link workspace is not paginated: it must show every batch linked to the selected course.
+  const enrollmentBatches = allBatches.filter(item => item.courseId === activeCourseId);
+  const enrollments = hasFirebaseConfiguration ? (enrollmentsQuery.data?.items ?? []) : localEnrollments;
   const needle = query.trim().toLowerCase();
   const matchesStatus = (active: boolean) =>
     status === "all" || (status === "active" ? active : !active);
   const visibleEnrollments = enrollments.filter(item => {
     const student = (studentsQuery.data ?? []).find(profile => profile.id === item.studentId);
-    const batch = enrollmentBatches.find(candidate => candidate.id === item.batchId);
+    const batch = allBatches.find(candidate => candidate.id === item.batchId);
     return `${student?.name ?? ""} ${student?.studentId ?? ""} ${batch?.name ?? ""}`.toLowerCase().includes(needle)
       && matchesStatus(item.status === "active");
   });
@@ -162,54 +159,57 @@ export function CourseBatchManager() {
     onSuccess: () => client.invalidateQueries({ queryKey: coursesKey }),
   });
   const deleteCourseMutation = useMutation({ mutationFn: deleteCourse, onSuccess: () => client.invalidateQueries({ queryKey: coursesKey }) });
-  const deleteBatchMutation = useMutation({ mutationFn: deleteBatch, onSuccess: () => client.invalidateQueries({ queryKey: batchesKey(activeCourseId) }) });
+  const deleteBatchMutation = useMutation({
+    mutationFn: deleteBatch,
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: batchesKey });
+      await client.invalidateQueries({ queryKey: allBatchesKey });
+    },
+  });
   const batchMutation = useMutation({
     mutationFn: saveBatch,
-    onSuccess: () =>
-      client.invalidateQueries({ queryKey: batchesKey(activeCourseId) }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: batchesKey });
+      await client.invalidateQueries({ queryKey: allBatchesKey });
+    },
   });
   const linkMutation = useMutation({
-    mutationFn: ({
-      batchId,
-      courseId,
-    }: {
-      batchId: string;
-      courseId: string;
-    }) => linkBatchToCourse(batchId, courseId),
+    mutationFn: ({ batchId, courseId }: { batchId: string; courseId: string }) => linkBatchToCourse(batchId, courseId),
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: batchesKey(activeCourseId) });
+      await client.invalidateQueries({ queryKey: batchesKey });
       await client.invalidateQueries({ queryKey: allBatchesKey });
     },
   });
   const enrollMutation = useMutation({
     mutationFn: ({
+      courseId,
       batchId,
       studentId,
     }: {
+      courseId: string;
       batchId: string;
       studentId: string;
-    }) => enrollStudent(activeCourseId, batchId, studentId),
-    onSuccess: async () => {
+    }) => enrollStudent(courseId, batchId, studentId),
+    onSuccess: async (_, variables) => {
       await client.invalidateQueries({ queryKey: coursesKey });
-      await client.invalidateQueries({ queryKey: batchesKey(activeCourseId) });
-      await client.invalidateQueries({ queryKey: enrollmentsKey(activeCourseId) });
+      await client.invalidateQueries({ queryKey: batchesKey });
+      await client.invalidateQueries({ queryKey: enrollmentsKey });
     },
   });
   const enrollmentStatusMutation = useMutation({
     mutationFn: ({ enrollmentId, nextStatus }: { enrollmentId: string; nextStatus: "active" | "inactive" }) => saveEnrollmentStatus(enrollmentId, nextStatus),
-    onSuccess: () => client.invalidateQueries({ queryKey: enrollmentsKey(activeCourseId) }),
+    onSuccess: () => client.invalidateQueries({ queryKey: enrollmentsKey }),
   });
   const enrollmentBatchMutation = useMutation({
     mutationFn: ({ enrollment, nextBatchId }: { enrollment: EnrollmentRecord; nextBatchId: string }) => updateEnrollmentBatch(enrollment, nextBatchId),
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: batchesKey(activeCourseId) });
-      await client.invalidateQueries({ queryKey: allBatchesKey });
-      await client.invalidateQueries({ queryKey: enrollmentsKey(activeCourseId) });
+      await client.invalidateQueries({ queryKey: batchesKey });
+      await client.invalidateQueries({ queryKey: enrollmentsKey });
     },
   });
   const deleteEnrollmentMutation = useMutation({
     mutationFn: deleteEnrollment,
-    onSuccess: () => client.invalidateQueries({ queryKey: enrollmentsKey(activeCourseId) }),
+    onSuccess: () => client.invalidateQueries({ queryKey: enrollmentsKey }),
   });
   const selectCourse = (id: string) => {
     setCourseId(id);
@@ -230,7 +230,6 @@ export function CourseBatchManager() {
   function openBatchModal(batch?: BatchRecord) {
     setEditingBatchId(batch?.id ?? null);
     setBatchName(batch?.name ?? "");
-    setExistingBatchId("");
     setBatchModalOpen(true);
   }
   async function saveCourseForm() {
@@ -265,15 +264,16 @@ export function CourseBatchManager() {
   async function removeBatch(batch: BatchRecord) {
     try {
       if (hasFirebaseConfiguration) await deleteBatchMutation.mutateAsync(batch.id);
-      else setLocalBatches(items => ({ ...items, [activeCourseId]: (items[activeCourseId] ?? []).filter(item => item.id !== batch.id) }));
+      else setLocalBatches(items => Object.fromEntries(Object.entries(items).map(([key, value]) => [key, value.filter(item => item.id !== batch.id)])));
       toast.success(`${batch.name} was deleted.`);
     } catch (error) { failureNotice(error, "The batch could not be deleted"); }
   }
   async function addBatch() {
-    if (!activeCourseId || !batchName.trim()) return;
+    if (!batchName.trim()) return;
     const batch = {
       id: editingBatchId ?? crypto.randomUUID(),
-      courseIds: [activeCourseId],
+      // Creating a batch must never implicitly assign it to the selected course.
+      courseId: editingBatchId ? batches.find(item => item.id === editingBatchId)?.courseId ?? "" : "",
       name: batchName.trim(),
       isActive: editingBatchId ? batches.find(item => item.id === editingBatchId)?.isActive ?? true : true,
       enrolledStudentIds: editingBatchId ? batches.find(item => item.id === editingBatchId)?.enrolledStudentIds ?? [] : [],
@@ -283,7 +283,7 @@ export function CourseBatchManager() {
       else
         setLocalBatches(items => ({
           ...items,
-          [activeCourseId]: editingBatchId ? (items[activeCourseId] ?? []).map(item => item.id === editingBatchId ? batch : item) : [...(items[activeCourseId] ?? []), batch],
+          [batch.courseId]: editingBatchId ? (items[batch.courseId] ?? []).map(item => item.id === editingBatchId ? batch : item) : [...(items[batch.courseId] ?? []), batch],
         }));
       setBatchName("");
       setEditingBatchId(null);
@@ -295,32 +295,35 @@ export function CourseBatchManager() {
     }
   }
   async function linkBatch() {
-    if (!existingBatchId) return;
-    try {
-      await linkMutation.mutateAsync({
-        batchId: existingBatchId,
-        courseId: activeCourseId,
-      });
-      setBatchId(existingBatchId);
-      setExistingBatchId("");
-      toast.success("Existing batch linked to this course.");
-    } catch (error) {
-      failureNotice(error, "The batch could not be linked");
+    if (!activeCourseId || !linkBatchId) return;
+    const batch = allBatches.find(item => item.id === linkBatchId);
+    if (batch?.courseId && batch.courseId !== activeCourseId && batch.enrolledStudentIds.length) {
+      toast.error("This batch has enrolled students and cannot be linked to another course.");
+      return;
     }
+    try {
+      await linkMutation.mutateAsync({ batchId: linkBatchId, courseId: activeCourseId });
+      setLinkBatchId("");
+      toast.success("Batch linked to the selected course.");
+    } catch (error) { failureNotice(error, "The batch could not be linked"); }
   }
   async function enroll() {
-    const selectedBatch = enrollmentBatches.find(item => item.id === batchId);
-    if (!selectedBatch || !studentId) return;
+    // Enrolment is determined by the selected batch, independently of the
+    // course picker used in the batch-linking workspace.
+    const selectedBatch = allBatches.find(item => item.id === batchId);
+    if (!selectedBatch || !selectedBatch.courseId || !studentId) return;
+    const selectedCourseId = selectedBatch.courseId;
     try {
       if (hasFirebaseConfiguration)
         await enrollMutation.mutateAsync({
+          courseId: selectedCourseId,
           batchId: selectedBatch.id,
           studentId,
         });
       else
         setLocalBatches(items => ({
           ...items,
-          [activeCourseId]: (items[activeCourseId] ?? []).map(item =>
+          [selectedCourseId]: (items[selectedCourseId] ?? []).map(item =>
             item.id === selectedBatch.id
               ? {
                   ...item,
@@ -332,7 +335,7 @@ export function CourseBatchManager() {
           ),
         }));
       if (!hasFirebaseConfiguration) {
-        setLocalEnrollments(items => items.some(item => item.id === `${activeCourseId}_${selectedBatch.id}_${studentId}`) ? items : [...items, { id: `${activeCourseId}_${selectedBatch.id}_${studentId}`, courseId: activeCourseId, batchId: selectedBatch.id, studentId, status: "active" }]);
+        setLocalEnrollments(items => items.some(item => item.id === `${selectedCourseId}_${selectedBatch.id}_${studentId}`) ? items : [...items, { id: `${selectedCourseId}_${selectedBatch.id}_${studentId}`, courseId: selectedCourseId, batchId: selectedBatch.id, studentId, status: "active" }]);
       }
       setStudentId("");
       setEnrollmentModalOpen(false);
@@ -353,7 +356,7 @@ export function CourseBatchManager() {
     const next = { ...batch, isActive: !batch.isActive };
     try {
       if (hasFirebaseConfiguration) await batchMutation.mutateAsync(next);
-      else setLocalBatches(items => ({ ...items, [activeCourseId]: (items[activeCourseId] ?? []).map(item => item.id === batch.id ? next : item) }));
+      else setLocalBatches(items => Object.fromEntries(Object.entries(items).map(([key, value]) => [key, value.map(item => item.id === batch.id ? next : item)])));
       toast.success(`${batch.name} is now ${next.isActive ? "active" : "inactive"}.`);
     } catch (error) { failureNotice(error, "The batch status could not be updated"); }
   }
@@ -403,15 +406,15 @@ export function CourseBatchManager() {
     ] });
   }
   function viewBatch(batch: BatchRecord) {
-    const courseNames = batch.courseIds.map(id => courses.find(course => course.id === id)?.title ?? id).join(", ") || "Not linked";
+    const courseName = courses.find(course => course.id === batch.courseId)?.title ?? batch.courseId;
     setViewModal({ title: "Batch details", fields: [
-      { label: "Batch", value: batch.name }, { label: "Courses", value: courseNames }, { label: "Status", value: batch.isActive ? "Active" : "Inactive" },
+      { label: "Batch", value: batch.name }, { label: "Course", value: courseName }, { label: "Status", value: batch.isActive ? "Active" : "Inactive" },
       { label: "Enrolled students", value: batch.enrolledStudentIds.length }, { label: "Batch ID", value: batch.id },
     ] });
   }
   function viewEnrollment(enrollment: EnrollmentRecord) {
     const student = (studentsQuery.data ?? []).find(profile => profile.id === enrollment.studentId);
-    const batch = enrollmentBatches.find(candidate => candidate.id === enrollment.batchId);
+    const batch = allBatches.find(candidate => candidate.id === enrollment.batchId);
     setViewModal({ title: "Student enrolment details", fields: [
       { label: "Student", value: student?.name ?? "Unknown student" }, { label: "Student ID", value: student?.studentId || "—" },
       { label: "Email", value: student?.email || "—" }, { label: "Course", value: activeCourse?.title ?? enrollment.courseId },
@@ -426,24 +429,29 @@ export function CourseBatchManager() {
           Could not load courses.
         </p>
       ) : null}
+      {enrollmentsQuery.isError ? (
+        <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          Could not load enrolments. Confirm this Firebase account has <code>role: admin</code> and that the current Firestore rules are deployed.
+        </p>
+      ) : null}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Metric label={tab === "enrollment" ? "All enrolments" : tab === "batches" ? "All batches" : "All courses"} value={tab === "enrollment" ? enrollments.length : tab === "batches" ? batches.length : courses.length} />
-        <Metric label={tab === "enrollment" ? "Active enrolments" : tab === "batches" ? "Active batches" : "Active courses"} value={tab === "enrollment" ? enrollments.filter(item => item.status === "active").length : (tab === "batches" ? batches : courses).filter(item => item.isActive).length} />
-        <Metric label={tab === "enrollment" ? "Inactive enrolments" : tab === "batches" ? "Inactive batches" : "Inactive courses"} value={tab === "enrollment" ? enrollments.filter(item => item.status !== "active").length : (tab === "batches" ? batches : courses).filter(item => !item.isActive).length} />
+        <Metric label={tab === "enrollment" ? "All enrolments" : tab === "batches" || tab === "links" ? "All batches" : "All courses"} value={tab === "enrollment" ? enrollments.length : tab === "batches" || tab === "links" ? batches.length : courses.length} />
+        <Metric label={tab === "enrollment" ? "Active enrolments" : tab === "batches" || tab === "links" ? "Active batches" : "Active courses"} value={tab === "enrollment" ? enrollments.filter(item => item.status === "active").length : (tab === "batches" || tab === "links" ? batches : courses).filter(item => item.isActive).length} />
+        <Metric label={tab === "enrollment" ? "Inactive enrolments" : tab === "batches" || tab === "links" ? "Inactive batches" : "Inactive courses"} value={tab === "enrollment" ? enrollments.filter(item => item.status !== "active").length : (tab === "batches" || tab === "links" ? batches : courses).filter(item => !item.isActive).length} />
       </div>
       <div className="mt-6 flex gap-6 overflow-x-auto border-b border-stone-200">
-        {(["courses", "batches", "enrollment"] as Tab[]).map(item => (
+        {(["courses", "batches", "links", "enrollment"] as Tab[]).map(item => (
           <button
             key={item}
             type="button"
-            disabled={item !== "courses" && !hasCourse}
+            disabled={(item === "links" || item === "enrollment") && !hasCourse}
             onClick={() => {
               setTab(item);
               setQuery("");
             }}
             className={`shrink-0 border-b-2 px-2 pb-3 text-sm font-semibold capitalize disabled:opacity-40 ${tab === item ? "border-cyan-500 text-cyan-600" : "border-transparent text-stone-500 hover:text-stone-900"}`}
           >
-            {item === "enrollment" ? "Student enrolment" : item}
+            {item === "enrollment" ? "Student enrolment" : item === "links" ? "Link batches" : item}
           </button>
         ))}
       </div>
@@ -535,7 +543,7 @@ export function CourseBatchManager() {
                 visibleBatches.map(item => (
                   <tr key={item.id} className="hover:bg-emerald-50/40">
                     <Td strong>{item.name}</Td>
-                    <Td>{activeCourse?.title}</Td>
+                    <Td>{courses.find(course => course.id === item.courseId)?.title ?? "Unassigned"}</Td>
                     <Td>
                       <UsersRound size={14} className="mr-1 inline" />
                       {item.enrolledStudentIds.length}
@@ -558,24 +566,33 @@ export function CourseBatchManager() {
             setBatchPage(page => page + 1);
           }} />
         </div>
+      ) : tab === "links" ? (
+        <div className="mt-5 space-y-5">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5">
+            <p className="text-sm font-semibold text-emerald-950">Link a batch to a course</p>
+            <p className="mt-1 text-sm text-emerald-900/70">Select the course, then choose an empty batch to link. Each option identifies the batch’s current course; batches with enrolled students cannot be linked to another course.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"><select aria-label="Course to link" value={activeCourseId} onChange={event => { setCourseId(event.target.value); setLinkBatchId(""); setBatchPage(0); setBatchCursors([null]); }} className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm"><option value="">Select course</option>{courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}</select><select aria-label="Batch to link" value={linkBatchId} onChange={event => setLinkBatchId(event.target.value)} disabled={!activeCourseId} className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"><option value="">{activeCourseId ? "Select a batch to link" : "Select course first"}</option>{allBatches.filter(batch => batch.courseId !== activeCourseId).map(batch => { const courseName = courses.find(course => course.id === batch.courseId)?.title ?? "Unassigned"; return <option key={batch.id} value={batch.id}>{batch.name} — currently in: {courseName}</option>; })}</select><Button onClick={() => void linkBatch()} disabled={!activeCourseId || !linkBatchId || linkMutation.isPending}>Link batch</Button></div>
+          </div>
+          <DataTable title={`${activeCourse?.title ?? "Course"} batches`} subtitle={`${enrollmentBatches.length} batches linked to this course`} searchValue="" onSearchChange={() => undefined} searchPlaceholder="Search batches in this course"><thead><tr><Th>Batch</Th><Th>Status</Th><Th>Enrolled</Th><Th align="right">Action</Th></tr></thead><tbody>{enrollmentBatches.length ? enrollmentBatches.map(batch => <tr key={batch.id} className="hover:bg-emerald-50/40"><Td strong>{batch.name}</Td><Td><StatusToggle active={batch.isActive} onToggle={() => void toggleBatchStatus(batch)} disabled={batchMutation.isPending} /></Td><Td>{batch.enrolledStudentIds.length}</Td><Td align="right"><ConfirmDeleteDialog title={`Delete ${batch.name}?`} description="This permanently removes the batch. This cannot be undone." onConfirm={() => void removeBatch(batch)} /></Td></tr>) : <EmptyRow columns={4} message="No batches are linked to this course yet." />}</tbody></DataTable>
+        </div>
       ) : (
         <div className="mt-5">
           <div className="mb-3 flex justify-end">
-            <Button onClick={() => { setBatchId(current => current || enrollmentBatches[0]?.id || ""); setStudentId(""); setEnrollmentModalOpen(true); }} disabled={!enrollmentBatches.length}>
+            <Button onClick={() => { setBatchId(current => current || allBatches[0]?.id || ""); setStudentId(""); setEnrollmentModalOpen(true); }} disabled={!allBatches.length}>
               <UserPlus size={16} />
               Enroll student
             </Button>
           </div>
-          {!enrollmentBatches.length ? (
+          {!allBatches.length ? (
             <div className="rounded-2xl border border-dashed border-stone-300 p-6 text-sm text-stone-500">Add a batch first, then enrol students here.</div>
           ) : (
             <>
               <DataTable title="Student enrolment" subtitle={`${visibleEnrollments.length} shown on this page`} searchValue={query} onSearchChange={setQuery} searchPlaceholder="Search student or batch">
                 <thead><tr><Th>Student</Th><Th>Student ID</Th><Th>Batch</Th><Th>Status</Th><Th align="right">Action</Th></tr></thead>
                 <tbody>
-                  {enrollmentsQuery.isLoading ? <LoadingRow columns={5} /> : visibleEnrollments.length ? visibleEnrollments.map(item => {
+                  {enrollmentsQuery.isLoading ? <LoadingRow columns={5} /> : enrollmentsQuery.isError ? <EmptyRow columns={5} message="Enrolments could not be loaded. See the message above." /> : visibleEnrollments.length ? visibleEnrollments.map(item => {
                     const student = (studentsQuery.data ?? []).find(profile => profile.id === item.studentId);
-                    const batch = enrollmentBatches.find(candidate => candidate.id === item.batchId);
+                    const batch = allBatches.find(candidate => candidate.id === item.batchId);
                     return <tr key={item.id} className="hover:bg-emerald-50/40"><Td strong>{student?.name ?? "Unknown student"}</Td><Td>{student?.studentId || "—"}</Td><Td>{batch?.name ?? "Unknown batch"}</Td><Td><StatusToggle active={item.status === "active"} onToggle={() => void toggleEnrollmentStatus(item)} disabled={enrollmentStatusMutation.isPending} /></Td><Td align="right"><Actions onView={() => viewEnrollment(item)} onEdit={() => setEditingEnrollment(item)} onDelete={() => void removeEnrollment(item)} deleteTitle="Remove this enrolment?" deleteDescription={`${student?.name ?? "This student"} will lose access to the batch. This cannot be undone.`} /></Td></tr>;
                   }) : <EmptyRow columns={5} message="No students enrolled yet." />}
                 </tbody>
@@ -591,8 +608,8 @@ export function CourseBatchManager() {
         </div>
       )}
       {courseModalOpen ? <CourseModal title={title} setTitle={setTitle} editing={Boolean(editingCourseId)} pending={courseMutation.isPending} onClose={() => setCourseModalOpen(false)} onSubmit={() => void saveCourseForm()} /> : null}
-      {batchModalOpen ? <BatchModal courseTitle={activeCourse?.title ?? "this course"} name={batchName} setName={setBatchName} editing={Boolean(editingBatchId)} pending={batchMutation.isPending} existingBatchId={existingBatchId} setExistingBatchId={setExistingBatchId} batches={allBatchesQuery.data ?? []} activeCourseId={activeCourseId} linkPending={linkMutation.isPending} onClose={() => setBatchModalOpen(false)} onSubmit={() => void addBatch()} onLink={() => void linkBatch()} /> : null}
-      {enrollmentModalOpen ? <EnrollmentModal batches={enrollmentBatches} students={studentsQuery.data ?? []} batchId={batchId} studentId={studentId} setBatchId={setBatchId} setStudentId={setStudentId} pending={enrollMutation.isPending} onClose={() => setEnrollmentModalOpen(false)} onSubmit={() => void enroll()} /> : null}
+      {batchModalOpen ? <BatchModal name={batchName} setName={setBatchName} editing={Boolean(editingBatchId)} pending={batchMutation.isPending} onClose={() => setBatchModalOpen(false)} onSubmit={() => void addBatch()} /> : null}
+      {enrollmentModalOpen ? <EnrollmentModal batches={allBatches} courses={courses} students={studentsQuery.data ?? []} batchId={batchId} studentId={studentId} setBatchId={setBatchId} setStudentId={setStudentId} pending={enrollMutation.isPending} onClose={() => setEnrollmentModalOpen(false)} onSubmit={() => void enroll()} /> : null}
       {viewModal ? <DetailsModal {...viewModal} onClose={() => setViewModal(null)} /> : null}
       {editingEnrollment ? <EnrollmentBatchModal enrollment={editingEnrollment} batches={enrollmentBatches} students={studentsQuery.data ?? []} pending={enrollmentBatchMutation.isPending} onClose={() => setEditingEnrollment(null)} onSubmit={batchId => void updateEnrollmentBatchForStudent(batchId)} /> : null}
     </section>
@@ -635,13 +652,12 @@ function CourseModal({ title, setTitle, editing, pending, onClose, onSubmit }: {
     </form>
   </div>;
 }
-function BatchModal({ courseTitle, name, setName, editing, pending, existingBatchId, setExistingBatchId, batches, activeCourseId, linkPending, onClose, onSubmit, onLink }: { courseTitle: string; name: string; setName: (value: string) => void; editing: boolean; pending: boolean; existingBatchId: string; setExistingBatchId: (value: string) => void; batches: BatchRecord[]; activeCourseId: string; linkPending: boolean; onClose: () => void; onSubmit: () => void; onLink: () => void }) {
+function BatchModal({ name, setName, editing, pending, onClose, onSubmit }: { name: string; setName: (value: string) => void; editing: boolean; pending: boolean; onClose: () => void; onSubmit: () => void }) {
   return <div role="dialog" aria-modal="true" aria-label={editing ? "Edit batch" : "Add batch"} className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4" onMouseDown={onClose}>
     <form className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
-      <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 flex items-center gap-2 text-xl font-bold"><Layers3 size={19} className="text-emerald-700" />{editing ? "Edit batch" : "Add a batch"}</h4><p className="mt-1 text-xs text-stone-500">For {courseTitle}</p></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 hover:bg-stone-100"><X size={18} /></button></div>
+      <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 flex items-center gap-2 text-xl font-bold"><Layers3 size={19} className="text-emerald-700" />{editing ? "Edit batch" : "Add a batch"}</h4><p className="mt-1 text-xs text-stone-500">You can link this batch to a course later.</p></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 hover:bg-stone-100"><X size={18} /></button></div>
       <Field label="Batch name" value={name} setValue={setName} placeholder="e.g. Weekend batch" />
       <Button type="submit" className="mt-4 w-full" disabled={!name.trim() || pending}>{editing ? "Save batch" : "Add batch"}</Button>
-      {!editing ? <div className="mt-5 border-t border-stone-200 pt-4"><label className="text-xs font-bold text-stone-700">Link existing batch</label><select value={existingBatchId} onChange={event => setExistingBatchId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"><option value="">Select existing batch</option>{batches.filter(item => !item.courseIds.includes(activeCourseId)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><Button type="button" variant="outline" className="mt-2 w-full" disabled={!existingBatchId || linkPending} onClick={onLink}>Link batch</Button></div> : null}
     </form>
   </div>;
 }
@@ -724,9 +740,10 @@ function Field({
     </label>
   );
 }
-function EnrollmentModal({ batches, students, batchId, studentId, setBatchId, setStudentId, pending, onClose, onSubmit }: {
+function EnrollmentModal({ batches, courses, students, batchId, studentId, setBatchId, setStudentId, pending, onClose, onSubmit }: {
   batches: BatchRecord[];
-  students: { id: string; name: string; studentId: string }[];
+  courses: CourseRecord[];
+  students: { id: string; name: string; studentId: string; activeBatchId?: string }[];
   batchId: string;
   studentId: string;
   setBatchId: (value: string) => void;
@@ -749,11 +766,12 @@ function EnrollmentModal({ batches, students, batchId, studentId, setBatchId, se
           }}
           className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal"
         >
-          {batches.map(item => (
-            <option key={item.id} value={item.id}>
-              {item.name}
+          {batches.map(item => {
+            const courseName = courses.find(course => course.id === item.courseId)?.title;
+            return <option key={item.id} value={item.id} disabled={!item.courseId}>
+              {item.name}{courseName ? ` · ${courseName}` : " · Link to a course first"}
             </option>
-          ))}
+          })}
         </select>
       </label>
       <label className="mt-4 block text-xs font-bold">
@@ -765,7 +783,7 @@ function EnrollmentModal({ batches, students, batchId, studentId, setBatchId, se
         >
           <option value="">Select a student</option>
           {students.map(item => (
-            <option key={item.id} value={item.id}>
+            <option key={item.id} value={item.id} disabled={Boolean(item.activeBatchId)}>
               {item.name}
               {item.studentId ? ` · ${item.studentId}` : ""}
             </option>

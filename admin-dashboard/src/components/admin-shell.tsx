@@ -29,7 +29,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminRecords } from "@/lib/use-admin-records";
@@ -319,14 +319,7 @@ export function AdminShell() {
             </h1>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span
-              className={`hidden rounded-full px-3 py-1.5 text-xs font-semibold sm:inline-flex ${hasFirebaseConfiguration ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}
-            >
-              <span className="mr-1.5 size-1.5 rounded-full bg-current" />
-              {hasFirebaseConfiguration
-                ? "Firebase connected"
-                : "Offline-ready mode"}
-            </span>
+            <ConnectionStatus />
           </div>
         </header>
         <div className="p-5 lg:p-9">
@@ -441,6 +434,44 @@ function Brand() {
         </span>
       </span>
     </div>
+  );
+}
+
+function ConnectionStatus() {
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    const update = () => {
+      if (!cancelled) setOnline(navigator.onLine);
+    };
+    Promise.resolve().then(update);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return (
+    <span
+      className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset sm:inline-flex ${
+        online
+          ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+          : "bg-red-50 text-red-700 ring-red-200"
+      }`}
+      title={online ? "Connected to the internet" : "No internet connection"}
+    >
+      <span className="relative flex size-2">
+        <span
+          className={`absolute inline-flex h-full w-full rounded-full opacity-60 ${online ? "animate-ping bg-emerald-500" : "bg-red-500"}`}
+        />
+        <span
+          className={`relative inline-flex size-2 rounded-full ${online ? "bg-emerald-500" : "bg-red-500"}`}
+        />
+      </span>
+      {online ? "Online" : "Offline"}
+    </span>
   );
 }
 

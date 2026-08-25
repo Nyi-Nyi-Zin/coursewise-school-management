@@ -1,15 +1,18 @@
-import { createUserWithEmailAndPassword, getIdTokenResult, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updateProfile, type User } from "firebase/auth";
+import { getIdTokenResult, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { firebaseAuth, isFirebaseConfigured } from "./firebase";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { firestore } from "@/lib/firebase";
 
 export type PortalRole = "admin" | "student" | null;
 
-export async function registerStudent({ name, email, password }: { name: string; email: string; password: string }) {
+export async function registerStudent({ name, email, password, turnstileToken }: { name: string; email: string; password: string; turnstileToken: string }) {
   if (!firebaseAuth || !isFirebaseConfigured) throw new Error("Firebase Authentication is not configured.");
-  const credential = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
-  await updateProfile(credential.user, { displayName: name.trim() });
-  if (firestore) await setDoc(doc(firestore, "users", credential.user.uid), { name: name.trim(), email: email.trim(), role: "student", studentId: "Pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+  const response = await fetch("/api/register-student", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: name.trim(), email: email.trim(), password, turnstileToken }),
+  });
+  const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+  if (!response.ok) throw new Error(payload?.message || payload?.error || "Unable to register your account.");
+  const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
   return credential.user;
 }
 
@@ -25,7 +28,10 @@ export async function logoutStudent() {
 
 export async function requestPasswordReset(email: string) {
   if (!firebaseAuth || !isFirebaseConfigured) throw new Error("Firebase Authentication is not configured.");
-  await sendPasswordResetEmail(firebaseAuth, email.trim());
+  await sendPasswordResetEmail(firebaseAuth, email.trim(), {
+    url: `${window.location.origin}/reset-password`,
+    handleCodeInApp: false,
+  });
 }
 
 export async function getPortalRole(user: User): Promise<PortalRole> {

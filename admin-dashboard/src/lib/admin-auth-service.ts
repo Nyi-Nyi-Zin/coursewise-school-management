@@ -17,7 +17,10 @@ export async function signInAdministrator({ email, password }: { email: string; 
 export async function requestAdministratorPasswordReset(email: string) {
   if (!hasFirebaseConfiguration) throw new Error("Firebase Authentication is not configured.");
   const { auth } = getFirebaseClient();
-  await sendPasswordResetEmail(auth, email.trim());
+  await sendPasswordResetEmail(auth, email.trim(), {
+    url: `${window.location.origin}/reset-password`,
+    handleCodeInApp: false,
+  });
 }
 
 export async function signOutAdministrator() {

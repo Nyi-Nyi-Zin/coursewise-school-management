@@ -17,6 +17,10 @@ service cloud.firestore {
     function canReadBatchContent() {
       return hasBatchFields(resource.data) && isActiveBatchMember(resource.data.courseId, resource.data.batchId);
     }
+    function canReadCourseContent() {
+      return signedIn() && resource.data.courseId is string &&
+        get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.enrolledStudentIds.hasAny([request.auth.uid]);
+    }
     function canReadOwnBatchRecord() {
       return signedIn() && resource.data.studentId == request.auth.uid && hasBatchFields(resource.data) && isActiveBatchMember(resource.data.courseId, resource.data.batchId);
     }
@@ -51,7 +55,7 @@ service cloud.firestore {
 
     }
 
-    // Batches are shared entities. `courseIds` makes the course-to-batch relationship many-to-many.
+    // Each batch belongs to one course through its courseId field.
     match /batches/{batchId} {
       allow read: if isAdmin() || (signedIn() && resource.data.enrolledStudentIds.hasAny([request.auth.uid]));
       allow create, update, delete: if isAdmin();
@@ -78,7 +82,7 @@ service cloud.firestore {
     }
 
     match /lessons/{lessonId} {
-      allow read: if isAdmin() || (isPublished() && canReadBatchContent());
+      allow read: if isAdmin() || (isPublished() && canReadCourseContent());
       allow create, update, delete: if isAdmin();
     }
 

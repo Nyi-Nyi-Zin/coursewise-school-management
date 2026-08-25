@@ -112,7 +112,7 @@ export function AssignmentManager() {
 
   const batchOptions = batchId ? batches.filter(item => item.id === batchId) : batches;
   const activeCourseId = courseId || courses[0]?.id || "";
-  const activeBatchId = batchId || batchOptions.find(item => item.courseIds.includes(activeCourseId))?.id || "";
+  const activeBatchId = batchId || batchOptions.find(item => item.courseId === activeCourseId)?.id || "";
 
   const needle = query.trim().toLowerCase();
   const matchesStatus = (published: boolean) =>
@@ -215,7 +215,7 @@ export function AssignmentManager() {
           <label className="text-xs font-bold text-stone-600">Batch
             <select value={activeBatchId} onChange={event => setBatchId(event.target.value)} className="mt-1 h-10 rounded-xl border border-stone-200 bg-white px-3 text-sm">
               <option value="">All batches</option>
-              {batchOptions.filter(b => b.courseIds.includes(activeCourseId)).map(batch => <option key={batch.id} value={batch.id}>{batch.name}</option>)}
+              {batchOptions.filter(b => b.courseId === activeCourseId).map(batch => <option key={batch.id} value={batch.id}>{batch.name}</option>)}
             </select>
           </label>
         </div>
@@ -334,7 +334,7 @@ function AssignmentForm({ assignment, courses, batches, initialCourseId, initial
   const [submissionInstructions, setSubmissionInstructions] = useState(assignment?.submissionInstructions ?? "");
   const [dueAt, setDueAt] = useState(toLocalInput(assignment?.dueAt ?? ""));
   const [isPublished, setIsPublished] = useState(assignment?.isPublished ?? true);
-  const courseBatches = batches.filter(item => item.courseIds.includes(courseId));
+  const courseBatches = batches.filter(item => item.courseId === courseId);
   const submit = () => {
     if (!title.trim() || !courseId || !batchId) return;
     onSubmit({

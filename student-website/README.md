@@ -1,5 +1,16 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Production registration on Vercel
+
+The `POST /api/register-student` route runs on Vercel and creates Firebase Authentication and Firestore records without Firebase Cloud Functions. Configure these environment variables in Vercel for Production and Preview deployments:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: the complete service-account JSON for Firebase project `student-management-syste-e8dbb`.
+- `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile secret key; keep this server-only.
+- `SIGNUP_RATE_LIMIT_SALT`: a long, random secret used to hash visitor IP addresses for the registration rate limit.
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: Cloudflare Turnstile site key for the registration form.
+
+Also keep the existing `NEXT_PUBLIC_FIREBASE_*` variables and `NEXT_PUBLIC_ENABLE_FIREBASE=true`. Add the deployed Vercel hostname and localhost to the Turnstile widget's allowed hostnames.
+
 ## Getting Started
 
 First, run the development server:
