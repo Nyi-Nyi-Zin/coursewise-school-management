@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 
 const describeWithEmulator = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 let testEnv: RulesTestEnvironment;
@@ -64,6 +64,22 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     const admin = testEnv.authenticatedContext("admin-1").firestore();
     await assertSucceeds(setDoc(doc(admin, "courses", "course-2"), { title: "Data Design", enrolledStudentIds: [] }));
     expect((await getDoc(doc(admin, "courses", "course-2"))).data()?.title).toBe("Data Design");
+  });
+
+  it("allows an administrator to create, update, and delete enrolments", async () => {
+    await seedBatchIsolationFixture();
+    const admin = testEnv.authenticatedContext("admin-1").firestore();
+    const enrollmentRef = doc(admin, "enrollments", "course-1_batch-a_student-a");
+    await assertSucceeds(setDoc(doc(admin, "enrollments", "course-1_batch-b_student-a"), { studentId: "student-a", courseId: "course-1", batchId: "batch-b", status: "active" }));
+    await assertSucceeds(setDoc(enrollmentRef, { status: "inactive" }, { merge: true }));
+    await assertSucceeds(deleteDoc(enrollmentRef));
+  });
+
+  it("still denies enrolment deletes and writes for non-administrators", async () => {
+    await seedBatchIsolationFixture();
+    const studentA = testEnv.authenticatedContext("student-a").firestore();
+    await assertFails(deleteDoc(doc(studentA, "enrollments", "course-1_batch-b_student-b")));
+    await assertFails(setDoc(doc(studentA, "enrollments", "course-1_batch-b_student-b"), { status: "inactive" }, { merge: true }));
   });
 
   it("allows a signed-in user to create only their own initial student profile", async () => {

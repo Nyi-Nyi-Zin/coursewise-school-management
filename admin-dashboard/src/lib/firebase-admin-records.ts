@@ -44,7 +44,7 @@ function firebaseData(section: ManagementSection, item: OfflineItem) {
     return { title: item.title, description: item.description, courseId: fields.courseId ?? null, batchId: fields.batchId ?? null, resourceUrl: fields.resourceUrl ?? null, submissionInstructions: fields.submissionInstructions ?? null, dueAt: fields.dueAt ? new Date(fields.dueAt).toISOString() : null, isPublished: item.status === 'Published', createdAt: serverTimestamp() };
   }
   if (section === 'quizzes') {
-    return { title: item.title, description: item.description, courseId: fields.courseId ?? null, batchId: fields.batchId ?? null, isPublished: item.status === 'Published', durationMinutes: Number(fields.durationMinutes ?? 0), totalMarks: Number(fields.totalMarks ?? 0), opensAt: fields.opensAt ? new Date(fields.opensAt).toISOString() : null, closesAt: fields.closesAt ? new Date(fields.closesAt).toISOString() : null, createdAt: serverTimestamp() };
+    return { title: item.title, description: item.description, courseId: fields.courseId ?? null, batchId: fields.batchId ?? null, isPublished: item.status === 'Published', kind: fields.kind === 'final_exam' ? 'final_exam' : 'chapter_quiz', chapter: fields.chapter ?? '', durationMinutes: Number(fields.durationMinutes ?? 0), totalMarks: Number(fields.totalMarks ?? 0), passingPercent: clampPercent(fields.passingPercent), maxRetakes: parseMaxRetakes(fields.maxRetakes), opensAt: fields.opensAt ? new Date(fields.opensAt).toISOString() : null, closesAt: fields.closesAt ? new Date(fields.closesAt).toISOString() : null, createdAt: serverTimestamp() };
   }
   return { studentId: item.title, courseId: fields.courseId ?? null, batchId: fields.batchId ?? null, note: item.description, status: item.status, date: fields.date ?? new Date().toISOString().slice(0, 10), createdAt: serverTimestamp() };
 }
@@ -55,7 +55,19 @@ function firebaseItem(section: ManagementSection, id: string, data: Record<strin
   if (section === 'announcements') return { id, title: String(data.title ?? 'Announcement'), description: String(data.description ?? ''), status: data.isPublished === true ? 'Published' : 'Draft', createdAt: 'Firebase', fields: { courseId: String(data.courseId ?? ''), batchId: String(data.batchId ?? ''), bannerUrl: String(data.bannerUrl ?? ''), sortOrder: String(data.sortOrder ?? '') } };
   if (section === 'lessons') return { id, title: String(data.title ?? 'Lesson'), description: String(data.description ?? ''), status: data.isPublished === true ? 'Published' : 'Draft', createdAt: 'Firebase', fields: { courseId: String(data.courseId ?? ''), batchId: String(data.batchId ?? ''), thumbnailUrl: String(data.thumbnailUrl ?? ''), telegramUrl: String(data.telegramUrl ?? ''), videoUrl: String(data.videoUrl ?? ''), pdfUrl: String(data.pdfUrl ?? ''), sortOrder: String(data.sortOrder ?? '') } };
   if (section === 'assignments') return { id, title: String(data.title ?? 'Assignment'), description: String(data.description ?? ''), status: data.isPublished === true ? 'Published' : 'Draft', createdAt: 'Firebase', fields: { courseId: String(data.courseId ?? ''), batchId: String(data.batchId ?? ''), resourceUrl: String(data.resourceUrl ?? ''), submissionInstructions: String(data.submissionInstructions ?? ''), dueAt: toDateTimeLocal(data.dueAt) } };
-  return { id, title: String(data.title ?? 'Quiz'), description: String(data.description ?? ''), status: data.isPublished === true ? 'Published' : 'Draft', createdAt: 'Firebase', fields: { courseId: String(data.courseId ?? ''), batchId: String(data.batchId ?? ''), durationMinutes: String(data.durationMinutes ?? ''), totalMarks: String(data.totalMarks ?? ''), opensAt: toDateTimeLocal(data.opensAt), closesAt: toDateTimeLocal(data.closesAt) } };
+  return { id, title: String(data.title ?? 'Quiz'), description: String(data.description ?? ''), status: data.isPublished === true ? 'Published' : 'Draft', createdAt: 'Firebase', fields: { courseId: String(data.courseId ?? ''), batchId: String(data.batchId ?? ''), kind: data.kind === 'final_exam' ? 'final_exam' : 'chapter_quiz', chapter: String(data.chapter ?? ''), durationMinutes: String(data.durationMinutes ?? ''), totalMarks: String(data.totalMarks ?? ''), passingPercent: String(data.passingPercent ?? '50'), maxRetakes: String(data.maxRetakes ?? '-1'), opensAt: toDateTimeLocal(data.opensAt), closesAt: toDateTimeLocal(data.closesAt) } };
+}
+
+function clampPercent(value: string | undefined) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 50;
+  return Math.min(100, Math.max(0, Math.round(parsed)));
+}
+
+function parseMaxRetakes(value: string | undefined) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return -1;
+  return parsed < 0 ? -1 : Math.trunc(parsed);
 }
 
 function toDateTimeLocal(value: unknown) {

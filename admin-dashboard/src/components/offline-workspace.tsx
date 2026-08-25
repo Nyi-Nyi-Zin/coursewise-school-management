@@ -23,8 +23,8 @@ export function OfflineWorkspace({ section, records, onAction, onNavigate, onEdi
   if (section === "settings") return <><SettingsCard /><AdminPasswordResetPanel /></>;
   const current = records[section];
   const { icon: Icon, hint } = meta[section];
-  const insight = section === "students" || section === "announcements" || section === "lessons" || section === "assignments" ? null : <ModuleInsight section={section} records={current} />;
-  if (section === "students") return <>{insight}<ModuleRecordView section={section} records={current} onCreate={onAction} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} onStatusChange={onStatusChange} /></>;
+  const insight = section === "students" || section === "announcements" || section === "lessons" || section === "assignments" || section === "quizzes" ? null : <ModuleInsight section={section} records={current} />;
+  if (section === "students" || section === "quizzes") return <>{insight}<ModuleRecordView section={section} records={current} onCreate={onAction} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} onStatusChange={onStatusChange} /></>;
   if (!current.length) return <>{insight}<div className="grid min-h-72 place-items-center rounded-3xl border border-dashed border-stone-300 bg-white/70 p-8 text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-800"><Icon size={20} /></span><h3 className="mt-4 font-display text-xl font-semibold">Nothing here yet</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-500">{hint}</p><button onClick={onAction} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><Plus size={15} />Create record</button></div></div></>;
   return <>{insight}<ModuleRecordView section={section} records={current} onCreate={onAction} onEdit={onEdit} onDelete={onDelete} onManageQuiz={onManageQuiz} onStatusChange={onStatusChange} /></>;
 }

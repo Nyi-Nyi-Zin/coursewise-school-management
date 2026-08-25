@@ -1,13 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   BookPlus,
   Eye,
   Filter,
   Layers3,
   Pencil,
-  Trash2,
   UserPlus,
   UsersRound,
   X,
@@ -16,6 +16,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { DocumentSnapshot } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { DataTable, TablePagination } from "@/components/ui/data-table";
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { hasFirebaseConfiguration } from "@/lib/firebase";
 import {
   enrollStudent,
@@ -46,14 +47,13 @@ const enrollmentsKey = (courseId: string) => ["admin", "enrollments", courseId] 
 const PAGE_SIZE = 10;
 type Tab = "courses" | "batches" | "enrollment";
 
-function batchSaveErrorMessage(error: unknown) {
-  const code =
-    typeof error === "object" && error && "code" in error
-      ? String(error.code)
-      : "";
+function writeErrorCode(error: unknown) {
+  return typeof error === "object" && error && "code" in error ? String(error.code) : "";
+}
 
+function writeErrorHint(code: string) {
   if (code === "permission-denied") {
-    return "Firebase denied this write. Confirm this account's users/{uid} document has role: admin and deploy the current Firestore rules.";
+    return "Firebase denied this write. Confirm this account's users/{uid} document has role: admin, then redeploy the Firestore rules from firebase/firestore.rules.";
   }
   if (code === "unauthenticated") {
     return "Your Firebase sign-in has expired. Sign out, sign in again, and retry.";
@@ -61,9 +61,16 @@ function batchSaveErrorMessage(error: unknown) {
   if (code === "unavailable") {
     return "Firebase is temporarily unavailable. Check your connection and retry.";
   }
+  return "";
+}
 
-  const message = error instanceof Error ? error.message.replace(/^Firebase:\s*/i, "") : "";
-  return message ? `The batch could not be saved: ${message}` : "The batch could not be saved. Please retry.";
+function failureNotice(error: unknown, label: string) {
+  const hint = writeErrorHint(writeErrorCode(error));
+  if (hint) toast.error(`${label}. ${hint}`);
+  else {
+    const message = error instanceof Error ? error.message.replace(/^Firebase:\s*/i, "") : "";
+    toast.error(message ? `${label}: ${message}` : `${label}. Please retry.`);
+  }
 }
 
 export function CourseBatchManager() {
@@ -89,8 +96,7 @@ export function CourseBatchManager() {
   const [enrollmentModalOpen, setEnrollmentModalOpen] = useState(false);
   const [viewModal, setViewModal] = useState<{ title: string; fields: { label: string; value: ReactNode }[] } | null>(null);
   const [editingEnrollment, setEditingEnrollment] = useState<EnrollmentRecord | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [coursePage, setCoursePage] = useState(0);
+    const [coursePage, setCoursePage] = useState(0);
   const [courseCursors, setCourseCursors] = useState<(DocumentSnapshot | null)[]>([null]);
   const [batchPage, setBatchPage] = useState(0);
   const [batchCursors, setBatchCursors] = useState<(DocumentSnapshot | null)[]>([null]);
@@ -243,27 +249,25 @@ export function CourseBatchManager() {
       setTitle("");
       setCourseModalOpen(false);
       setEditingCourseId(null);
-      setNotice(`${course.title} was ${editingCourseId ? "updated" : "created"}.`);
-    } catch {
-      setNotice("The course could not be saved. Check Firebase permissions.");
+      toast.success(`${course.title} was ${editingCourseId ? "updated" : "created"}.`);
+    } catch (error) {
+      failureNotice(error, "The course could not be saved");
     }
   }
   async function removeCourse(course: CourseRecord) {
-    if (!window.confirm(`Delete ${course.title}? This cannot be undone.`)) return;
     try {
       if (hasFirebaseConfiguration) await deleteCourseMutation.mutateAsync(course.id);
       else setLocalCourses(items => items.filter(item => item.id !== course.id));
       if (course.id === activeCourseId) { setCourseId(""); setBatchId(""); }
-      setNotice(`${course.title} was deleted.`);
-    } catch { setNotice("The course could not be deleted."); }
+      toast.success(`${course.title} was deleted.`);
+    } catch (error) { failureNotice(error, "The course could not be deleted"); }
   }
   async function removeBatch(batch: BatchRecord) {
-    if (!window.confirm(`Delete ${batch.name}? This cannot be undone.`)) return;
     try {
       if (hasFirebaseConfiguration) await deleteBatchMutation.mutateAsync(batch.id);
       else setLocalBatches(items => ({ ...items, [activeCourseId]: (items[activeCourseId] ?? []).filter(item => item.id !== batch.id) }));
-      setNotice(`${batch.name} was deleted.`);
-    } catch { setNotice("The batch could not be deleted."); }
+      toast.success(`${batch.name} was deleted.`);
+    } catch (error) { failureNotice(error, "The batch could not be deleted"); }
   }
   async function addBatch() {
     if (!activeCourseId || !batchName.trim()) return;
@@ -285,9 +289,9 @@ export function CourseBatchManager() {
       setEditingBatchId(null);
       setBatchId(batch.id);
       setBatchModalOpen(false);
-      setNotice(`${batch.name} was ${editingBatchId ? "updated" : "added"}.`);
+      toast.success(`${batch.name} was ${editingBatchId ? "updated" : "added"}.`);
     } catch (error) {
-      setNotice(batchSaveErrorMessage(error));
+      failureNotice(error, "The batch could not be saved");
     }
   }
   async function linkBatch() {
@@ -299,9 +303,9 @@ export function CourseBatchManager() {
       });
       setBatchId(existingBatchId);
       setExistingBatchId("");
-      setNotice("Existing batch linked to this course.");
-    } catch {
-      setNotice("The batch could not be linked.");
+      toast.success("Existing batch linked to this course.");
+    } catch (error) {
+      failureNotice(error, "The batch could not be linked");
     }
   }
   async function enroll() {
@@ -332,9 +336,9 @@ export function CourseBatchManager() {
       }
       setStudentId("");
       setEnrollmentModalOpen(false);
-      setNotice("Student enrolment updated.");
-    } catch {
-      setNotice("Enrolment failed. Check Firebase permissions.");
+      toast.success("Student enrolment updated.");
+    } catch (error) {
+      failureNotice(error, "Enrolment failed");
     }
   }
   async function toggleCourseStatus(course: CourseRecord) {
@@ -342,33 +346,31 @@ export function CourseBatchManager() {
     try {
       if (hasFirebaseConfiguration) await courseMutation.mutateAsync(next);
       else setLocalCourses(items => items.map(item => item.id === course.id ? next : item));
-      setNotice(`${course.title} is now ${next.isActive ? "active" : "inactive"}.`);
-    } catch { setNotice("The course status could not be updated."); }
+      toast.success(`${course.title} is now ${next.isActive ? "active" : "inactive"}.`);
+    } catch (error) { failureNotice(error, "The course status could not be updated"); }
   }
   async function toggleBatchStatus(batch: BatchRecord) {
     const next = { ...batch, isActive: !batch.isActive };
     try {
       if (hasFirebaseConfiguration) await batchMutation.mutateAsync(next);
       else setLocalBatches(items => ({ ...items, [activeCourseId]: (items[activeCourseId] ?? []).map(item => item.id === batch.id ? next : item) }));
-      setNotice(`${batch.name} is now ${next.isActive ? "active" : "inactive"}.`);
-    } catch { setNotice("The batch status could not be updated."); }
+      toast.success(`${batch.name} is now ${next.isActive ? "active" : "inactive"}.`);
+    } catch (error) { failureNotice(error, "The batch status could not be updated"); }
   }
   async function toggleEnrollmentStatus(enrollment: EnrollmentRecord) {
     const nextStatus = enrollment.status === "active" ? "inactive" : "active";
     try {
       if (hasFirebaseConfiguration) await enrollmentStatusMutation.mutateAsync({ enrollmentId: enrollment.id, nextStatus });
       else setLocalEnrollments(items => items.map(item => item.id === enrollment.id ? { ...item, status: nextStatus } : item));
-      setNotice("Student enrolment status updated.");
-    } catch { setNotice("The enrolment status could not be updated."); }
+      toast.success("Student enrolment status updated.");
+    } catch (error) { failureNotice(error, "The enrolment status could not be updated"); }
   }
   async function removeEnrollment(enrollment: EnrollmentRecord) {
-    const student = (studentsQuery.data ?? []).find(profile => profile.id === enrollment.studentId);
-    if (!window.confirm(`Remove ${student?.name ?? "this student"} from this batch?`)) return;
     try {
       if (hasFirebaseConfiguration) await deleteEnrollmentMutation.mutateAsync(enrollment.id);
       else setLocalEnrollments(items => items.filter(item => item.id !== enrollment.id));
-      setNotice("Student enrolment was deleted.");
-    } catch { setNotice("The enrolment could not be deleted."); }
+      toast.success("Student enrolment was deleted.");
+    } catch (error) { failureNotice(error, "The enrolment could not be deleted"); }
   }
   async function updateEnrollmentBatchForStudent(nextBatchId: string) {
     if (!editingEnrollment) return;
@@ -391,8 +393,8 @@ export function CourseBatchManager() {
         }));
       }
       setEditingEnrollment(null);
-      setNotice("Student enrolment was updated.");
-    } catch { setNotice("The enrolment could not be updated."); }
+      toast.success("Student enrolment was updated.");
+    } catch (error) { failureNotice(error, "The enrolment could not be updated"); }
   }
   function viewCourse(course: CourseRecord) {
     setViewModal({ title: "Course details", fields: [
@@ -488,7 +490,7 @@ export function CourseBatchManager() {
                       <StatusToggle active={item.isActive} onToggle={() => void toggleCourseStatus(item)} disabled={courseMutation.isPending} />
                     </Td>
                     <Td align="right">
-                      <Actions onView={() => viewCourse(item)} onEdit={() => openCourseModal(item)} onDelete={() => void removeCourse(item)} />
+                      <Actions onView={() => viewCourse(item)} onEdit={() => openCourseModal(item)} onDelete={() => void removeCourse(item)} deleteTitle={`Delete ${item.title}?`} deleteDescription="This permanently removes the course. This cannot be undone." />
                     </Td>
                   </tr>
                 ))
@@ -542,7 +544,7 @@ export function CourseBatchManager() {
                       <StatusToggle active={item.isActive} onToggle={() => void toggleBatchStatus(item)} disabled={batchMutation.isPending} />
                     </Td>
                     <Td align="right">
-                      <Actions onView={() => viewBatch(item)} onEdit={() => openBatchModal(item)} onDelete={() => void removeBatch(item)} />
+                      <Actions onView={() => viewBatch(item)} onEdit={() => openBatchModal(item)} onDelete={() => void removeBatch(item)} deleteTitle={`Delete ${item.name}?`} deleteDescription="This permanently removes the batch. This cannot be undone." />
                     </Td>
                   </tr>
                 ))
@@ -574,7 +576,7 @@ export function CourseBatchManager() {
                   {enrollmentsQuery.isLoading ? <LoadingRow columns={5} /> : visibleEnrollments.length ? visibleEnrollments.map(item => {
                     const student = (studentsQuery.data ?? []).find(profile => profile.id === item.studentId);
                     const batch = enrollmentBatches.find(candidate => candidate.id === item.batchId);
-                    return <tr key={item.id} className="hover:bg-emerald-50/40"><Td strong>{student?.name ?? "Unknown student"}</Td><Td>{student?.studentId || "—"}</Td><Td>{batch?.name ?? "Unknown batch"}</Td><Td><StatusToggle active={item.status === "active"} onToggle={() => void toggleEnrollmentStatus(item)} disabled={enrollmentStatusMutation.isPending} /></Td><Td align="right"><Actions onView={() => viewEnrollment(item)} onEdit={() => setEditingEnrollment(item)} onDelete={() => void removeEnrollment(item)} /></Td></tr>;
+                    return <tr key={item.id} className="hover:bg-emerald-50/40"><Td strong>{student?.name ?? "Unknown student"}</Td><Td>{student?.studentId || "—"}</Td><Td>{batch?.name ?? "Unknown batch"}</Td><Td><StatusToggle active={item.status === "active"} onToggle={() => void toggleEnrollmentStatus(item)} disabled={enrollmentStatusMutation.isPending} /></Td><Td align="right"><Actions onView={() => viewEnrollment(item)} onEdit={() => setEditingEnrollment(item)} onDelete={() => void removeEnrollment(item)} deleteTitle="Remove this enrolment?" deleteDescription={`${student?.name ?? "This student"} will lose access to the batch. This cannot be undone.`} /></Td></tr>;
                   }) : <EmptyRow columns={5} message="No students enrolled yet." />}
                 </tbody>
               </DataTable>
@@ -588,11 +590,6 @@ export function CourseBatchManager() {
           )}
         </div>
       )}
-      {notice ? (
-        <p className="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
-          {notice}
-        </p>
-      ) : null}
       {courseModalOpen ? <CourseModal title={title} setTitle={setTitle} editing={Boolean(editingCourseId)} pending={courseMutation.isPending} onClose={() => setCourseModalOpen(false)} onSubmit={() => void saveCourseForm()} /> : null}
       {batchModalOpen ? <BatchModal courseTitle={activeCourse?.title ?? "this course"} name={batchName} setName={setBatchName} editing={Boolean(editingBatchId)} pending={batchMutation.isPending} existingBatchId={existingBatchId} setExistingBatchId={setExistingBatchId} batches={allBatchesQuery.data ?? []} activeCourseId={activeCourseId} linkPending={linkMutation.isPending} onClose={() => setBatchModalOpen(false)} onSubmit={() => void addBatch()} onLink={() => void linkBatch()} /> : null}
       {enrollmentModalOpen ? <EnrollmentModal batches={enrollmentBatches} students={studentsQuery.data ?? []} batchId={batchId} studentId={studentId} setBatchId={setBatchId} setStudentId={setStudentId} pending={enrollMutation.isPending} onClose={() => setEnrollmentModalOpen(false)} onSubmit={() => void enroll()} /> : null}
@@ -601,11 +598,11 @@ export function CourseBatchManager() {
     </section>
   );
 }
-function Actions({ onView, onEdit, onDelete }: { onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function Actions({ onView, onEdit, onDelete, deleteTitle, deleteDescription }: { onView: () => void; onEdit: () => void; onDelete: () => void; deleteTitle?: string; deleteDescription?: string }) {
   return <div className="inline-flex items-center gap-1">
     <Button size="sm" variant="outline" onClick={onView}><Eye size={14} />View</Button>
     <Button size="sm" variant="outline" onClick={onEdit}><Pencil size={14} />Update</Button>
-    <button type="button" aria-label="Delete" title="Delete" onClick={onDelete} className="inline-flex size-8 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
+    <ConfirmDeleteDialog title={deleteTitle ?? "Delete this record?"} description={deleteDescription ?? "This action cannot be undone."} onConfirm={onDelete} />
   </div>;
 }
 function DetailsModal({ title, fields, onClose }: { title: string; fields: { label: string; value: ReactNode }[]; onClose: () => void }) {

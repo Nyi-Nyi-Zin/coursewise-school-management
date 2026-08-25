@@ -59,10 +59,12 @@ service cloud.firestore {
 
     match /enrollments/{enrollmentId} {
       allow read: if isAdmin() || (isOwner(resource.data.studentId) && isBatchMember(resource.data.courseId, resource.data.batchId));
-      allow create, update, delete: if isAdmin() &&
+      // Deletes have no request.resource, so field validation only applies to writes.
+      allow create, update: if isAdmin() &&
         request.resource.data.studentId is string &&
         request.resource.data.courseId is string &&
         request.resource.data.batchId is string;
+      allow delete: if isAdmin();
     }
 
     match /announcements/{announcementId} {
@@ -100,6 +102,17 @@ service cloud.firestore {
       allow read: if isAdmin() || canReadOwnBatchRecord();
       // Callable functions calculate scores and persist attempts with the Admin SDK.
       allow create, update, delete: if isAdmin();
+    }
+
+    // Trusted per-student roll-ups written only by the grading function.
+    match /quizSummaries/{summaryId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // Attempt counters guard retake limits; clients may never read or write them.
+    match /quizAttemptCounters/{counterId} {
+      allow read, write: if isAdmin();
     }
 
     match /attendance/{attendanceId} {

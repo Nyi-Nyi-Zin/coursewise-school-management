@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminRecords } from "@/lib/use-admin-records";
 import type { CourseBatchScope } from "@/lib/course-batch-scope";
@@ -38,6 +39,7 @@ import { CourseBatchScopeControls } from "@/components/course-batch-scope-contro
 import { createStudentAccount } from "@/lib/admin-student-account-service";
 
 import { CourseBatchManager } from "@/components/course-batch-manager";
+import { AssignmentManager } from "@/components/assignment-manager";
 
 type Section =
   | "overview"
@@ -152,7 +154,6 @@ export function AdminShell() {
   const [isMenuOpen, setMenuOpen] = useState(false);
   const [isPanelOpen, setPanelOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<OfflineItem | null>(null);
-  const [mutationError, setMutationError] = useState<string | null>(null);
   const [managedQuiz, setManagedQuiz] = useState<OfflineItem | null>(null);
   const [courseBatchScope, setCourseBatchScope] = useState<CourseBatchScope>({
     courseId: "",
@@ -170,14 +171,14 @@ export function AdminShell() {
       : "Firebase records could not be loaded.";
   const persistenceError = recordsQuery.isError
     ? `Could not load Firebase records: ${loadError}`
-    : mutationError;
+    : null;
   const content = headings[section];
   const navigate = (next: Section | ((current: Section) => Section)) => {
     const target = typeof next === "function" ? next(section) : next;
     router.push(sectionPaths[target]);
   };
   const openCreate = () => {
-    if (section === "courses") return;
+    if (section === "courses" || section === "assignments") return;
     setEditingItem(null);
     setPanelOpen(true);
   };
@@ -190,10 +191,9 @@ export function AdminShell() {
     if (section === "students" && !editingItem) {
       try {
         await createStudentAccount({ name: draft.title, email: draft.fields?.email ?? "", studentId: draft.fields?.studentId ?? "", photoUrl: draft.fields?.photoUrl, isActive: draft.status === "Active" });
-        setMutationError(null);
-        await recordsQuery.refetch();
+        toast.success("Student account was created.");
       } catch (error) {
-        setMutationError(error instanceof Error ? error.message.replace("Firebase: ", "") : "The student account could not be created.");
+        toast.error(error instanceof Error ? error.message.replace("Firebase: ", "") : "The student account could not be created.");
       }
       setPanelOpen(false);
       setEditingItem(null);
@@ -214,22 +214,18 @@ export function AdminShell() {
         };
     try {
       await saveMutation.mutateAsync({ section, item });
-      setMutationError(null);
       setPanelOpen(false);
       setEditingItem(null);
     } catch (error) {
-      setMutationError(formatRecordSaveError(error));
+      toast.error(formatRecordSaveError(error));
     }
   };
   const deleteItem = async (id: string) => {
     if (!isRecordSection(section)) return;
     try {
       await deleteMutation.mutateAsync({ section, id });
-      setMutationError(null);
-    } catch {
-      setMutationError(
-        "The record could not be deleted. Your workspace was restored to its previous state."
-      );
+    } catch (error) {
+      toast.error(formatRecordSaveError(error) || "The record could not be deleted. Your workspace was restored to its previous state.");
     }
   };
   const toggleItemStatus = async (item: OfflineItem) => {
@@ -239,11 +235,8 @@ export function AdminShell() {
         section,
         item: { ...item, status: item.status === "Published" ? "Draft" : "Published" },
       });
-      setMutationError(null);
     } catch {
-      setMutationError(
-        "The record status could not be updated. Your workspace was restored to its previous state."
-      );
+      toast.error("The record status could not be updated. Your workspace was restored to its previous state.");
     }
   };
 
@@ -357,6 +350,8 @@ export function AdminShell() {
           </section>}
           {section === "courses" ? (
             <CourseBatchManager />
+          ) : section === "assignments" ? (
+            <AssignmentManager />
           ) : (
             <>
               {(section === "quizzes" || section === "attendance") && (
@@ -388,7 +383,7 @@ export function AdminShell() {
           )}
         </div>
       </main>
-      {isPanelOpen && section !== "courses" && (
+      {isPanelOpen && section !== "courses" && section !== "assignments" && (
         <OfflineActionPanel
           section={section as Exclude<Section, "courses">}
           initial={editingItem}
