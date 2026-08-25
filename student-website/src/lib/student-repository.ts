@@ -35,19 +35,35 @@ export async function uploadStudentPhoto(userId: string, file: File): Promise<st
 export async function getStudentEnrollmentContext(userId: string): Promise<EnrollmentContext | null> {
   if (!firestore) return { courseId: "demo-web", batchId: "demo-batch", courseTitle: "Web Engineering", batchName: "Demo learning batch" };
   const user = await getDoc(doc(firestore, "users", userId));
-  const courseId = String(user.data()?.activeCourseId ?? "");
-  const batchId = String(user.data()?.activeBatchId ?? "");
-  if (!courseId || !batchId) return null;
+  const profileCourseId = String(user.data()?.activeCourseId ?? "");
+  const profileBatchId = String(user.data()?.activeBatchId ?? "");
+
+  // The enrollment record is the source of truth; profile fields can go stale
+  // when older admin operations partially failed. Prefer an active enrollment
+  // that matches the profile, else fall back to any active enrollment.
+  let active: { courseId: string; batchId: string } | null = null;
+  try {
+    const snapshot = await getDocs(query(collection(firestore, "enrollments"), where("studentId", "==", userId), where("status", "==", "active"), limit(10)));
+    const records = snapshot.docs.map((item) => ({ courseId: String(item.data().courseId ?? ""), batchId: String(item.data().batchId ?? "") }));
+    active = records.find((record) => record.courseId === profileCourseId && record.batchId === profileBatchId) ?? records.at(0) ?? null;
+  } catch {
+    active = profileCourseId && profileBatchId ? { courseId: profileCourseId, batchId: profileBatchId } : null;
+  }
+  if (!active?.courseId || !active.batchId) {
+    if (!profileCourseId || !profileBatchId) return null;
+    active = { courseId: profileCourseId, batchId: profileBatchId };
+  }
+
   // Course or batch profile documents may be unreadable for freshly enrolled
   // students; that must never erase the enrollment itself, so fall back to
   // generic titles and let the scoped content queries decide visibility.
   const [course, batch] = await Promise.all([
-    getDoc(doc(firestore, "courses", courseId)).catch(() => null),
-    getDoc(doc(firestore, "batches", batchId)).catch(() => null),
+    getDoc(doc(firestore, "courses", active.courseId)).catch(() => null),
+    getDoc(doc(firestore, "batches", active.batchId)).catch(() => null),
   ]);
   return {
-    courseId,
-    batchId,
+    courseId: active.courseId,
+    batchId: active.batchId,
     courseTitle: course?.exists() ? String(course.data().title ?? "Course") : "Course",
     batchName: batch?.exists() ? String(batch.data().name ?? "Batch") : "Batch",
   };
