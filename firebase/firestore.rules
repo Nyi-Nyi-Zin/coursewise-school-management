@@ -119,6 +119,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /certificates/{certificateId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
     match /attendance/{attendanceId} {
       allow read: if isAdmin() || canReadOwnBatchRecord();
       allow create, update, delete: if isAdmin();

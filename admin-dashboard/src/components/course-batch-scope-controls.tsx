@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Filter } from "lucide-react";
 import { hasFirebaseConfiguration } from "../lib/firebase";
 import { loadBatches, loadCourses } from "../lib/course-batch-service";
 import type { CourseBatchScope } from "../lib/course-batch-scope";
@@ -12,8 +11,7 @@ export function CourseBatchScopeControls({ value, onChange }: { value: CourseBat
   const courseItems = courses.data ?? [];
   const batchItems = batches.data ?? [];
 
-  return <section className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-    <div className="flex items-center gap-2 pr-2 text-emerald-900"><Filter size={17} /><div><p className="text-sm font-bold">Active course and batch</p><p className="text-xs text-emerald-800/70">Quiz attempts and attendance stay inside this selected boundary.</p></div></div>
+  return <section className="flex flex-wrap items-end gap-3">
     {hasFirebaseConfiguration ? <>
       <label className="min-w-44 text-xs font-bold text-emerald-900">Course
         <select value={value.courseId} onChange={event => onChange({ courseId: event.target.value, batchId: "" })} className="mt-1 block h-10 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-normal">

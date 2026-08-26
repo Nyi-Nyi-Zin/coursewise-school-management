@@ -13,10 +13,11 @@ export type QuizQuestionType = "multiple_choice" | "multiple_select" | "true_fal
 export type QuizQuestion = { id: string; prompt: string; options: string[]; marks: number; type?: QuizQuestionType };
 export type SubmittedQuizAnswer = { questionId: string; selectedAnswerIndex: number; selectedIndices?: number[] };
 export type QuestionReviewItem = { questionId: string; selectedIndex: number | null; selectedIndices: number[]; correctAnswerIndex: number; correctAnswerIndices: number[]; marksEarned: number };
-export type QuizSubmissionResult = { id: string; kind: QuizKind; score: number; totalMarks: number; percentage: number; passed: boolean; attemptNumber: number; attemptCount: number; remainingAttempts: number | null; timeSpentSeconds: number; review?: QuestionReviewItem[] };
+export type QuizSubmissionResult = { id: string; kind: QuizKind; score: number; totalMarks: number; percentage: number; passed: boolean; attemptNumber: number; attemptCount: number; remainingAttempts: number | null; timeSpentSeconds: number; certificateIssued?: boolean; review?: QuestionReviewItem[] };
 export type QuizResultsSummary = { quizId: string; kind: QuizKind; title: string; chapter: string; passingPercent: number; attemptCount: number; remainingAttempts: number | null; bestPercentage: number; passed: boolean; latest: { score: number; totalMarks: number; percentage: number; passed: boolean; timeSpentSeconds: number; submittedAtMillis: number | null } | null };
 export type Assignment = { id: string; title: string; description: string; courseId: string; batchId: string; dueAt?: string; resourceUrl?: string; submissionInstructions?: string };
 export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; feedback?: string; score?: number | null };
+export type StudentCertificate = { id: string; certificateId: string; verificationCode: string; studentName: string; studentCode: string; courseTitle: string; batchName: string; quizTitle: string; score: number; totalMarks: number; percentage: number; issuedAt?: string; templateKey: "classic" | "modern" };
 
 export async function getStudentProfile(userId: string): Promise<StudentProfile> {
   if (!firestore) return { id: userId, name: "Student", email: "student@example.com", studentId: "TL-2026-001" };
@@ -188,11 +189,31 @@ export async function getQuizQuestions(quizId: string): Promise<QuizQuestion[]> 
 
 export async function submitQuizAttempt(quizId: string, answers: SubmittedQuizAnswer[], startedAt?: number): Promise<QuizSubmissionResult> {
   const data = await authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/submit`, { method: "POST", body: JSON.stringify({ answers, ...(typeof startedAt === "number" ? { startedAt } : {}) }) }) as QuizSubmissionResult;
-  return { ...data, score: Number(data.score ?? 0), totalMarks: Number(data.totalMarks ?? 0), percentage: Number(data.percentage ?? 0), attemptNumber: Number(data.attemptNumber ?? 1), attemptCount: Number(data.attemptCount ?? 1), remainingAttempts: typeof data.remainingAttempts === "number" ? data.remainingAttempts : null, timeSpentSeconds: Number(data.timeSpentSeconds ?? 0), passed: Boolean(data.passed), kind: data.kind ?? "chapter_quiz", review: Array.isArray(data.review) ? data.review : undefined };
+  return { ...data, score: Number(data.score ?? 0), totalMarks: Number(data.totalMarks ?? 0), percentage: Number(data.percentage ?? 0), attemptNumber: Number(data.attemptNumber ?? 1), attemptCount: Number(data.attemptCount ?? 1), remainingAttempts: typeof data.remainingAttempts === "number" ? data.remainingAttempts : null, timeSpentSeconds: Number(data.timeSpentSeconds ?? 0), passed: Boolean(data.passed), kind: data.kind ?? "chapter_quiz", certificateIssued: Boolean(data.certificateIssued), review: Array.isArray(data.review) ? data.review : undefined };
 }
 
 export async function getMyQuizResults(quizId: string): Promise<QuizResultsSummary> {
   return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/results`) as Promise<QuizResultsSummary>;
+}
+
+export async function getMyCertificates(): Promise<StudentCertificate[]> {
+  const data = await authenticatedApiFetch("/api/certificates") as { certificates?: Array<Record<string, unknown>> };
+  const records = Array.isArray(data.certificates) ? data.certificates : [];
+  return records.map((item) => ({
+    id: String(item.id ?? ""),
+    certificateId: String(item.certificateId ?? ""),
+    verificationCode: String(item.verificationCode ?? ""),
+    studentName: String(item.studentName ?? ""),
+    studentCode: String(item.studentCode ?? ""),
+    courseTitle: String(item.courseTitle ?? ""),
+    batchName: String(item.batchName ?? ""),
+    quizTitle: String(item.quizTitle ?? ""),
+    score: Number(item.score ?? 0),
+    totalMarks: Number(item.totalMarks ?? 0),
+    percentage: Number(item.percentage ?? 0),
+    issuedAt: typeof item.issuedAt === "string" ? item.issuedAt : undefined,
+    templateKey: item.templateKey === "modern" ? "modern" : "classic",
+  }));
 }
 
 function stringOrUndefined(value: unknown) { return typeof value === "string" && value ? value : undefined; }

@@ -15,4 +15,5 @@ export const desktopViewportWidth = 1280;
  * feature back everywhere (navigation, mobile bar, pages) with this one change.
  */
 export const attendancePageEnabled = false;
+export const certificatesPageEnabled = true;
 export const notificationsIconEnabled = false;

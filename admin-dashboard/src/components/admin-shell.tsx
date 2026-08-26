@@ -12,6 +12,7 @@ import {
 } from "@/lib/offline-records";
 import {
   Bell,
+  Award,
   BookOpen,
   BookMarked,
   CalendarDays,
@@ -42,6 +43,7 @@ import { createStudentAccount } from "@/lib/admin-student-account-service";
 
 import { CourseBatchManager } from "@/components/course-batch-manager";
 import { AssignmentManager } from "@/components/assignment-manager";
+import { CertificateManager } from "@/components/certificate-manager";
 
 type Section =
   | "overview"
@@ -52,7 +54,9 @@ type Section =
   | "assignments"
   | "quizzes"
   | "attendance"
+  | "certificates"
   | "settings";
+type WorkspaceSection = Exclude<Section, "courses" | "certificates">;
 function isRecordSection(section: Section): section is ManagementSection {
   return [
     "students",
@@ -72,6 +76,7 @@ const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "lessons", label: "Lessons", icon: BookOpen },
   { id: "assignments", label: "Assignments", icon: ClipboardCheck },
   { id: "quizzes", label: "Quizzes", icon: ClipboardCheck },
+  { id: "certificates", label: "Certificates", icon: Award },
   // Temporarily hidden from the admin navigation; keep the attendance page/code intact.
   // { id: "attendance", label: "Attendance", icon: CalendarDays },
   { id: "settings", label: "Settings", icon: Settings },
@@ -86,6 +91,7 @@ const sectionPaths: Record<Section, string> = {
   assignments: "/assignments",
   quizzes: "/quizzes",
   attendance: "/attendance",
+  certificates: "/certificates",
   settings: "/settings",
 };
 
@@ -141,6 +147,12 @@ const headings: Record<
     eyebrow: "Student records",
     title: "Attendance",
     description: "Record daily attendance using the required school statuses.",
+  },
+  certificates: {
+    eyebrow: "Student achievement",
+    title: "Certificate studio",
+    description:
+      "Issue completion certificates from one reusable design with student, course, batch, date, and serial details.",
   },
   settings: {
     eyebrow: "Configuration",
@@ -243,18 +255,20 @@ export function AdminShell() {
       toast.error(formatRecordSaveError(error) || "The record could not be deleted. Your workspace was restored to its previous state.");
     }
   };
-  const toggleItemStatus = async (item: OfflineItem) => {
+  const toggleStatus = async (item: OfflineItem) => {
     if (!isRecordSection(section)) return;
+    const nextStatus = section === "students"
+      ? (item.status === "Active" ? "Inactive" : "Active")
+      : section === "attendance"
+        ? (item.status === "Present" ? "Absent" : "Present")
+        : (item.status === "Published" ? "Draft" : "Published");
     try {
-      await saveMutation.mutateAsync({
-        section,
-        item: { ...item, status: item.status === "Published" ? "Draft" : "Published" },
-      });
-    } catch {
-      toast.error("The record status could not be updated. Your workspace was restored to its previous state.");
+      await saveMutation.mutateAsync({ section, item: { ...item, status: nextStatus } });
+      toast.success(`Status updated to ${nextStatus}.`);
+    } catch (error) {
+      toast.error(formatRecordSaveError(error) || "The status could not be updated.");
     }
   };
-
   return (
     <div className="min-h-screen bg-[#f8f8f6] text-stone-900">
       <aside
@@ -269,7 +283,7 @@ export function AdminShell() {
             <X size={18} />
           </button>
         </div>
-        <div className="mt-10">
+        <div className="mt-10 min-h-0 flex-1 overflow-y-auto pb-4 sidebar-scroll">
           <p className="px-3 text-[10px] font-bold uppercase tracking-[.2em] text-emerald-100/45">
             Management
           </p>
@@ -356,26 +370,23 @@ export function AdminShell() {
               )}
             </div>
           </section>
-          {section === "courses" ? (
+          {section === "certificates" ? (
+            <CertificateManager />
+          ) : section === "courses" ? (
             <CourseBatchManager />
           ) : section === "assignments" ? (
             <AssignmentManager />
           ) : (
             <>
-              {(section === "quizzes" || section === "attendance") && (
-                <CourseBatchScopeControls
-                  value={courseBatchScope}
-                  onChange={setCourseBatchScope}
-                />
-              )}
               <OfflineWorkspace
-                section={section as Exclude<Section, "courses">}
+                section={section as WorkspaceSection}
                 records={visibleRecords}
+                scopeControls={(section === "quizzes" || section === "attendance") ? <CourseBatchScopeControls value={courseBatchScope} onChange={setCourseBatchScope} /> : null}
                 onAction={openCreate}
                 onNavigate={next =>
                   navigate(current =>
                     typeof next === "function"
-                      ? next(current as Exclude<Section, "courses">)
+                      ? next(current as WorkspaceSection)
                       : next
                   )
                 }
@@ -384,16 +395,16 @@ export function AdminShell() {
                   setPanelOpen(true);
                 }}
                 onDelete={deleteItem}
+                onToggleStatus={toggleStatus}
                 onManageQuiz={setManagedQuiz}
-                onStatusChange={item => void toggleItemStatus(item)}
               />
             </>
           )}
         </div>
       </main>
-      {isPanelOpen && section !== "courses" && section !== "assignments" && (
+      {isPanelOpen && section !== "courses" && section !== "assignments" && section !== "certificates" && (
         <OfflineActionPanel
-          section={section as Exclude<Section, "courses">}
+          section={section as WorkspaceSection}
           initial={editingItem}
           onClose={() => {
             setPanelOpen(false);
@@ -846,6 +857,7 @@ function primaryAction(section: Section) {
       lessons: "New lesson",
       quizzes: "New quiz",
       attendance: "Record attendance",
+      certificates: "Issue certificate",
       settings: "Configure Firebase",
     } as Record<Section, string>
   )[section];

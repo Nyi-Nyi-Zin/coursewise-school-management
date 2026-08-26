@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   BookMarked,
@@ -19,7 +19,9 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { DocumentSnapshot } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { DataTable, TablePagination } from "@/components/ui/data-table";
-import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import { Metric } from "@/components/ui/metric";
+import { BooleanStatusBadge } from "@/components/ui/status-badge";
+import { RowActions } from "@/components/ui/row-actions";
 import { hasFirebaseConfiguration } from "@/lib/firebase";
 import {
   enrollStudent,
@@ -34,10 +36,11 @@ import {
   loadStudentProfiles,
   saveBatch,
   saveCourse,
-  updateEnrollmentBatch,
   saveEnrollmentStatus,
+  updateEnrollmentBatch,
   type BatchRecord,
   type CourseRecord,
+  type CursorPage,
   type EnrollmentRecord,
 } from "@/lib/course-batch-service";
 
@@ -48,6 +51,20 @@ const allBatchesKey = ["admin", "batches", "all"] as const;
 const enrollmentsKey = ["admin", "enrollments"] as const;
 const PAGE_SIZE = 10;
 type Tab = "courses" | "batches" | "links" | "enrollment";
+
+function optimisticallyReplacePagedRecord<T extends { id: string }>(client: QueryClient, queryKey: QueryKey, next: T) {
+  const previous = client.getQueryData<CursorPage<T>>(queryKey);
+  client.setQueryData<CursorPage<T>>(queryKey, page => page
+    ? { ...page, items: page.items.map(item => item.id === next.id ? next : item) }
+    : page);
+  return () => client.setQueryData(queryKey, previous);
+}
+
+function optimisticallyReplaceListRecord<T extends { id: string }>(client: QueryClient, queryKey: QueryKey, next: T) {
+  const previous = client.getQueryData<T[]>(queryKey);
+  client.setQueryData<T[]>(queryKey, current => current?.map(item => item.id === next.id ? next : item));
+  return () => client.setQueryData(queryKey, previous);
+}
 
 function writeErrorCode(error: unknown) {
   return typeof error === "object" && error && "code" in error ? String(error.code) : "";
@@ -199,10 +216,6 @@ export function CourseBatchManager() {
       await client.invalidateQueries({ queryKey: enrollmentsKey });
     },
   });
-  const enrollmentStatusMutation = useMutation({
-    mutationFn: ({ enrollmentId, nextStatus }: { enrollmentId: string; nextStatus: "active" | "inactive" }) => saveEnrollmentStatus(enrollmentId, nextStatus),
-    onSuccess: () => client.invalidateQueries({ queryKey: enrollmentsKey }),
-  });
   const enrollmentBatchMutation = useMutation({
     mutationFn: ({ enrollment, nextBatchId }: { enrollment: EnrollmentRecord; nextBatchId: string }) => updateEnrollmentBatch(enrollment, nextBatchId),
     onSuccess: async () => {
@@ -347,36 +360,50 @@ export function CourseBatchManager() {
       failureNotice(error, "Enrolment failed");
     }
   }
-  async function toggleCourseStatus(course: CourseRecord) {
-    const next = { ...course, isActive: !course.isActive };
-    try {
-      if (hasFirebaseConfiguration) await courseMutation.mutateAsync(next);
-      else setLocalCourses(items => items.map(item => item.id === course.id ? next : item));
-      toast.success(`${course.title} is now ${next.isActive ? "active" : "inactive"}.`);
-    } catch (error) { failureNotice(error, "The course status could not be updated"); }
-  }
-  async function toggleBatchStatus(batch: BatchRecord) {
-    const next = { ...batch, isActive: !batch.isActive };
-    try {
-      if (hasFirebaseConfiguration) await batchMutation.mutateAsync(next);
-      else setLocalBatches(items => Object.fromEntries(Object.entries(items).map(([key, value]) => [key, value.map(item => item.id === batch.id ? next : item)])));
-      toast.success(`${batch.name} is now ${next.isActive ? "active" : "inactive"}.`);
-    } catch (error) { failureNotice(error, "The batch status could not be updated"); }
-  }
-  async function toggleEnrollmentStatus(enrollment: EnrollmentRecord) {
-    const nextStatus = enrollment.status === "active" ? "inactive" : "active";
-    try {
-      if (hasFirebaseConfiguration) await enrollmentStatusMutation.mutateAsync({ enrollmentId: enrollment.id, nextStatus });
-      else setLocalEnrollments(items => items.map(item => item.id === enrollment.id ? { ...item, status: nextStatus } : item));
-      toast.success("Student enrolment status updated.");
-    } catch (error) { failureNotice(error, "The enrolment status could not be updated"); }
-  }
   async function removeEnrollment(enrollment: EnrollmentRecord) {
     try {
       if (hasFirebaseConfiguration) await deleteEnrollmentMutation.mutateAsync(enrollment.id);
       else setLocalEnrollments(items => items.filter(item => item.id !== enrollment.id));
       toast.success("Student enrolment was deleted.");
     } catch (error) { failureNotice(error, "The enrolment could not be deleted"); }
+  }
+  async function toggleCourseStatus(course: CourseRecord) {
+    const next = { ...course, isActive: !course.isActive };
+    const rollback = hasFirebaseConfiguration
+      ? optimisticallyReplacePagedRecord(client, [...coursesKey, coursePage], next)
+      : () => undefined;
+    try {
+      if (hasFirebaseConfiguration) await courseMutation.mutateAsync(next);
+      else setLocalCourses(items => items.map(item => item.id === course.id ? next : item));
+      toast.success(`${course.title} is now ${next.isActive ? "active" : "inactive"}.`);
+    } catch (error) { rollback(); failureNotice(error, "The course status could not be updated"); }
+  }
+  async function toggleBatchStatus(batch: BatchRecord) {
+    const next = { ...batch, isActive: !batch.isActive };
+    const rollbackPage = hasFirebaseConfiguration
+      ? optimisticallyReplacePagedRecord(client, [...batchesKey, batchPage], next)
+      : () => undefined;
+    const rollbackList = hasFirebaseConfiguration
+      ? optimisticallyReplaceListRecord(client, allBatchesKey, next)
+      : () => undefined;
+    try {
+      if (hasFirebaseConfiguration) await batchMutation.mutateAsync(next);
+      else setLocalBatches(items => ({ ...items, [batch.courseId]: (items[batch.courseId] ?? []).map(item => item.id === batch.id ? next : item) }));
+      toast.success(`${batch.name} is now ${next.isActive ? "active" : "inactive"}.`);
+    } catch (error) { rollbackPage(); rollbackList(); failureNotice(error, "The batch status could not be updated"); }
+  }
+  async function toggleEnrollmentStatus(enrollment: EnrollmentRecord) {
+    const nextStatus = enrollment.status === "active" ? "inactive" : "active";
+    const next = { ...enrollment, status: nextStatus };
+    const rollback = hasFirebaseConfiguration
+      ? optimisticallyReplacePagedRecord(client, [...enrollmentsKey, enrollmentPage], next)
+      : () => undefined;
+    try {
+      if (hasFirebaseConfiguration) await saveEnrollmentStatus(enrollment.id, nextStatus as "active" | "inactive");
+      else setLocalEnrollments(items => items.map(item => item.id === enrollment.id ? next : item));
+      if (hasFirebaseConfiguration) await client.invalidateQueries({ queryKey: enrollmentsKey });
+      toast.success(`Enrolment is now ${nextStatus}.`);
+    } catch (error) { rollback(); failureNotice(error, "The enrolment status could not be updated"); }
   }
   async function updateEnrollmentBatchForStudent(nextBatchId: string) {
     if (!editingEnrollment) return;
@@ -514,10 +541,10 @@ export function CourseBatchManager() {
                       {item.enrolledStudentIds.length}
                     </Td>
                     <Td>
-                      <StatusToggle active={item.isActive} onToggle={() => void toggleCourseStatus(item)} disabled={courseMutation.isPending} />
+                      <BooleanStatusBadge active={item.isActive} />
                     </Td>
                     <Td align="right">
-                      <Actions onView={() => viewCourse(item)} onEdit={() => openCourseModal(item)} onDelete={() => void removeCourse(item)} deleteTitle={`Delete ${item.title}?`} deleteDescription="This permanently removes the course. This cannot be undone." />
+                      <Actions onView={() => viewCourse(item)} onEdit={() => openCourseModal(item)} onDelete={() => void removeCourse(item)} onToggleStatus={() => void toggleCourseStatus(item)} active={item.isActive} deleteTitle={`Delete ${item.title}?`} deleteDescription="This permanently removes the course. This cannot be undone." />
                     </Td>
                   </tr>
                 ))
@@ -562,10 +589,10 @@ export function CourseBatchManager() {
                       {item.enrolledStudentIds.length}
                     </Td>
                     <Td>
-                      <StatusToggle active={item.isActive} onToggle={() => void toggleBatchStatus(item)} disabled={batchMutation.isPending} />
+                      <BooleanStatusBadge active={item.isActive} />
                     </Td>
                     <Td align="right">
-                      <Actions onView={() => viewBatch(item)} onEdit={() => openBatchModal(item)} onDelete={() => void removeBatch(item)} deleteTitle={`Delete ${item.name}?`} deleteDescription="This permanently removes the batch. This cannot be undone." />
+                      <Actions onView={() => viewBatch(item)} onEdit={() => openBatchModal(item)} onDelete={() => void removeBatch(item)} onToggleStatus={() => void toggleBatchStatus(item)} active={item.isActive} deleteTitle={`Delete ${item.name}?`} deleteDescription="This permanently removes the batch. This cannot be undone." />
                     </Td>
                   </tr>
                 ))
@@ -586,7 +613,7 @@ export function CourseBatchManager() {
             <p className="mt-1 text-sm text-emerald-900/70">Select the course, then choose an empty batch to link. Each option identifies the batch’s current course; batches with enrolled students cannot be linked to another course.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"><select aria-label="Course to link" value={activeCourseId} onChange={event => { setCourseId(event.target.value); setLinkBatchId(""); setBatchPage(0); setBatchCursors([null]); }} className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm"><option value="">Select course</option>{courses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}</select><select aria-label="Batch to link" value={linkBatchId} onChange={event => setLinkBatchId(event.target.value)} disabled={!activeCourseId} className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"><option value="">{activeCourseId ? "Select a batch to link" : "Select course first"}</option>{allBatches.filter(batch => batch.courseId !== activeCourseId).map(batch => { const courseName = courses.find(course => course.id === batch.courseId)?.title ?? "Unassigned"; return <option key={batch.id} value={batch.id}>{batch.name} — currently in: {courseName}</option>; })}</select><Button onClick={() => void linkBatch()} disabled={!activeCourseId || !linkBatchId || linkMutation.isPending}>Link batch</Button></div>
           </div>
-          <DataTable title={`${activeCourse?.title ?? "Course"} batches`} subtitle={`${enrollmentBatches.length} batches linked to this course`} searchValue="" onSearchChange={() => undefined} searchPlaceholder="Search batches in this course"><thead><tr><Th>Batch</Th><Th>Status</Th><Th>Enrolled</Th><Th align="right">Action</Th></tr></thead><tbody>{enrollmentBatches.length ? enrollmentBatches.map(batch => <tr key={batch.id} className="hover:bg-emerald-50/40"><Td strong>{batch.name}</Td><Td><StatusToggle active={batch.isActive} onToggle={() => void toggleBatchStatus(batch)} disabled={batchMutation.isPending} /></Td><Td>{batch.enrolledStudentIds.length}</Td><Td align="right"><ConfirmDeleteDialog title={`Delete ${batch.name}?`} description="This permanently removes the batch. This cannot be undone." onConfirm={() => void removeBatch(batch)} /></Td></tr>) : <EmptyRow columns={4} message="No batches are linked to this course yet." />}</tbody></DataTable>
+          <DataTable title={`${activeCourse?.title ?? "Course"} batches`} subtitle={`${enrollmentBatches.length} batches linked to this course`} searchValue="" onSearchChange={() => undefined} searchPlaceholder="Search batches in this course"><thead><tr><Th>Batch</Th><Th>Status</Th><Th>Enrolled</Th><Th align="right">Action</Th></tr></thead><tbody>{enrollmentBatches.length ? enrollmentBatches.map(batch => <tr key={batch.id} className="hover:bg-emerald-50/40"><Td strong>{batch.name}</Td><Td><BooleanStatusBadge active={batch.isActive} /></Td><Td>{batch.enrolledStudentIds.length}</Td><Td align="right"><RowActions actions={[]} confirmDelete={{ title: `Delete ${batch.name}?`, description: "This permanently removes the batch. This cannot be undone.", onConfirm: () => void removeBatch(batch) }} /></Td></tr>) : <EmptyRow columns={4} message="No batches are linked to this course yet." />}</tbody></DataTable>
         </div>
       ) : (
         <div className="mt-5">
@@ -600,7 +627,7 @@ export function CourseBatchManager() {
                   {enrollmentsQuery.isLoading ? <LoadingRow columns={5} /> : enrollmentsQuery.isError ? <EmptyRow columns={5} message="Enrolments could not be loaded. See the message above." /> : visibleEnrollments.length ? visibleEnrollments.map(item => {
                     const student = (studentsQuery.data ?? []).find(profile => profile.id === item.studentId);
                     const batch = allBatches.find(candidate => candidate.id === item.batchId);
-                    return <tr key={item.id} className="hover:bg-emerald-50/40"><Td strong>{student?.name ?? "Unknown student"}</Td><Td>{student?.studentId || "—"}</Td><Td>{batch?.name ?? "Unknown batch"}</Td><Td><StatusToggle active={item.status === "active"} onToggle={() => void toggleEnrollmentStatus(item)} disabled={enrollmentStatusMutation.isPending} /></Td><Td align="right"><Actions onView={() => viewEnrollment(item)} onEdit={() => setEditingEnrollment(item)} onDelete={() => void removeEnrollment(item)} deleteTitle="Remove this enrolment?" deleteDescription={`${student?.name ?? "This student"} will lose access to the batch. This cannot be undone.`} /></Td></tr>;
+                    return <tr key={item.id} className="hover:bg-emerald-50/40"><Td strong>{student?.name ?? "Unknown student"}</Td><Td>{student?.studentId || "—"}</Td><Td>{batch?.name ?? "Unknown batch"}</Td><Td><BooleanStatusBadge active={item.status === "active"} /></Td><Td align="right"><Actions onView={() => viewEnrollment(item)} onEdit={() => setEditingEnrollment(item)} onDelete={() => void removeEnrollment(item)} onToggleStatus={() => void toggleEnrollmentStatus(item)} active={item.status === "active"} deleteTitle="Remove this enrolment?" deleteDescription={`${student?.name ?? "This student"} will lose access to the batch. This cannot be undone.`} /></Td></tr>;
                   }) : <EmptyRow columns={5} message="No students enrolled yet." />}
                 </tbody>
               </DataTable>
@@ -623,22 +650,29 @@ export function CourseBatchManager() {
     </div>
   );
 }
-function Actions({ onView, onEdit, onDelete, deleteTitle, deleteDescription }: { onView: () => void; onEdit: () => void; onDelete: () => void; deleteTitle?: string; deleteDescription?: string }) {
-  return <div className="inline-flex items-center gap-1">
-    <Button size="sm" variant="outline" onClick={onView}><Eye size={14} />View</Button>
-    <Button size="sm" variant="outline" onClick={onEdit}><Pencil size={14} />Update</Button>
-    <ConfirmDeleteDialog title={deleteTitle ?? "Delete this record?"} description={deleteDescription ?? "This action cannot be undone."} onConfirm={onDelete} />
-  </div>;
+function Actions({ onView, onEdit, onDelete, onToggleStatus, active, deleteTitle, deleteDescription }: { onView: () => void; onEdit: () => void; onDelete: () => void; onToggleStatus?: () => void; active?: boolean; deleteTitle?: string; deleteDescription?: string }) {
+  return <RowActions
+    actions={[
+      { label: "View details", icon: Eye, onSelect: onView },
+      { label: "Edit", icon: Pencil, onSelect: onEdit },
+      ...(onToggleStatus ? [{ label: active ? "Deactivate" : "Activate", icon: active ? CircleX : CircleCheck, tone: "warning" as const, onSelect: onToggleStatus }] : []),
+    ]}
+    confirmDelete={{
+      title: deleteTitle ?? "Delete this record?",
+      description: deleteDescription ?? "This action cannot be undone.",
+      onConfirm: onDelete,
+    }}
+  />;
 }
 function DetailsModal({ title, fields, onClose }: { title: string; fields: { label: string; value: ReactNode }[]; onClose: () => void }) {
   return (
-    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
-      <section className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()}>
+    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/30 p-4" onMouseDown={onClose}>
+      <section className="flex max-h-full w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()}>
         <header className="flex items-center justify-between border-b border-stone-100 p-6">
           <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 font-display text-xl font-semibold">{title}</h4></div>
           <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
         </header>
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto rounded-2xl p-6">
           <dl className="divide-y divide-stone-100 rounded-xl border border-stone-200">{fields.map(field => <div key={field.label} className="grid gap-1 px-4 py-3 sm:grid-cols-3 sm:gap-4"><dt className="text-xs font-bold uppercase tracking-wide text-stone-500">{field.label}</dt><dd className="break-words text-sm font-medium text-stone-800 sm:col-span-2">{field.value}</dd></div>)}</dl>
         </div>
         <div className="flex justify-end border-t border-stone-100 p-6"><Button type="button" onClick={onClose}>Close</Button></div>
@@ -650,8 +684,8 @@ function EnrollmentBatchModal({ enrollment, batches, students, pending, onClose,
   const [batchId, setBatchId] = useState(enrollment.batchId);
   const student = students.find(item => item.id === enrollment.studentId);
   return (
-    <div role="dialog" aria-modal="true" aria-label="Update student enrolment" className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
-      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(batchId); }}>
+    <div role="dialog" aria-modal="true" aria-label="Update student enrolment" className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/30 p-4" onMouseDown={onClose}>
+      <form className="max-h-[calc(100vh-2rem)] flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(batchId); }}>
         <header className="flex items-center justify-between border-b border-stone-100 p-6">
           <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Student enrolment</p><h4 className="mt-1 font-display text-xl font-semibold">Update enrolment</h4></div>
           <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
@@ -667,8 +701,8 @@ function EnrollmentBatchModal({ enrollment, batches, students, pending, onClose,
 }
 function CourseModal({ title, setTitle, editing, pending, onClose, onSubmit }: { title: string; setTitle: (value: string) => void; editing: boolean; pending: boolean; onClose: () => void; onSubmit: () => void }) {
   return (
-    <div role="dialog" aria-modal="true" aria-label={editing ? "Edit course" : "Add course"} className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
-      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+    <div role="dialog" aria-modal="true" aria-label={editing ? "Edit course" : "Add course"} className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/30 p-4" onMouseDown={onClose}>
+      <form className="max-h-[calc(100vh-2rem)] flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
         <header className="flex items-center justify-between border-b border-stone-100 p-6">
           <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 font-display text-xl font-semibold">{editing ? "Edit course" : "Add course"}</h4></div>
           <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
@@ -683,8 +717,8 @@ function CourseModal({ title, setTitle, editing, pending, onClose, onSubmit }: {
 }
 function BatchModal({ name, setName, editing, pending, onClose, onSubmit }: { name: string; setName: (value: string) => void; editing: boolean; pending: boolean; onClose: () => void; onSubmit: () => void }) {
   return (
-    <div role="dialog" aria-modal="true" aria-label={editing ? "Edit batch" : "Add batch"} className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
-      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+    <div role="dialog" aria-modal="true" aria-label={editing ? "Edit batch" : "Add batch"} className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/30 p-4" onMouseDown={onClose}>
+      <form className="max-h-[calc(100vh-2rem)] flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
         <header className="flex items-center justify-between border-b border-stone-100 p-6">
           <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Academic workspace</p><h4 className="mt-1 flex items-center gap-2 font-display text-xl font-semibold"><Layers3 size={19} className="text-emerald-700" />{editing ? "Edit batch" : "Add a batch"}</h4><p className="mt-1 text-xs text-stone-500">You can link this batch to a course later.</p></div>
           <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>
@@ -694,24 +728,6 @@ function BatchModal({ name, setName, editing, pending, onClose, onSubmit }: { na
         </div>
         <div className="flex justify-end gap-2 border-t border-stone-100 p-6"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" disabled={!name.trim() || pending}>{editing ? "Save batch" : "Add batch"}</Button></div>
       </form>
-    </div>
-  );
-}
-function Metric({ label, value, icon: Icon, tone }: { label: string; value: number; icon: typeof BookMarked; tone: "blue" | "green" | "red" }) {
-  const tones = {
-    blue: "bg-blue-50 text-blue-600",
-    green: "bg-emerald-50 text-emerald-600",
-    red: "bg-red-50 text-red-500",
-  } as const;
-  return (
-    <div className="flex items-center gap-4 rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
-      <span className={`grid size-12 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>
-        <Icon size={20} />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-stone-500">{label}</p>
-        <p className="mt-0.5 text-2xl font-bold text-stone-900">{value}</p>
-      </div>
     </div>
   );
 }
@@ -739,24 +755,6 @@ function Td({
     >
       {children}
     </td>
-  );
-}
-function StatusToggle({ active, onToggle, disabled }: { active: boolean; onToggle: () => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={active}
-      aria-label={`Set status to ${active ? "inactive" : "active"}`}
-      title={active ? "Active — click to deactivate" : "Inactive — click to activate"}
-      disabled={disabled}
-      onClick={onToggle}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${active ? "bg-emerald-500" : "bg-stone-300"}`}
-    >
-      <span
-        className={`inline-block size-5 transform rounded-full bg-white shadow-md ring-1 ring-black/5 transition-transform duration-200 ${active ? "translate-x-[22px]" : "translate-x-0.5"}`}
-      />
-    </button>
   );
 }
 function LoadingRow({ columns = 5 }: { columns?: number }) {
@@ -812,8 +810,8 @@ function EnrollmentModal({ batches, courses, students, batchId, studentId, setBa
   onSubmit: () => void;
 }) {
   return (
-    <div role="dialog" aria-modal="true" aria-label="Enroll student" className="fixed inset-0 z-50 flex justify-end bg-emerald-950/30" onMouseDown={onClose}>
-      <form className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
+    <div role="dialog" aria-modal="true" aria-label="Enroll student" className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/30 p-4" onMouseDown={onClose}>
+      <form className="max-h-[calc(100vh-2rem)] flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(); }}>
         <header className="flex items-center justify-between border-b border-stone-100 p-6">
           <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Student enrolment</p><h4 className="mt-1 flex items-center gap-2 font-display text-xl font-semibold"><UserPlus size={19} className="text-emerald-700" />Enroll student</h4></div>
           <button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-stone-400 hover:bg-stone-100"><X size={18} /></button>

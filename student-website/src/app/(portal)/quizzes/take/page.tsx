@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, ArrowLeft, CheckCircle2, CircleCheckBig, ClipboardCheck, RotateCcw, ShieldAlert, Trophy, XCircle } from "lucide-react";
+import { AlarmClock, ArrowLeft, Award, CheckCircle2, CircleCheckBig, ClipboardCheck, RotateCcw, ShieldAlert, Trophy, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -203,6 +203,11 @@ function ResultCard({ result, onRetake, retakeAllowed, remainingAttempts }: { re
               <p className="mt-6 text-4xl font-bold text-teal-700">{result.score}/{result.totalMarks}</p>
               <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-teal-800"><CircleCheckBig className="size-4" />{result.percentage}% correct</p>
             </>}
+          {result.kind === "final_exam" && result.passed && result.certificateIssued ? (
+            <div className="mt-6 inline-flex items-center gap-2 rounded-xl bg-teal-50 px-4 py-2.5 text-sm font-medium text-teal-800 ring-1 ring-inset ring-teal-200">
+              <Award className="size-4 text-teal-600" />Congratulations — your course certificate has been issued.
+            </div>
+          ) : null}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-500">
             <span>Attempt #{result.attemptNumber}</span>
             <span>{result.attemptCount} attempt(s) used</span>
@@ -212,6 +217,7 @@ function ResultCard({ result, onRetake, retakeAllowed, remainingAttempts }: { re
           {!retakeAllowed && result.remainingAttempts !== null && result.remainingAttempts > 0 ? <p className="mt-4 text-sm font-medium text-amber-700">You can retake this exam {result.remainingAttempts} more time(s).</p> : null}
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             {retakeAllowed ? <Button onClick={onRetake}><RotateCcw className="size-4" />Retake this chapter quiz</Button> : null}
+            {result.kind === "final_exam" && result.passed ? <Link href="/certificates" className="inline-flex h-11 items-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800"><Award className="size-4" />View certificate</Link> : null}
             <Link href="/quizzes" className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"><ClipboardCheck className="size-4" />Back to quizzes</Link>
           </div>
         </CardContent>

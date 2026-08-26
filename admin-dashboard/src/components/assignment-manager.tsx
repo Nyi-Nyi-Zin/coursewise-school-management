@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookPlus,
+  CircleCheck,
+  CircleX,
   ClipboardCheck,
   Eye,
   Filter,
@@ -14,7 +16,9 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import { Metric } from "@/components/ui/metric";
+import { BooleanStatusBadge } from "@/components/ui/status-badge";
+import { RowActions } from "@/components/ui/row-actions";
 import { hasFirebaseConfiguration } from "@/lib/firebase";
 import {
   deleteAssignment,
@@ -174,16 +178,12 @@ export function AssignmentManager() {
       toast.error("The assignment could not be deleted.");
     }
   }
-
-  async function togglePublished(item: AssignmentRecord) {
+  async function toggleStatus(item: AssignmentRecord) {
     const next = { ...item, isPublished: !item.isPublished };
     try {
-      if (hasFirebaseConfiguration) {
-        await saveMutation.mutateAsync(next);
-      } else {
-        setLocalAssignments(items => items.map(i => (i.id === item.id ? next : i)));
-      }
-      toast.success(`"${item.title}" is now ${next.isPublished ? "published" : "draft"}.`);
+      if (hasFirebaseConfiguration) await saveMutation.mutateAsync(next);
+      else setLocalAssignments(items => items.map(i => i.id === next.id ? next : i));
+      toast.success(`"${next.title}" is now ${next.isPublished ? "published" : "a draft"}.`);
     } catch {
       toast.error("The assignment status could not be updated.");
     }
@@ -193,29 +193,28 @@ export function AssignmentManager() {
   const draftsTotal = assignments.length - publishedTotal;
 
   return (
-    <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
+    <>
+      <div className="mb-5 grid gap-4 sm:grid-cols-3">
+        <Metric label="Total assignments" value={assignments.length} icon={BookPlus} tone="blue" />
+        <Metric label="Published" value={publishedTotal} icon={CircleCheck} tone="green" />
+        <Metric label="Draft" value={draftsTotal} icon={Pencil} tone="amber" />
+      </div>
+      <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
       {assignmentsQuery.isError ? (
-        <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+        <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           Could not load assignments.
         </p>
       ) : null}
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Metric label="Total assignments" value={assignments.length} />
-        <Metric label="Published" value={publishedTotal} />
-        <Metric label="Draft" value={draftsTotal} />
-      </div>
-      <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           <span className="mr-auto text-xs text-stone-400">Use filters to narrow the listing.</span>
           <button type="button" onClick={() => setStatus(status === "all" ? "published" : status === "published" ? "draft" : "all")} className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-600 hover:bg-stone-50"><Filter size={14} />{status === "all" ? "Filters" : `${status[0].toUpperCase()}${status.slice(1)}`}</button>
           <button type="button" onClick={() => { setCourseId(""); setBatchId(""); setQuery(""); setStatus("all"); }} className="inline-flex h-9 items-center gap-2 rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-600 hover:bg-stone-50"><X size={14} />Clear all</button>
-      </div>
-      <div className="mt-6">
-        <div className="mb-3 flex justify-end">
           <Button onClick={openCreate}>
             <BookPlus size={16} />
             Add assignment
           </Button>
-        </div>
+      </div>
+      <div>
         <DataTable
           title="Assignments"
           subtitle={`${visible.length} shown on this page`}
@@ -250,8 +249,8 @@ export function AssignmentManager() {
                     <Td>
                       <button type="button" onClick={() => setSubmissionsModal(item)} className="inline-flex items-center gap-1 text-emerald-700 hover:underline"><Send size={14} />{submissionCount(item.id)}</button>
                     </Td>
-                    <Td><StatusToggle active={item.isPublished} onToggle={() => void togglePublished(item)} disabled={saveMutation.isPending} /></Td>
-                    <Td align="right"><Actions onView={() => setViewModal(item)} onEdit={() => openEdit(item)} onDelete={() => void remove(item)} deleteTitle={`Delete "${item.title}"?`} deleteDescription="This permanently removes the assignment. This cannot be undone." /></Td>
+                    <Td><BooleanStatusBadge active={item.isPublished} trueLabel="Published" falseLabel="Draft" trueTone="green" falseTone="amber" /></Td>
+                    <Td align="right"><Actions onView={() => setViewModal(item)} onEdit={() => openEdit(item)} onDelete={() => void remove(item)} onToggleStatus={() => void toggleStatus(item)} active={item.isPublished} deleteTitle={`Delete "${item.title}"?`} deleteDescription="This permanently removes the assignment. This cannot be undone." /></Td>
                   </tr>
                 );
               })
@@ -265,32 +264,29 @@ export function AssignmentManager() {
       {viewModal ? <AssignmentDetailsModal assignment={viewModal} course={courses.find(c => c.id === viewModal.courseId)} batch={batches.find(b => b.id === viewModal.batchId)} submissionCount={submissionCount(viewModal.id)} onClose={() => setViewModal(null)} /> : null}
       {submissionsModal ? <SubmissionsModal assignment={submissionsModal} submissions={submissions.filter(s => s.assignmentId === submissionsModal.id)} students={students} onClose={() => setSubmissionsModal(null)} /> : null}
     </section>
+    </>
   );
 }
 
-function Actions({ onView, onEdit, onDelete, deleteTitle, deleteDescription }: { onView: () => void; onEdit: () => void; onDelete: () => void; deleteTitle?: string; deleteDescription?: string }) {
-  return <div className="inline-flex items-center gap-1">
-    <Button size="sm" variant="outline" onClick={onView}><Eye size={14} />View</Button>
-    <Button size="sm" variant="outline" onClick={onEdit}><Pencil size={14} />Update</Button>
-    <ConfirmDeleteDialog title={deleteTitle ?? "Delete this record?"} description={deleteDescription ?? "This action cannot be undone."} onConfirm={onDelete} />
-  </div>;
-}
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl bg-emerald-50 px-4 py-2 text-center">
-      <p className="text-lg font-bold text-emerald-900">{value}</p>
-      <p className="text-[10px] font-bold uppercase text-emerald-800/60">{label}</p>
-    </div>
-  );
+function Actions({ onView, onEdit, onDelete, onToggleStatus, active, deleteTitle, deleteDescription }: { onView: () => void; onEdit: () => void; onDelete: () => void; onToggleStatus?: () => void; active?: boolean; deleteTitle?: string; deleteDescription?: string }) {
+  return <RowActions
+    actions={[
+      { label: "View details", icon: Eye, onSelect: onView },
+      { label: "Edit assignment", icon: Pencil, onSelect: onEdit },
+      ...(onToggleStatus ? [{ label: active ? "Unpublish" : "Publish", icon: active ? CircleX : CircleCheck, tone: "warning" as const, onSelect: onToggleStatus }] : []),
+    ]}
+    confirmDelete={{
+      title: deleteTitle ?? "Delete this record?",
+      description: deleteDescription ?? "This action cannot be undone.",
+      onConfirm: onDelete,
+    }}
+  />;
 }
 function Th({ children, align }: { children: ReactNode; align?: "right" }) {
   return <th className={`bg-stone-50 px-5 py-3 text-[10px] font-bold uppercase tracking-[.14em] text-stone-500 ${align === "right" ? "text-right" : ""}`}>{children}</th>;
 }
 function Td({ children, strong, align }: { children: ReactNode; strong?: boolean; align?: "right" }) {
   return <td className={`border-t border-stone-100 px-5 py-4 text-stone-600 ${strong ? "font-bold text-stone-800" : ""} ${align === "right" ? "text-right" : ""}`}>{children}</td>;
-}
-function StatusToggle({ active, onToggle, disabled }: { active: boolean; onToggle: () => void; disabled?: boolean }) {
-  return <button type="button" role="switch" aria-checked={active} aria-label={`Set status to ${active ? "draft" : "published"}`} disabled={disabled} onClick={onToggle} className={`inline-flex items-center gap-2 rounded-full px-1 py-1 text-[10px] font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${active ? "bg-emerald-50 text-emerald-800" : "bg-stone-100 text-stone-500"}`}><span className={`size-4 rounded-full transition ${active ? "bg-emerald-600" : "bg-stone-400"}`} /><span className="pr-2">{active ? "Published" : "Draft"}</span></button>;
 }
 function LoadingRow({ columns = 7 }: { columns?: number }) {
   return <tr><td colSpan={columns} className="border-t border-stone-100 px-5 py-8 text-center text-stone-500">Loading…</td></tr>;

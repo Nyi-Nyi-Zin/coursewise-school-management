@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, BookOpen, CalendarDays, ClipboardCheck, House, Menu, UserCircle2 } from "lucide-react";
+import { Award, Bell, BookOpen, CalendarDays, ClipboardCheck, House, Menu, UserCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StudentBrand } from "@/components/student-brand";
+import { StudentFooter } from "@/components/student-footer";
 import { cn } from "@/lib/utils";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { useStudentCourse } from "@/components/student-course-provider";
 import { getStudentProfile } from "@/lib/student-repository";
-import { attendancePageEnabled, notificationsIconEnabled } from "../../../shared/portal-display-settings";
+import { attendancePageEnabled, certificatesPageEnabled, notificationsIconEnabled } from "../../../shared/portal-display-settings";
 
 const navigation = [
   { href: "/", label: "Home", icon: House },
@@ -18,6 +19,7 @@ const navigation = [
   { href: "/quizzes", label: "Quizzes", icon: ClipboardCheck },
   { href: "/assignments", label: "Assignments", icon: ClipboardCheck },
   ...(attendancePageEnabled ? [{ href: "/attendance", label: "Attendance", icon: CalendarDays }] : []),
+  ...(certificatesPageEnabled ? [{ href: "/certificates", label: "Certificates", icon: Award }] : []),
   { href: "/profile", label: "Profile", icon: UserCircle2 },
 ];
 
@@ -56,7 +58,10 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {menuOpen ? <><button type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-teal-950/70 lg:hidden" /><aside className="fixed inset-y-0 right-0 z-50 w-72 border-l border-teal-800 bg-teal-950 p-5 shadow-2xl lg:hidden"><div className="mb-8 flex items-center justify-between"><StudentBrand /><button onClick={() => setMenuOpen(false)} className="rounded-lg px-2 py-1 text-sm text-teal-400">Close</button></div><nav className="grid gap-2" aria-label="Student navigation">{navigation.map(item => { const Icon = item.icon; const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={cn("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold", active ? "bg-teal-400/10 text-teal-200" : "text-teal-300 hover:bg-teal-900")}><Icon className="size-5" />{item.label}</Link>; })}</nav></aside></> : null}
-      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 sm:px-6 sm:pt-10">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 pb-10 pt-6 sm:px-6 sm:pt-10">{children}</main>
+      <div className="pb-20 lg:pb-0">
+        <StudentFooter />
+      </div>
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-[var(--background)]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Mobile student navigation">
         <div className="mx-auto grid max-w-lg" style={{ gridTemplateColumns: `repeat(${navigation.length}, minmax(0, 1fr))` }}>
           {navigation.map((item) => {

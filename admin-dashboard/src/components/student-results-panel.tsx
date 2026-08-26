@@ -23,14 +23,14 @@ export function StudentResultsPanel({ studentName, studentUid, onClose }: { stud
         {!hasFirebaseConfiguration ? <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Connect Firebase to view recorded scores.</p>
           : results.isLoading ? <p className="py-8 text-center text-sm text-stone-500">Loading recorded results…</p>
           : results.isError ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Could not load results. Confirm this account is an administrator, then try again.</p>
-          : rows.length ? <div className="overflow-hidden rounded-2xl border border-stone-200"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-400"><tr><Th>Assessment</Th><Th>Attempts</Th><Th>Best score</Th><Th>Latest %</Th><Th>Status</Th><Th>Last submitted</Th><Th align="right">Time spent</Th></tr></thead><tbody>{rows.map(row => <tr key={row.quizId} className="border-t border-stone-100">
-            <td className="px-4 py-3"><span className="font-semibold text-stone-800">{row.quizTitle}</span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-emerald-700">{row.kind === "final_exam" ? "Final exam" : "Chapter quiz"}{row.chapter ? ` · ${row.chapter}` : ""}</span></td>
-            <td className="px-4 py-3 text-stone-600">{row.attemptCount}</td>
-            <td className="px-4 py-3 text-stone-600">{row.bestPercentage}%<span className="block text-xs text-stone-400">{row.bestScore}/{row.bestTotalMarks || "—"}</span></td>
-            <td className="px-4 py-3 text-stone-600">{row.latestPercentage}%</td>
-            <td className="px-4 py-3"><PassBadge passed={row.passed} /></td>
-            <td className="px-4 py-3 text-stone-600">{row.submittedAtMillis ? new Date(row.submittedAtMillis).toLocaleString() : "—"}</td>
-            <td className="px-4 py-3 text-right text-stone-600">{formatSpentTime(row.timeSpentSeconds)}</td>
+          : rows.length ? <div className="overflow-hidden rounded-2xl border border-stone-200"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-stone-50"><tr><Th>Assessment</Th><Th>Attempts</Th><Th>Best score</Th><Th>Latest %</Th><Th>Status</Th><Th>Last submitted</Th><Th align="right">Time spent</Th></tr></thead><tbody>{rows.map(row => <tr key={row.quizId} className="border-t border-stone-100">
+            <td className="px-5 py-4"><span className="font-bold text-stone-800">{row.quizTitle}</span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-emerald-700">{row.kind === "final_exam" ? "Final exam" : "Chapter quiz"}{row.chapter ? ` · ${row.chapter}` : ""}</span></td>
+            <td className="px-5 py-4 text-stone-600">{row.attemptCount}</td>
+            <td className="px-5 py-4 text-stone-600">{row.bestPercentage}%<span className="block text-xs text-stone-400">{row.bestScore}/{row.bestTotalMarks || "—"}</span></td>
+            <td className="px-5 py-4 text-stone-600">{row.latestPercentage}%</td>
+            <td className="px-5 py-4"><PassBadge passed={row.passed} /></td>
+            <td className="px-5 py-4 text-stone-600">{row.submittedAtMillis ? new Date(row.submittedAtMillis).toLocaleString() : "—"}</td>
+            <td className="px-5 py-4 text-right text-stone-600">{formatSpentTime(row.timeSpentSeconds)}</td>
           </tr>)}</tbody></table></div>
           : <div className="grid place-items-center gap-2 rounded-2xl border border-dashed border-stone-300 px-6 py-14 text-center"><ClipboardCheck className="size-7 text-stone-300" /><p className="text-sm font-semibold text-stone-700">No attempts recorded yet.</p><p className="max-w-xs text-xs leading-5 text-stone-500">Scores appear here after this student submits a chapter quiz or final exam.</p></div>}
       </div>
@@ -44,5 +44,5 @@ function PassBadge({ passed }: { passed: boolean }) {
 }
 
 function Th({ children, align }: { children: React.ReactNode; align?: "right" }) {
-  return <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wide text-stone-400 ${align === "right" ? "text-right" : "text-left"}`}>{children}</th>;
+  return <th className={`bg-stone-50 px-5 py-3 text-[10px] font-bold uppercase tracking-[.14em] text-stone-500 ${align === "right" ? "text-right" : "text-left"}`}>{children}</th>;
 }

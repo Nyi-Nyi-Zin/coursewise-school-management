@@ -17,6 +17,70 @@ type StoredQuizSummary = {
 };
 type AnswerKeyRecord = { correctAnswerIndex: number; correctAnswerIndices?: number[] };
 
+// A final exam score at or above this percentage automatically issues a course certificate.
+const CERTIFICATE_PASS_PERCENT = 70;
+
+export type IssuedCertificate = {
+  id: string; certificateId: string; verificationCode: string;
+  studentId: string; studentName: string; studentCode: string;
+  courseId: string; courseTitle: string; batchId: string; batchName: string;
+  quizId: string; quizTitle: string;
+  score: number; totalMarks: number; percentage: number;
+  attemptNumber: number; issuedAt: string | null;
+  templateKey: "classic" | "modern";
+};
+
+function randomCode(length: number) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let index = 0; index < length; index += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
+}
+
+async function loadCertificateSnapshot(studentId: string, courseId: string, batchId: string, quizTitle: string) {
+  const db = getFirebaseAdmin().db;
+  const [student, course, batch] = await Promise.all([
+    db.doc(`users/${studentId}`).get(),
+    db.doc(`courses/${courseId}`).get(),
+    db.doc(`batches/${batchId}`).get(),
+  ]);
+  return {
+    studentName: String(student.data()?.name ?? "Student"),
+    studentCode: String(student.data()?.studentId ?? "Pending"),
+    courseTitle: String(course.data()?.title ?? "Course"),
+    batchName: String(batch.data()?.name ?? "Batch"),
+    quizTitle,
+  };
+}
+
+export async function listStudentCertificates(studentId: string): Promise<IssuedCertificate[]> {
+  const snapshot = await getFirebaseAdmin().db.collection("certificates").where("studentId", "==", studentId).get();
+  const records = snapshot.docs.map(document => {
+    const data = document.data();
+    return {
+      id: document.id,
+      certificateId: String(data.certificateId ?? document.id),
+      verificationCode: String(data.verificationCode ?? ""),
+      studentId: String(data.studentId ?? studentId),
+      studentName: String(data.studentName ?? "Student"),
+      studentCode: String(data.studentCode ?? ""),
+      courseId: String(data.courseId ?? ""),
+      courseTitle: String(data.courseTitle ?? "Course"),
+      batchId: String(data.batchId ?? ""),
+      batchName: String(data.batchName ?? "Batch"),
+      quizId: String(data.quizId ?? ""),
+      quizTitle: String(data.quizTitle ?? "Final exam"),
+      score: Number(data.score ?? 0),
+      totalMarks: Number(data.totalMarks ?? 0),
+      percentage: Number(data.percentage ?? 0),
+      attemptNumber: Number(data.attemptNumber ?? 1),
+      issuedAt: dateString(data.issuedAt),
+      templateKey: data.templateKey === "modern" ? "modern" : "classic",
+    } satisfies IssuedCertificate;
+  });
+  return records.sort((left, right) => (right.issuedAt ?? "").localeCompare(left.issuedAt ?? ""));
+}
+
 export async function assertBatchEnrollment(studentId: string, courseId: string, batchId: string) {
   const enrollment = await getFirebaseAdmin().db.doc(`enrollments/${courseId}_${batchId}_${studentId}`).get();
   if (!enrollment.exists || enrollment.data()?.status !== "active") {
@@ -164,10 +228,20 @@ export async function submitQuiz(studentId: string, quizId: string, rawAnswers: 
   const now = Date.now();
   const summaryReference = context.db.doc(`quizSummaries/${quizId}_${studentId}`);
   const counterReference = context.db.doc(`quizAttemptCounters/${quizId}_${studentId}`);
+  const certificateReference = context.db.doc(`certificates/cert_${quizId}_${studentId}`);
+  const certificateSnapshotData = context.kind === "final_exam" && grading.percentage >= CERTIFICATE_PASS_PERCENT
+    ? await loadCertificateSnapshot(studentId, context.courseId, context.batchId, context.title)
+    : null;
 
   const outcome = await context.db.runTransaction(async transaction => {
     const summarySnapshot = await transaction.get(summaryReference);
     const counterSnapshot = await transaction.get(counterReference);
+    // Firestore requires every transaction read to happen before its first
+    // write. A qualifying final-exam submission also needs to check whether a
+    // certificate already exists, so perform that optional read up front.
+    const certificateSnapshot = certificateSnapshotData
+      ? await transaction.get(certificateReference)
+      : null;
     const previous = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
     const previousAttempts = counterSnapshot.exists ? Math.trunc(Number(counterSnapshot.data()?.count ?? 0)) : previous?.attemptCount ?? 0;
     if (context.opensAt !== null && now < context.opensAt) throw new ApiError(409, "This assessment is not open yet.");
@@ -179,10 +253,35 @@ export async function submitQuiz(studentId: string, quizId: string, rawAnswers: 
     transaction.set(attemptReference, { quizId, kind: context.kind, studentId, courseId: context.courseId, batchId: context.batchId, attemptNumber: attempt.attemptNumber, answers, score: attempt.score, totalMarks: attempt.totalMarks, percentage: attempt.percentage, passed: attempt.passed, timeSpentSeconds: attempt.timeSpentSeconds, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });
     transaction.set(counterReference, { quizId, studentId, count: attempt.attemptNumber, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(summaryReference, mergeSummary(previous, attempt, context.kind, quizId, studentId), { merge: true });
-    return attempt;
+    let certificateIssued = false;
+    if (certificateSnapshotData && !previous?.passed && attempt.percentage >= CERTIFICATE_PASS_PERCENT) {
+      // Deterministic document ID keeps issuance idempotent: a re-graded or
+      // repeated qualifying attempt can never mint a second certificate, and
+      // the original issue date is preserved.
+      if (!certificateSnapshot?.exists) {
+        transaction.set(certificateReference, {
+          certificateId: `CT-${new Date(now).getFullYear()}-${randomCode(6)}`,
+          verificationCode: randomCode(10),
+          studentId,
+          ...certificateSnapshotData,
+          courseId: context.courseId,
+          batchId: context.batchId,
+          quizId,
+          score: attempt.score,
+          totalMarks: attempt.totalMarks,
+          percentage: attempt.percentage,
+          attemptNumber: attempt.attemptNumber,
+          issuedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          templateKey: "classic",
+        });
+        certificateIssued = true;
+      }
+    }
+    return { attempt, certificateIssued };
   });
 
-  return { id: outcome.attemptId, kind: context.kind, score: outcome.score, totalMarks: outcome.totalMarks, percentage: outcome.percentage, passed: outcome.passed, attemptNumber: outcome.attemptNumber, attemptCount: outcome.attemptNumber, remainingAttempts: remainingAttempts(context.maxRetakes, outcome.attemptNumber), timeSpentSeconds: outcome.timeSpentSeconds, ...(context.kind === "chapter_quiz" ? { review: buildReview(context.questionIds, context.answerKeys, answers, grading.gradedQuestions) } : {}) };
+  return { id: outcome.attempt.attemptId, kind: context.kind, score: outcome.attempt.score, totalMarks: outcome.attempt.totalMarks, percentage: outcome.attempt.percentage, passed: outcome.attempt.passed, attemptNumber: outcome.attempt.attemptNumber, attemptCount: outcome.attempt.attemptNumber, remainingAttempts: remainingAttempts(context.maxRetakes, outcome.attempt.attemptNumber), timeSpentSeconds: outcome.attempt.timeSpentSeconds, certificateIssued: outcome.certificateIssued, ...(context.kind === "chapter_quiz" ? { review: buildReview(context.questionIds, context.answerKeys, answers, grading.gradedQuestions) } : {}) };
 }
 
 export async function loadQuizResults(studentId: string, quizId: string) {
