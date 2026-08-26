@@ -1,8 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Award, Bell, BookOpen, CalendarDays, ClipboardCheck, House, Menu, UserCircle2 } from "lucide-react";
+import {
+  Award,
+  Bell,
+  BookOpen,
+  CalendarDays,
+  ChevronDown,
+  ClipboardCheck,
+  House,
+  Menu,
+  UserCircle2,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StudentBrand } from "@/components/student-brand";
@@ -11,16 +23,23 @@ import { cn } from "@/lib/utils";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { useStudentCourse } from "@/components/student-course-provider";
 import { getStudentProfile } from "@/lib/student-repository";
-import { attendancePageEnabled, certificatesPageEnabled, notificationsIconEnabled } from "../../../shared/portal-display-settings";
+import {
+  attendancePageEnabled,
+  certificatesPageEnabled,
+  notificationsIconEnabled,
+} from "../../../shared/portal-display-settings";
 
 const navigation = [
   { href: "/", label: "Home", icon: House },
   { href: "/lessons", label: "Lessons", icon: BookOpen },
   { href: "/quizzes", label: "Quizzes", icon: ClipboardCheck },
   { href: "/assignments", label: "Assignments", icon: ClipboardCheck },
-  ...(attendancePageEnabled ? [{ href: "/attendance", label: "Attendance", icon: CalendarDays }] : []),
-  ...(certificatesPageEnabled ? [{ href: "/certificates", label: "Certificates", icon: Award }] : []),
-  { href: "/profile", label: "Profile", icon: UserCircle2 },
+  ...(attendancePageEnabled
+    ? [{ href: "/attendance", label: "Attendance", icon: CalendarDays }]
+    : []),
+  ...(certificatesPageEnabled
+    ? [{ href: "/certificates", label: "Certificates", icon: Award }]
+    : []),
 ];
 
 export function StudentShell({ children }: { children: React.ReactNode }) {
@@ -28,46 +47,207 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { firebaseActive, loading, user, role } = useStudentAuth();
   const { enrollment } = useStudentCourse();
-  const profile = useQuery({ queryKey: ["student", "profile", user?.uid], queryFn: () => getStudentProfile(user!.uid), enabled: Boolean(user?.uid), staleTime: 60_000 });
-  const photoUrl = profile.data?.photoUrl;
+  const profile = useQuery({
+    queryKey: ["student", "profile", user?.uid],
+    queryFn: () => getStudentProfile(user!.uid),
+    enabled: Boolean(user?.uid),
+    staleTime: 60_000,
+  });
   const [menuOpen, setMenuOpen] = useState(false);
-  const mustRedirect = firebaseActive && !loading && (!user || role === "admin");
+  const mustRedirect =
+    firebaseActive && !loading && (!user || role === "admin");
+
   useEffect(() => {
     if (mustRedirect) router.replace("/login");
   }, [mustRedirect, router]);
-  if (mustRedirect) {
-    return <div className="grid min-h-screen place-items-center text-sm text-slate-400">Redirecting to secure sign in…</div>;
-  }
+
+  if (mustRedirect)
+    return (
+      <div className="grid min-h-screen place-items-center text-sm text-slate-400">
+        Redirecting to secure sign in…
+      </div>
+    );
+
+  const profileName = profile.data?.name || user?.displayName || "Student";
+  const photoUrl = profile.data?.photoUrl;
+  const mobileNavigation = [
+    ...navigation,
+    { href: "/profile", label: "Profile", icon: UserCircle2 },
+  ];
+
   return (
-    <div className="min-h-screen bg-[var(--background)] text-slate-800">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-[var(--background)]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-18 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <StudentBrand />
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Student navigation">
-            {navigation.filter(item => item.href !== "/profile").map((item) => {
-              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-              return <Link key={item.href} href={item.href} className={cn("rounded-lg px-3 py-2 text-sm font-medium transition-colors", active ? "bg-teal-50 text-teal-800" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800")}>{item.label}</Link>;
+    <div className="flex min-h-screen flex-col bg-[var(--background)] text-slate-800">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.03)] backdrop-blur-xl">
+        <div className="mx-auto flex h-[74px] max-w-[1480px] items-center justify-between px-4 sm:px-6 lg:px-10">
+          <Link href="/" aria-label="Teza Tech Lab home">
+            <StudentBrand />
+          </Link>
+          <nav
+            className="hidden items-center gap-2 lg:flex"
+            aria-label="Student navigation"
+          >
+            {navigation.map(item => {
+              const Icon = item.icon;
+              const active =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-teal-50 text-teal-900"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                  )}
+                >
+                  <Icon className="size-[18px]" strokeWidth={1.9} />
+                  {item.label}
+                </Link>
+              );
             })}
           </nav>
-          <div className="flex items-center gap-2">
-            {enrollment ? <span className="hidden rounded-lg bg-teal-900 px-2.5 py-1.5 text-[10px] font-semibold text-teal-100 sm:inline-flex">{enrollment.courseTitle} · {enrollment.batchName}</span> : null}
-            {notificationsIconEnabled ? <button className="grid size-10 place-items-center rounded-xl text-teal-400 transition-colors hover:bg-teal-900 hover:text-teal-200" aria-label="Notifications"><Bell className="size-5" /></button> : null}
-            <Link href="/profile" className="hidden items-center gap-2 rounded-xl border border-teal-800 bg-teal-900 px-3 py-2 text-sm font-medium text-teal-200 hover:border-teal-700 sm:flex">{photoUrl ? <img src={photoUrl} alt="My profile" className="size-6 rounded-full object-cover ring-1 ring-teal-300/40" /> : <UserCircle2 className="size-4 text-teal-300" />}My profile</Link>
-            <button onClick={() => setMenuOpen(true)} className="grid size-10 place-items-center rounded-xl border border-teal-800 text-teal-300 lg:hidden" aria-label="Open navigation"><Menu className="size-5" /></button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {enrollment ? (
+              <span className="hidden max-w-56 truncate rounded-xl bg-gradient-to-r from-teal-800 to-teal-700 px-3.5 py-2 text-xs font-semibold text-white shadow-sm md:inline-flex">
+                {enrollment.courseTitle} · {enrollment.batchName}
+              </span>
+            ) : null}
+            {notificationsIconEnabled ? (
+              <button
+                className="grid size-10 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Notifications"
+              >
+                <Bell className="size-5" />
+              </button>
+            ) : null}
+            <Link
+              href="/profile"
+              aria-current={
+                pathname.startsWith("/profile") ? "page" : undefined
+              }
+              className={cn(
+                "hidden items-center gap-2.5 rounded-full bg-slate-50 py-1.5 pl-1.5 pr-3 text-sm font-medium transition-colors hover:bg-slate-100 sm:flex",
+                pathname.startsWith("/profile") && "bg-slate-100 text-teal-800"
+              )}
+            >
+              <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-teal-100 font-bold text-teal-800 ring-1 ring-slate-200">
+                {photoUrl ? (
+                  <Image
+                    src={photoUrl}
+                    alt=""
+                    fill
+                    sizes="32px"
+                    className="object-cover"
+                  />
+                ) : (
+                  profileName.slice(0, 1).toUpperCase()
+                )}
+              </span>
+              <span className="max-w-28 truncate">My profile</span>
+              <ChevronDown className="size-4 text-slate-500" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className="grid size-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 lg:hidden"
+              aria-label="Open navigation"
+            >
+              <Menu className="size-5" />
+            </button>
           </div>
         </div>
       </header>
-      {menuOpen ? <><button type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-teal-950/70 lg:hidden" /><aside className="fixed inset-y-0 right-0 z-50 w-72 border-l border-teal-800 bg-teal-950 p-5 shadow-2xl lg:hidden"><div className="mb-8 flex items-center justify-between"><StudentBrand /><button onClick={() => setMenuOpen(false)} className="rounded-lg px-2 py-1 text-sm text-teal-400">Close</button></div><nav className="grid gap-2" aria-label="Student navigation">{navigation.map(item => { const Icon = item.icon; const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={cn("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold", active ? "bg-teal-400/10 text-teal-200" : "text-teal-300 hover:bg-teal-900")}><Icon className="size-5" />{item.label}</Link>; })}</nav></aside></> : null}
-      <main className="mx-auto w-full max-w-6xl px-4 pb-10 pt-6 sm:px-6 sm:pt-10">{children}</main>
+
+      {menuOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setMenuOpen(false)}
+            className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm lg:hidden"
+          />
+          <aside className="fixed inset-y-0 right-0 z-50 w-80 max-w-[88vw] border-l border-slate-200 bg-white p-5 shadow-2xl lg:hidden">
+            <div className="mb-8 flex items-center justify-between">
+              <StudentBrand />
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                className="grid size-9 place-items-center rounded-lg bg-slate-100 text-slate-600"
+                aria-label="Close navigation"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <nav className="grid gap-2" aria-label="Student navigation">
+              {mobileNavigation.map(item => {
+                const Icon = item.icon;
+                const active =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold",
+                      active
+                        ? "bg-teal-50 text-teal-800"
+                        : "text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <Icon className="size-5" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+        </>
+      ) : null}
+
+      <main className="mx-auto w-full max-w-[1380px] flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:px-8">
+        {children}
+      </main>
       <div className="pb-20 lg:pb-0">
         <StudentFooter />
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-[var(--background)]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Mobile student navigation">
-        <div className="mx-auto grid max-w-lg" style={{ gridTemplateColumns: `repeat(${navigation.length}, minmax(0, 1fr))` }}>
-          {navigation.map((item) => {
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden"
+        aria-label="Mobile student navigation"
+      >
+        <div
+          className="mx-auto grid max-w-lg"
+          style={{
+            gridTemplateColumns: `repeat(${mobileNavigation.length}, minmax(0, 1fr))`,
+          }}
+        >
+          {mobileNavigation.map(item => {
             const Icon = item.icon;
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            return <Link key={item.href} href={item.href} className={cn("flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition-colors", active ? "text-teal-700" : "text-slate-400")}><Icon className="size-5" />{item.label}</Link>;
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition-colors",
+                  active ? "text-teal-700" : "text-slate-400"
+                )}
+              >
+                <Icon className="size-5" />
+                {item.label}
+              </Link>
+            );
           })}
         </div>
       </nav>
