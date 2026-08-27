@@ -7,6 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Teza Admin",
     description: "Teza Tech Lab school and course management workspace.",
     start_url: "/",
+    scope: "/",
     display: "standalone",
     orientation: "portrait-primary",
     background_color: "#ffffff",

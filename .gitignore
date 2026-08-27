@@ -87,6 +87,8 @@ jspm_packages/
 # Serwist (PWA service worker build output)
 **/public/sw*
 **/public/swe-worker*
+!admin-dashboard/public/sw.js
+!student-website/public/sw.js
 
 # Next.js build output
 .next
