@@ -17,14 +17,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Teza Tech Lab | Student Portal",
   description: "A focused learning portal for Teza Tech Lab students.",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/teza-tech-lab-logo.svg",
+    icon: "/icon-32x32.png",
+    apple: "/icon-180x180.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Teza Student",
   },
 };
 
 export const viewport: Viewport = mobileResponsiveEnabled
-  ? { width: "device-width", initialScale: 1 }
-  : { width: desktopViewportWidth, initialScale: 1 };
+  ? { width: "device-width", initialScale: 1, themeColor: "#0B1220" }
+  : { width: desktopViewportWidth, initialScale: 1, themeColor: "#0B1220" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

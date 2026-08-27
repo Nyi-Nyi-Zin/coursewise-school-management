@@ -84,6 +84,10 @@ jspm_packages/
 .cache
 .parcel-cache
 
+# Serwist (PWA service worker build output)
+**/public/sw*
+**/public/swe-worker*
+
 # Next.js build output
 .next
 
