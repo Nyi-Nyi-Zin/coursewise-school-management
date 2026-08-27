@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ChevronDown,
   ClipboardCheck,
+  FileCheck2,
   House,
   Menu,
   UserCircle2,
@@ -33,7 +34,7 @@ const navigation = [
   { href: "/", label: "Home", icon: House },
   { href: "/lessons", label: "Lessons", icon: BookOpen },
   { href: "/quizzes", label: "Quizzes", icon: ClipboardCheck },
-  { href: "/assignments", label: "Assignments", icon: ClipboardCheck },
+  { href: "/assignments", label: "Assignments", icon: FileCheck2 },
   ...(attendancePageEnabled
     ? [{ href: "/attendance", label: "Attendance", icon: CalendarDays }]
     : []),
@@ -77,13 +78,13 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--background)] text-slate-800">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.03)] backdrop-blur-xl">
-        <div className="mx-auto flex h-[74px] max-w-[1480px] items-center justify-between px-4 sm:px-6 lg:px-10">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.025)] backdrop-blur-xl">
+        <div className="mx-auto flex h-[76px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 xl:px-10">
           <Link href="/" aria-label="Teza Tech Lab home">
             <StudentBrand />
           </Link>
           <nav
-            className="hidden items-center gap-2 lg:flex"
+            className="hidden h-full items-center gap-1 lg:flex xl:gap-3"
             aria-label="Student navigation"
           >
             {navigation.map(item => {
@@ -98,10 +99,10 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                    "relative flex h-full items-center gap-2 px-3 text-sm font-medium transition-colors xl:px-4",
                     active
-                      ? "bg-teal-50 text-teal-900"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                      ? "text-teal-800 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-teal-700"
+                      : "text-slate-600 hover:text-slate-950"
                   )}
                 >
                   <Icon className="size-[18px]" strokeWidth={1.9} />
@@ -112,7 +113,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
             {enrollment ? (
-              <span className="hidden max-w-56 truncate rounded-xl bg-gradient-to-r from-teal-800 to-teal-700 px-3.5 py-2 text-xs font-semibold text-white shadow-sm md:inline-flex">
+              <span className="hidden max-w-56 truncate rounded-xl bg-gradient-to-r from-teal-800 to-emerald-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm md:inline-flex">
                 {enrollment.courseTitle} · {enrollment.batchName}
               </span>
             ) : null}
@@ -212,7 +213,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
         </>
       ) : null}
 
-      <main className="mx-auto w-full max-w-[1380px] flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:px-8">
+      <main className="mx-auto w-full max-w-[1480px] flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pt-7 lg:px-8 xl:px-10">
         {children}
       </main>
       <div className="pb-20 lg:pb-0">
