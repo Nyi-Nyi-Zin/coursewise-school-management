@@ -296,7 +296,7 @@ export default function StudentHomePage() {
       </section>
 
       <section
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid grid-cols-2 gap-3 xl:grid-cols-4"
         aria-label="Learning overview"
       >
         {statCards.map(card => {
@@ -305,20 +305,20 @@ export default function StudentHomePage() {
             <Link
               key={card.label}
               href={card.href}
-              className="group flex min-h-[102px] items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-[0_7px_22px_rgba(15,23,42,0.035)] transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+              className="group flex min-h-[72px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-[0_7px_22px_rgba(15,23,42,0.035)] transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:min-h-[102px] sm:gap-4 sm:px-5 sm:py-4"
             >
-              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-700">
-                <Icon className="size-6" strokeWidth={1.9} />
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-700 sm:size-12">
+                <Icon className="size-4 sm:size-6" strokeWidth={1.9} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-xs font-medium text-slate-500">
+                <span className="block text-[10px] font-medium text-slate-500 sm:text-xs">
                   {card.label}
                 </span>
-                <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <strong className="text-2xl leading-none tracking-tight text-slate-950">
+                <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:mt-1">
+                  <strong className="text-xl leading-none tracking-tight text-slate-950 sm:text-2xl">
                     {card.value}
                   </strong>
-                  <span className="text-xs text-slate-500">{card.detail}</span>
+                  <span className="text-[10px] text-slate-500 sm:text-xs">{card.detail}</span>
                 </span>
               </span>
               <ChevronRight className="size-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-teal-700" />

@@ -78,7 +78,7 @@ export default function LessonsPage() {
 
       {isError ? <ErrorBanner message="Lessons could not be loaded." onRetry={() => void refetch()} /> : null}
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Lesson progress">
+      <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Lesson progress">
         <StatCard icon={BookOpen} label="Total lessons" value={lessons.length} detail="Lessons available" />
         <StatCard icon={CheckCircle2} label="Completed lessons" value={completedLessons} detail={`${progress}% of total`} />
         <StatCard icon={PieChart} label="Overall progress" value={`${progress}%`} progress={progress} />
@@ -153,16 +153,16 @@ export default function LessonsPage() {
 
 function StatCard({ icon: Icon, label, value, detail, progress, compact = false }: { icon: typeof BookOpen; label: string; value: string | number; detail?: string; progress?: number; compact?: boolean }) {
   return (
-    <div className="flex min-h-28 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-[0_7px_22px_rgba(15,23,42,0.035)]">
-      <span className="grid size-14 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600">
-        <Icon className="size-7" strokeWidth={1.8} />
+    <div className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-[0_7px_22px_rgba(15,23,42,0.035)] sm:min-h-28 sm:gap-4 sm:px-5 sm:py-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600 sm:size-14">
+        <Icon className="size-5 sm:size-7" strokeWidth={1.8} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-500">{label}</p>
-        <p className={cn("mt-1 font-bold leading-tight text-slate-950", compact ? "truncate text-base" : "text-2xl")}>{value}</p>
-        {detail ? <p className="mt-1 text-xs text-slate-500">{detail}</p> : null}
+        <p className="text-[10px] font-medium text-slate-500 sm:text-xs">{label}</p>
+        <p className={cn("mt-0.5 font-bold leading-tight text-slate-950 sm:mt-1", compact ? "truncate text-sm sm:text-base" : "text-xl sm:text-2xl")}>{value}</p>
+        {detail ? <p className="mt-0.5 text-[10px] text-slate-500 sm:mt-1 sm:text-xs">{detail}</p> : null}
         {typeof progress === "number" ? (
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200 sm:mt-2">
             <div className="h-full rounded-full bg-teal-600 transition-[width]" style={{ width: `${progress}%` }} />
           </div>
         ) : null}

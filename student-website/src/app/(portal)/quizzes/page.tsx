@@ -111,7 +111,7 @@ export default function QuizzesPage() {
         description="Track your quiz progress, attempt assessments, and review your performance."
       />
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Quiz summary">
+      <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Quiz summary">
         <MetricCard icon={ClipboardCheck} label="Available quizzes" value={availableCount} detail="Ready to attempt" />
         <MetricCard icon={CheckCircle2} label="Completed quizzes" value={completedCount} detail={`Out of ${quizItems.length} total`} />
         <MetricCard icon={BarChart3} label="Average score" value={`${averageScore}%`} detail="Across attempted quizzes" />
@@ -120,7 +120,7 @@ export default function QuizzesPage() {
 
       {quizzes.isError ? (
         <PortalPanel className="mt-4 flex flex-wrap items-center justify-between gap-3 border-red-200 p-5 text-sm text-red-700">
-          <span>Quizzes could not be loaded. Check your connection, then try again.</span>
+          <span>{quizzes.error instanceof Error ? quizzes.error.message : "Quizzes could not be loaded. Check your connection, then try again."}</span>
           <Button variant="outline" size="sm" onClick={() => void quizzes.refetch()}>Retry</Button>
         </PortalPanel>
       ) : (

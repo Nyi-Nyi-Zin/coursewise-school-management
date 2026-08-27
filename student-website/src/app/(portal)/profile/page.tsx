@@ -1,28 +1,21 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  Award,
-  BarChart3,
   BookOpen,
   CalendarDays,
   Camera,
-  CheckCircle2,
-  ClipboardCheck,
   GraduationCap,
   KeyRound,
-  LockKeyhole,
   LogOut,
   Mail,
-  Pencil,
   ShieldCheck,
-  Target,
-  Trophy,
   UserRound,
+  X,
   Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -30,15 +23,16 @@ import { toast } from "sonner";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { useStudentCourse } from "@/components/student-course-provider";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { logoutStudent } from "@/lib/auth-service";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  changePassword,
+  logoutStudent,
+} from "@/lib/auth-service";
 import {
   getStudentProfile,
-  getStudentQuizAttempts,
+  updateStudentName,
   uploadStudentPhoto,
 } from "@/lib/student-repository";
-
-const PASSING_SCORE = 80;
 
 export default function ProfilePage() {
   const { user, firebaseActive } = useStudentAuth();
@@ -46,26 +40,13 @@ export default function ProfilePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editName, setEditName] = useState("");
   const profile = useQuery({
     queryKey: ["student", "profile", user?.uid],
     queryFn: () => getStudentProfile(user!.uid),
     enabled: Boolean(user?.uid),
-  });
-  const attempts = useQuery({
-    queryKey: [
-      "student",
-      "profile-attempts",
-      user?.uid,
-      enrollment?.courseId,
-      enrollment?.batchId,
-    ],
-    queryFn: () =>
-      getStudentQuizAttempts(
-        user!.uid,
-        enrollment?.courseId,
-        enrollment?.batchId
-      ),
-    enabled: Boolean(user?.uid && enrollment),
   });
   const photoUpload = useMutation({
     mutationFn: (file: File) => uploadStudentPhoto(user!.uid, file),
@@ -78,6 +59,37 @@ export default function ProfilePage() {
     onError: error =>
       toast.error(
         error instanceof Error ? error.message : "Could not update photo."
+      ),
+  });
+  const nameUpdate = useMutation({
+    mutationFn: (name: string) => updateStudentName(user!.uid, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["student", "profile", user?.uid],
+      });
+      setShowEditProfile(false);
+      toast.success("Your name has been updated.");
+    },
+    onError: error =>
+      toast.error(
+        error instanceof Error ? error.message : "Could not update name."
+      ),
+  });
+  const passwordChange = useMutation({
+    mutationFn: ({
+      currentPassword,
+      newPassword,
+    }: {
+      currentPassword: string;
+      newPassword: string;
+    }) => changePassword(user!, { currentPassword, newPassword }),
+    onSuccess: () => {
+      setShowChangePassword(false);
+      toast.success("Your password has been updated.");
+    },
+    onError: error =>
+      toast.error(
+        error instanceof Error ? error.message : "Could not change your password."
       ),
   });
 
@@ -97,24 +109,6 @@ export default function ProfilePage() {
   const email = profile.data?.email || user?.email || "student@example.com";
   const studentId = profile.data?.studentId || "Pending";
   const joinedDate = formatJoinedDate(user?.metadata.creationTime);
-  const scoredAttempts = attempts.data ?? [];
-  const average = scoredAttempts.length
-    ? Math.round(
-        scoredAttempts.reduce(
-          (sum, attempt) =>
-            sum +
-            (attempt.totalMarks
-              ? (attempt.score / attempt.totalMarks) * 100
-              : 0),
-          0
-        ) / scoredAttempts.length
-      )
-    : 0;
-  const badgesEarned = scoredAttempts.filter(
-    attempt =>
-      attempt.totalMarks &&
-      (attempt.score / attempt.totalMarks) * 100 >= PASSING_SCORE
-  ).length;
 
   return (
     <section className="space-y-5">
@@ -170,16 +164,6 @@ export default function ProfilePage() {
               Joined on {joinedDate}
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!firebaseActive || photoUpload.isPending}
-            onClick={() => fileInputRef.current?.click()}
-            className="self-start border-white/70 bg-white/5 text-white hover:bg-white/15 hover:text-white sm:self-center"
-          >
-            <Pencil className="size-4" />
-            Edit profile
-          </Button>
         </div>
       </div>
 
@@ -206,27 +190,14 @@ export default function ProfilePage() {
           <button
             type="button"
             disabled={!firebaseActive}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              setEditName(name);
+              setShowEditProfile(true);
+            }}
             className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
-            View &amp; edit details <ArrowRight className="size-4" />
+            Edit profile <ArrowRight className="size-4" />
           </button>
-        </InfoCard>
-
-        <InfoCard
-          title="Account Mode"
-          icon={ShieldCheck}
-          className="lg:col-span-4"
-        >
-          <FeaturePanel
-            icon={ShieldCheck}
-            title={firebaseActive ? "Firebase Authentication" : "Demo mode"}
-            description={
-              firebaseActive
-                ? "You are signed in securely using Firebase Authentication."
-                : "You are exploring the portal with local demo data."
-            }
-          />
         </InfoCard>
 
         <InfoCard
@@ -249,60 +220,6 @@ export default function ProfilePage() {
           />
         </InfoCard>
 
-        <InfoCard
-          title="Quiz / Performance Summary"
-          icon={BarChart3}
-          className="lg:col-span-8"
-        >
-          <div className="grid items-center gap-6 xl:grid-cols-[1.35fr_1.65fr]">
-            <div className="flex items-center gap-5">
-              <div className="grid size-24 shrink-0 place-items-center rounded-full border-[12px] border-slate-100 bg-white text-teal-800 shadow-inner">
-                <ClipboardCheck className="size-8" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-900">
-                  {scoredAttempts.length
-                    ? "Your quiz progress"
-                    : "No scored attempts"}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  {scoredAttempts.length
-                    ? "Keep practicing to improve your average score."
-                    : "You haven't completed any scored quizzes yet. Take your first quiz when you're ready."}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-              <Metric
-                icon={CheckCircle2}
-                value={String(scoredAttempts.length)}
-                label="Scored Attempts"
-                tone="blue"
-              />
-              <Metric
-                icon={Target}
-                value={`${average}%`}
-                label="Average Score"
-                tone="red"
-              />
-              <Metric
-                icon={Trophy}
-                value={String(badgesEarned)}
-                label="Badges Earned"
-                tone="amber"
-              />
-            </div>
-          </div>
-          <div className="mt-5 flex justify-center">
-            <Link
-              href="/quizzes"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"
-            >
-              Explore Quizzes <ArrowRight className="size-4" />
-            </Link>
-          </div>
-        </InfoCard>
-
         <InfoCard title="Security" icon={ShieldCheck} className="lg:col-span-4">
           <SecurityRow
             icon={KeyRound}
@@ -312,13 +229,35 @@ export default function ProfilePage() {
           />
           <div className="my-4 h-px bg-slate-100" />
           <SecurityRow
-            icon={LockKeyhole}
-            title="Account Security"
-            description="Keep your account secure"
-            action="Manage security"
+            icon={KeyRound}
+            title="Change password"
+            description="Update your password regularly"
+            action="Change password"
+            onClick={() => setShowChangePassword(true)}
+            disabled={!firebaseActive}
           />
         </InfoCard>
       </div>
+
+      {showChangePassword ? (
+        <ChangePasswordDialog
+          pending={passwordChange.isPending}
+          onClose={() => setShowChangePassword(false)}
+          onSubmit={({ currentPassword, newPassword }) =>
+            passwordChange.mutate({ currentPassword, newPassword })
+          }
+        />
+      ) : null}
+
+      {showEditProfile ? (
+        <EditProfileDialog
+          name={editName}
+          pending={nameUpdate.isPending}
+          onClose={() => setShowEditProfile(false)}
+          onSubmit={(name) => nameUpdate.mutate(name)}
+          onNameChange={setEditName}
+        />
+      ) : null}
 
       <Card className="relative overflow-hidden border-slate-200 px-5 py-5 shadow-[0_6px_22px_rgba(15,23,42,0.04)] sm:px-7">
         <div
@@ -346,13 +285,6 @@ export default function ProfilePage() {
               <LogOut className="size-4" />
               Sign out
             </Button>
-            <Link
-              href="/forgot-password"
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-            >
-              <KeyRound className="size-4" />
-              Reset password
-            </Link>
           </div>
         </div>
       </Card>
@@ -430,46 +362,23 @@ function FeaturePanel({
   );
 }
 
-function Metric({
-  icon: Icon,
-  value,
-  label,
-  tone,
-}: {
-  icon: typeof Award;
-  value: string;
-  label: string;
-  tone: "blue" | "red" | "amber";
-}) {
-  const tones = {
-    blue: "text-blue-600",
-    red: "text-red-500",
-    amber: "text-amber-500",
-  };
-  return (
-    <div className="rounded-xl border border-slate-200 px-2 py-4 text-center sm:px-3">
-      <Icon className={`mx-auto size-6 ${tones[tone]}`} />
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
-      <p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-xs">
-        {label}
-      </p>
-    </div>
-  );
-}
-
 function SecurityRow({
   icon: Icon,
   title,
   description,
   action,
+  onClick,
+  disabled = false,
 }: {
   icon: typeof KeyRound;
   title: string;
   description: string;
   action: string;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
-  return (
-    <div className="flex items-center gap-3">
+  const label = (
+    <>
       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-700">
         <Icon className="size-4" />
       </span>
@@ -477,12 +386,237 @@ function SecurityRow({
         <p className="text-sm font-semibold text-slate-900">{title}</p>
         <p className="truncate text-xs text-slate-500">{description}</p>
       </div>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className="flex w-full items-center gap-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {label}
+        <span className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition group-hover:bg-slate-50">
+          {action}
+        </span>
+      </button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3">
+      {label}
       <Link
         href="/forgot-password"
         className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
       >
         {action}
       </Link>
+    </div>
+  );
+}
+
+function ChangePasswordDialog({
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  pending: boolean;
+  onClose: () => void;
+  onSubmit: (values: { currentPassword: string; newPassword: string }) => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const newPasswordTooShort = newPassword.length > 0 && newPassword.length < 6;
+  const confirmMismatch =
+    confirmPassword.length > 0 && confirmPassword !== newPassword;
+  const canSubmit =
+    Boolean(currentPassword) &&
+    newPassword.length >= 6 &&
+    confirmPassword === newPassword &&
+    !pending;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="change-password-title"
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4"
+    >
+      <div
+        className="absolute inset-0"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <Card className="relative z-10 w-full max-w-md">
+        <CardContent className="p-6 sm:p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+                Account security
+              </p>
+              <h2 id="change-password-title" className="mt-2 text-xl font-bold text-slate-950">
+                Change password
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={pending}
+              className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 disabled:opacity-50"
+              aria-label="Close dialog"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            Enter your current password to verify your identity, then choose a
+            new password of at least 6 characters.
+          </p>
+
+          <div className="mt-5 space-y-4">
+            <label className="block text-sm font-medium text-slate-700">
+              Current password
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={event => setCurrentPassword(event.target.value)}
+                placeholder="Enter current password"
+                className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              New password
+              <input
+                type="password"
+                value={newPassword}
+                onChange={event => setNewPassword(event.target.value)}
+                placeholder="At least 6 characters"
+                className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              />
+            </label>
+            {newPasswordTooShort ? (
+              <p className="text-xs font-medium text-red-600">
+                New password must be at least 6 characters.
+              </p>
+            ) : null}
+            <label className="block text-sm font-medium text-slate-700">
+              Confirm new password
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={event => setConfirmPassword(event.target.value)}
+                placeholder="Re-enter new password"
+                className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              />
+            </label>
+            {confirmMismatch ? (
+              <p className="text-xs font-medium text-red-600">
+                Passwords do not match.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="outline" onClick={onClose} disabled={pending}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!canSubmit}
+              onClick={() =>
+                onSubmit({ currentPassword, newPassword })
+              }
+            >
+              {pending ? "Updating…" : "Update password"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EditProfileDialog({
+  name,
+  pending,
+  onClose,
+  onSubmit,
+  onNameChange,
+}: {
+  name: string;
+  pending: boolean;
+  onClose: () => void;
+  onSubmit: (name: string) => void;
+  onNameChange: (name: string) => void;
+}) {
+  const canSubmit = name.trim().length > 0 && !pending;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-profile-title"
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4"
+    >
+      <div
+        className="absolute inset-0"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <Card className="relative z-10 w-full max-w-md">
+        <CardContent className="p-6 sm:p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+                Personal information
+              </p>
+              <h2 id="edit-profile-title" className="mt-2 text-xl font-bold text-slate-950">
+                Edit profile
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={pending}
+              className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 disabled:opacity-50"
+              aria-label="Close dialog"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            Update your full name. This will be displayed on your profile.
+          </p>
+
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-slate-700">
+              Full Name
+              <input
+                type="text"
+                value={name}
+                onChange={event => onNameChange(event.target.value)}
+                placeholder="Enter your full name"
+                className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              />
+            </label>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="outline" onClick={onClose} disabled={pending}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!canSubmit}
+              onClick={() => onSubmit(name.trim())}
+            >
+              {pending ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

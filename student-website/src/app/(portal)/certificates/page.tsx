@@ -69,7 +69,7 @@ export default function CertificatesPage() {
         <EmptyState />
       ) : selectedCertificate ? (
         <>
-          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <MetricCard icon={Medal} label="Certificates earned" value={items.length} detail="Total certificates earned" />
             <MetricCard icon={BarChart3} label="Final exam score" value={`${selectedCertificate.percentage}%`} detail={`${selectedCertificate.score} of ${selectedCertificate.totalMarks} marks`} progress={selectedCertificate.percentage} />
             <MetricCard icon={ShieldCheck} label="Verification ready" value={items.length} detail="Certificates ready to verify" />
@@ -115,13 +115,13 @@ function EmptyState() {
 
 function MetricCard({ icon: Icon, label, value, detail, progress }: { icon: typeof Award; label: string; value: string | number; detail: string; progress?: number }) {
   return (
-    <div className="flex min-h-24 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-[0_7px_24px_rgba(15,23,42,0.045)]">
+    <div className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-[0_7px_24px_rgba(15,23,42,0.045)] sm:min-h-24 sm:gap-4 sm:px-5 sm:py-4">
       {typeof progress === "number" ? (
-        <div className="relative grid size-14 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#10a887 ${Math.min(100, Math.max(0, progress))}%, #dff5ef 0)` }}><div className="grid size-10 place-items-center rounded-full bg-white text-[11px] font-bold text-teal-700">{progress}%</div></div>
+        <div className="relative grid size-10 shrink-0 place-items-center rounded-full sm:size-14" style={{ background: `conic-gradient(#10a887 ${Math.min(100, Math.max(0, progress))}%, #dff5ef 0)` }}><div className="grid size-7 place-items-center rounded-full bg-white text-[9px] font-bold text-teal-700 sm:size-10 sm:text-[11px]">{progress}%</div></div>
       ) : (
-        <span className="grid size-14 shrink-0 place-items-center rounded-full bg-[#e9faf5] text-teal-600"><Icon className="size-7" strokeWidth={1.8} /></span>
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e9faf5] text-teal-600 sm:size-14"><Icon className="size-5 sm:size-7" strokeWidth={1.8} /></span>
       )}
-      <div className="min-w-0"><p className="text-xs font-semibold text-slate-600">{label}</p><p className="mt-0.5 text-2xl font-extrabold leading-none text-slate-950">{value}</p><p className="mt-2 truncate text-xs text-slate-500">{detail}</p></div>
+      <div className="min-w-0"><p className="text-[10px] font-semibold text-slate-600 sm:text-xs">{label}</p><p className="mt-0.5 text-xl font-extrabold leading-none text-slate-950 sm:text-2xl">{value}</p><p className="mt-1 truncate text-[10px] text-slate-500 sm:mt-2 sm:text-xs">{detail}</p></div>
     </div>
   );
 }

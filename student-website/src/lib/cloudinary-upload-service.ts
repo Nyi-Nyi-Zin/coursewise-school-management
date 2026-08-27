@@ -1,4 +1,5 @@
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_ASSIGNMENT_FILE_BYTES = 20 * 1024 * 1024;
 
 export async function uploadStudentPhotoToCloudinary(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
@@ -17,5 +18,24 @@ export async function uploadStudentPhotoToCloudinary(file: File): Promise<string
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body });
   const payload = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
   if (!response.ok || !payload?.secure_url) throw new Error(payload?.error?.message ?? "Cloudinary could not upload this image.");
+  return payload.secure_url;
+}
+
+export async function uploadAssignmentFileToCloudinary(file: File): Promise<string> {
+  if (file.size > MAX_ASSIGNMENT_FILE_BYTES) throw new Error("File must be smaller than 20 MB.");
+
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Cloudinary is not configured. Add the public cloud name and unsigned upload preset.");
+  }
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("upload_preset", uploadPreset);
+  body.append("folder", "coursewise/assignments");
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body });
+  const payload = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
+  if (!response.ok || !payload?.secure_url) throw new Error(payload?.error?.message ?? "The file could not be uploaded.");
   return payload.secure_url;
 }

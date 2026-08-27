@@ -112,11 +112,6 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
-            {enrollment ? (
-              <span className="hidden max-w-56 truncate rounded-xl bg-gradient-to-r from-teal-800 to-emerald-700 px-4 py-2.5 text-xs font-semibold text-white shadow-sm md:inline-flex">
-                {enrollment.courseTitle} · {enrollment.batchName}
-              </span>
-            ) : null}
             {notificationsIconEnabled ? (
               <button
                 className="grid size-10 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"

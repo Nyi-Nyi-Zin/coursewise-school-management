@@ -1,4 +1,4 @@
-import { arrayRemove, arrayUnion, collection, deleteDoc, doc, DocumentSnapshot, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter, where } from "firebase/firestore";
+import { arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, DocumentSnapshot, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter, where } from "firebase/firestore";
 import { getFirebaseClient } from "./firebase";
 
 export type CourseRecord = { id: string; title: string; isActive: boolean; enrolledStudentIds: string[] };
@@ -120,9 +120,27 @@ export async function deleteBatch(batchId: string) {
   await deleteDoc(doc(db, "batches", batchId));
 }
 
-export async function deleteEnrollment(enrollmentId: string) {
+export async function deleteEnrollment(enrollment: EnrollmentRecord) {
   const { db } = getFirebaseClient();
-  await deleteDoc(doc(db, "enrollments", enrollmentId));
+  const enrollmentRef = doc(db, "enrollments", enrollment.id);
+  const batchRef = doc(db, "batches", enrollment.batchId);
+  const courseRef = doc(db, "courses", enrollment.courseId);
+  const studentRef = doc(db, "users", enrollment.studentId);
+
+  await runTransaction(db, async transaction => {
+    const studentSnapshot = await transaction.get(studentRef);
+    const studentData = studentSnapshot.data() ?? {};
+    transaction.delete(enrollmentRef);
+    transaction.update(batchRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
+    transaction.update(courseRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
+    const studentUpdates: Record<string, unknown> = {
+      enrollments: arrayRemove({ courseId: enrollment.courseId, batchId: enrollment.batchId }),
+      updatedAt: serverTimestamp(),
+    };
+    if (studentData.activeCourseId === enrollment.courseId) studentUpdates.activeCourseId = deleteField();
+    if (studentData.activeBatchId === enrollment.batchId) studentUpdates.activeBatchId = deleteField();
+    transaction.update(studentRef, studentUpdates);
+  });
 }
 
 export async function linkBatchToCourse(batchId: string, courseId: string) {

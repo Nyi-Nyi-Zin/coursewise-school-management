@@ -1,4 +1,4 @@
-import { getIdTokenResult, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
+import { EmailAuthProvider, getIdTokenResult, reauthenticateWithCredential, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updatePassword, type User } from "firebase/auth";
 import { firebaseAuth, isFirebaseConfigured } from "./firebase";
 
 export type PortalRole = "admin" | "student" | null;
@@ -32,6 +32,13 @@ export async function requestPasswordReset(email: string) {
     url: `${window.location.origin}/reset-password`,
     handleCodeInApp: false,
   });
+}
+
+export async function changePassword(user: User, { currentPassword, newPassword }: { currentPassword: string; newPassword: string }) {
+  if (!isFirebaseConfigured) throw new Error("Changing your password is not available in demo mode.");
+  const credential = EmailAuthProvider.credential(user.email ?? "", currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
 }
 
 export async function getPortalRole(user: User): Promise<PortalRole> {

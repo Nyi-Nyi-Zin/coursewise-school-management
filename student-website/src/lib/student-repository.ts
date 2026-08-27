@@ -2,7 +2,7 @@ import { addDoc, doc, getDoc, collection, getDocs, limit, orderBy, query, server
 import { demoAnnouncements, demoAttendance, demoLessons, type Announcement, type Lesson } from "@/lib/student-data";
 import { firestore } from "@/lib/firebase";
 import { authenticatedApiFetch } from "@/lib/authenticated-api";
-import { uploadStudentPhotoToCloudinary } from "@/lib/cloudinary-upload-service";
+import { uploadStudentPhotoToCloudinary, uploadAssignmentFileToCloudinary } from "@/lib/cloudinary-upload-service";
 
 export type StudentProfile = { id: string; name: string; email: string; studentId: string; photoUrl?: string; activeCourseId?: string; activeBatchId?: string };
 export type EnrollmentContext = { courseId: string; batchId: string; courseTitle: string; batchName: string };
@@ -16,7 +16,7 @@ export type QuestionReviewItem = { questionId: string; selectedIndex: number | n
 export type QuizSubmissionResult = { id: string; kind: QuizKind; score: number; totalMarks: number; percentage: number; passed: boolean; attemptNumber: number; attemptCount: number; remainingAttempts: number | null; timeSpentSeconds: number; certificateIssued?: boolean; review?: QuestionReviewItem[] };
 export type QuizResultsSummary = { quizId: string; kind: QuizKind; title: string; chapter: string; passingPercent: number; attemptCount: number; remainingAttempts: number | null; bestPercentage: number; passed: boolean; latest: { score: number; totalMarks: number; percentage: number; passed: boolean; timeSpentSeconds: number; submittedAtMillis: number | null } | null };
 export type Assignment = { id: string; title: string; description: string; courseId: string; batchId: string; dueAt?: string; resourceUrl?: string; submissionInstructions?: string };
-export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; feedback?: string; score?: number | null };
+export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; submissionFileName?: string; feedback?: string; score?: number | null };
 export type StudentCertificate = { id: string; certificateId: string; verificationCode: string; studentName: string; studentCode: string; courseTitle: string; batchName: string; quizTitle: string; score: number; totalMarks: number; percentage: number; issuedAt?: string; templateKey: "classic" | "modern" };
 
 export async function getStudentProfile(userId: string): Promise<StudentProfile> {
@@ -31,6 +31,11 @@ export async function uploadStudentPhoto(userId: string, file: File): Promise<st
   const photoUrl = await uploadStudentPhotoToCloudinary(file);
   await updateDoc(doc(firestore, "users", userId), { photoUrl, updatedAt: serverTimestamp() });
   return photoUrl;
+}
+
+export async function updateStudentName(userId: string, name: string): Promise<void> {
+  if (!firestore) throw new Error("Profile updates are only available in Firebase mode.");
+  await updateDoc(doc(firestore, "users", userId), { name, updatedAt: serverTimestamp() });
 }
 
 export async function getStudentEnrollmentContext(userId: string): Promise<EnrollmentContext | null> {
@@ -144,16 +149,22 @@ export async function getStudentAssignmentSubmissions(studentId: string, courseI
   const snapshot = await getDocs(query(collection(firestore, "assignmentSubmissions"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId), orderBy("submittedAt", "desc")));
   return snapshot.docs.map((item) => {
     const data = item.data();
-    return { id: item.id, assignmentId: String(data.assignmentId ?? ""), submittedAt: asDateString(data.submittedAt), submissionText: stringOrUndefined(data.submissionText), submissionUrl: stringOrUndefined(data.submissionUrl), feedback: stringOrUndefined(data.feedback), score: typeof data.score === "number" ? data.score : null };
+    return { id: item.id, assignmentId: String(data.assignmentId ?? ""), submittedAt: asDateString(data.submittedAt), submissionText: stringOrUndefined(data.submissionText), submissionUrl: stringOrUndefined(data.submissionUrl), submissionFileName: stringOrUndefined(data.submissionFileName), feedback: stringOrUndefined(data.feedback), score: typeof data.score === "number" ? data.score : null };
   });
 }
 
-export async function submitAssignment(studentId: string, assignment: Assignment, input: { submissionText?: string; submissionUrl?: string }) {
+export async function submitAssignment(studentId: string, assignment: Assignment, input: { submissionText?: string; submissionUrl?: string; submissionFile?: File }) {
   if (!firestore) throw new Error("Assignment submission is only available in Firebase mode.");
   const submissionText = input.submissionText?.trim() ?? "";
   const submissionUrl = input.submissionUrl?.trim() ?? "";
-  if (!submissionText && !submissionUrl) throw new Error("Add your response or a submission link before sending.");
-  await addDoc(collection(firestore, "assignmentSubmissions"), { assignmentId: assignment.id, studentId, courseId: assignment.courseId, batchId: assignment.batchId, submissionText: submissionText || null, submissionUrl: submissionUrl || null, submittedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  let fileUrl = "";
+  let fileName = "";
+  if (input.submissionFile) {
+    fileUrl = await uploadAssignmentFileToCloudinary(input.submissionFile);
+    fileName = input.submissionFile.name;
+  }
+  if (!submissionText && !submissionUrl && !fileUrl) throw new Error("Add your response, a submission link, or a file before sending.");
+  await addDoc(collection(firestore, "assignmentSubmissions"), { assignmentId: assignment.id, studentId, courseId: assignment.courseId, batchId: assignment.batchId, submissionText: submissionText || null, submissionUrl: submissionUrl || fileUrl || null, submissionFileName: fileName || null, submittedAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 
 export async function getStudentQuizAttempts(studentId: string, courseId?: string, batchId?: string): Promise<PrivateQuizAttempt[]> {

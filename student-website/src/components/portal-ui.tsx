@@ -37,16 +37,16 @@ export function MetricCard({
   progress?: number;
 }) {
   return (
-    <div className="flex min-h-28 items-center gap-4 rounded-2xl border border-slate-200/90 bg-white px-5 py-4 shadow-[0_7px_22px_rgba(15,23,42,0.04)]">
-      <span className="grid size-14 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600 ring-1 ring-inset ring-teal-100">
-        <Icon className="size-7" strokeWidth={1.8} />
+    <div className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200/90 bg-white px-3 py-3 shadow-[0_7px_22px_rgba(15,23,42,0.04)] sm:min-h-28 sm:gap-4 sm:px-5 sm:py-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600 ring-1 ring-inset ring-teal-100 sm:size-14">
+        <Icon className="size-5 sm:size-7" strokeWidth={1.8} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-500">{label}</p>
-        <p className="mt-1 text-2xl font-bold leading-none tracking-tight text-slate-950">
+        <p className="text-[10px] font-medium text-slate-500 sm:text-xs">{label}</p>
+        <p className="mt-0.5 text-xl font-bold leading-none tracking-tight text-slate-950 sm:mt-1 sm:text-2xl">
           {value}
         </p>
-        <p className="mt-1.5 truncate text-xs text-slate-500">{detail}</p>
+        <p className="mt-1 truncate text-[10px] text-slate-500 sm:mt-1.5 sm:text-xs">{detail}</p>
         {typeof progress === "number" ? (
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
             <div

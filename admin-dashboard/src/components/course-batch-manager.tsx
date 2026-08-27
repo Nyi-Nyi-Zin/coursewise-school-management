@@ -214,6 +214,7 @@ export function CourseBatchManager() {
       await client.invalidateQueries({ queryKey: coursesKey });
       await client.invalidateQueries({ queryKey: batchesKey });
       await client.invalidateQueries({ queryKey: enrollmentsKey });
+      await client.invalidateQueries({ queryKey: studentsKey });
     },
   });
   const enrollmentBatchMutation = useMutation({
@@ -221,11 +222,18 @@ export function CourseBatchManager() {
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: batchesKey });
       await client.invalidateQueries({ queryKey: enrollmentsKey });
+      await client.invalidateQueries({ queryKey: studentsKey });
     },
   });
   const deleteEnrollmentMutation = useMutation({
     mutationFn: deleteEnrollment,
-    onSuccess: () => client.invalidateQueries({ queryKey: enrollmentsKey }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: coursesKey });
+      await client.invalidateQueries({ queryKey: batchesKey });
+      await client.invalidateQueries({ queryKey: allBatchesKey });
+      await client.invalidateQueries({ queryKey: enrollmentsKey });
+      await client.invalidateQueries({ queryKey: studentsKey });
+    },
   });
   const selectCourse = (id: string) => {
     setCourseId(id);
@@ -362,8 +370,23 @@ export function CourseBatchManager() {
   }
   async function removeEnrollment(enrollment: EnrollmentRecord) {
     try {
-      if (hasFirebaseConfiguration) await deleteEnrollmentMutation.mutateAsync(enrollment.id);
-      else setLocalEnrollments(items => items.filter(item => item.id !== enrollment.id));
+      if (hasFirebaseConfiguration) await deleteEnrollmentMutation.mutateAsync(enrollment);
+      else {
+        setLocalEnrollments(items => items.filter(item => item.id !== enrollment.id));
+        setLocalBatches(items => ({
+          ...items,
+          [enrollment.courseId]: (items[enrollment.courseId] ?? []).map(item =>
+            item.id === enrollment.batchId
+              ? { ...item, enrolledStudentIds: item.enrolledStudentIds.filter(id => id !== enrollment.studentId) }
+              : item
+          ),
+        }));
+        setLocalCourses(items => items.map(item =>
+          item.id === enrollment.courseId
+            ? { ...item, enrolledStudentIds: item.enrolledStudentIds.filter(id => id !== enrollment.studentId) }
+            : item
+        ));
+      }
       toast.success("Student enrolment was deleted.");
     } catch (error) { failureNotice(error, "The enrolment could not be deleted"); }
   }
@@ -506,7 +529,7 @@ export function CourseBatchManager() {
               Add batch
             </Button>
           ) : tab === "enrollment" ? (
-            <Button onClick={() => { setBatchId(current => current || allBatches[0]?.id || ""); setStudentId(""); setEnrollmentModalOpen(true); }} disabled={!allBatches.length}>
+            <Button onClick={() => { setBatchId(current => current || allBatches[0]?.id || ""); setStudentId(""); void client.invalidateQueries({ queryKey: studentsKey }); setEnrollmentModalOpen(true); }} disabled={!allBatches.length}>
               <UserPlus size={16} />
               Enroll student
             </Button>
@@ -645,7 +668,7 @@ export function CourseBatchManager() {
       {batchModalOpen ? <BatchModal name={batchName} setName={setBatchName} editing={Boolean(editingBatchId)} pending={batchMutation.isPending} onClose={() => setBatchModalOpen(false)} onSubmit={() => void addBatch()} /> : null}
       {enrollmentModalOpen ? <EnrollmentModal batches={allBatches} courses={courses} students={studentsQuery.data ?? []} batchId={batchId} studentId={studentId} setBatchId={setBatchId} setStudentId={setStudentId} pending={enrollMutation.isPending} onClose={() => setEnrollmentModalOpen(false)} onSubmit={() => void enroll()} /> : null}
       {viewModal ? <DetailsModal {...viewModal} onClose={() => setViewModal(null)} /> : null}
-      {editingEnrollment ? <EnrollmentBatchModal enrollment={editingEnrollment} batches={enrollmentBatches} students={studentsQuery.data ?? []} pending={enrollmentBatchMutation.isPending} onClose={() => setEditingEnrollment(null)} onSubmit={batchId => void updateEnrollmentBatchForStudent(batchId)} /> : null}
+      {editingEnrollment ? <EnrollmentBatchModal enrollment={editingEnrollment} batches={allBatches} courses={courses} students={studentsQuery.data ?? []} pending={enrollmentBatchMutation.isPending} onClose={() => setEditingEnrollment(null)} onSubmit={batchId => void updateEnrollmentBatchForStudent(batchId)} /> : null}
       </section>
     </div>
   );
@@ -680,9 +703,10 @@ function DetailsModal({ title, fields, onClose }: { title: string; fields: { lab
     </div>
   );
 }
-function EnrollmentBatchModal({ enrollment, batches, students, pending, onClose, onSubmit }: { enrollment: EnrollmentRecord; batches: BatchRecord[]; students: { id: string; name: string; studentId: string }[]; pending: boolean; onClose: () => void; onSubmit: (batchId: string) => void }) {
+function EnrollmentBatchModal({ enrollment, batches, courses, students, pending, onClose, onSubmit }: { enrollment: EnrollmentRecord; batches: BatchRecord[]; courses: CourseRecord[]; students: { id: string; name: string; studentId: string }[]; pending: boolean; onClose: () => void; onSubmit: (batchId: string) => void }) {
   const [batchId, setBatchId] = useState(enrollment.batchId);
   const student = students.find(item => item.id === enrollment.studentId);
+  const linkedBatches = batches.filter(item => Boolean(item.courseId));
   return (
     <div role="dialog" aria-modal="true" aria-label="Update student enrolment" className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/30 p-4" onMouseDown={onClose}>
       <form className="max-h-[calc(100vh-2rem)] flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); onSubmit(batchId); }}>
@@ -692,7 +716,7 @@ function EnrollmentBatchModal({ enrollment, batches, students, pending, onClose,
         </header>
         <div className="flex-1 space-y-5 overflow-y-auto p-6">
           <label className="block text-xs font-bold text-stone-700">Student<select value={enrollment.studentId} disabled className="mt-2 h-11 w-full cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-3 text-sm font-normal text-stone-500"><option value={enrollment.studentId}>{student ? `${student.name}${student.studentId ? ` · ${student.studentId}` : ""}` : "Unknown student"}</option></select></label>
-          <label className="block text-xs font-bold text-stone-700">Batch<select value={batchId} onChange={event => setBatchId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal">{batches.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="block text-xs font-bold text-stone-700">Batch<select value={batchId} onChange={event => setBatchId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal">{linkedBatches.map(item => { const batchCourseName = courses.find(course => course.id === item.courseId)?.title; return <option key={item.id} value={item.id}>{item.name}{batchCourseName ? ` · ${batchCourseName}` : ""}</option>; })}</select></label>
         </div>
         <div className="flex justify-end gap-2 border-t border-stone-100 p-6"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending || batchId === enrollment.batchId}>{pending ? "Saving..." : "Save changes"}</Button></div>
       </form>

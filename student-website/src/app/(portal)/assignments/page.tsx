@@ -69,7 +69,7 @@ export default function AssignmentsPage() {
     enabled: isFirebaseConfigured ? Boolean(user?.uid && enrollment) : true,
   });
   const submit = useMutation({
-    mutationFn: ({ assignment, text, url }: { assignment: Assignment; text: string; url: string }) => submitAssignment(user!.uid, assignment, { submissionText: text, submissionUrl: url }),
+    mutationFn: ({ assignment, text, url, file }: { assignment: Assignment; text: string; url: string; file?: File | null }) => submitAssignment(user!.uid, assignment, { submissionText: text, submissionUrl: url, submissionFile: file ?? undefined }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["student", "assignment-submissions"] });
       setSelected(null);
@@ -132,7 +132,7 @@ export default function AssignmentsPage() {
 
       <div className="mt-7 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Assignment progress">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Assignment progress">
             <StatCard icon={CalendarDays} label="Total assignments" value={assignments.length} detail="Across this batch" />
             <StatCard icon={CheckCircle2} label="Submitted" value={submittedCount} detail={`${progress}% of total`} />
             <StatCard icon={Clock3} label="Pending review" value={pendingCount} detail="Awaiting feedback" />
@@ -159,13 +159,13 @@ export default function AssignmentsPage() {
         </aside>
       </div>
 
-      {selected ? <SubmissionDialog assignment={selected.assignment} submission={selected.submission} pending={submit.isPending} onClose={() => setSelected(null)} onSubmit={(text, url) => submit.mutate({ assignment: selected.assignment, text, url })} /> : null}
+      {selected ? <SubmissionDialog assignment={selected.assignment} submission={selected.submission} pending={submit.isPending} onClose={() => setSelected(null)} onSubmit={(text, url, file) => submit.mutate({ assignment: selected.assignment, text, url, file })} /> : null}
     </section>
   );
 }
 
 function StatCard({ icon: Icon, label, value, detail, progress }: { icon: typeof CalendarDays; label: string; value: string | number; detail?: string; progress?: number }) {
-  return <div className="flex min-h-28 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_7px_22px_rgba(15,23,42,0.035)]"><span className="grid size-14 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600"><Icon className="size-7" strokeWidth={1.8} /></span><div className="min-w-0 flex-1"><p className="text-xs font-medium text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold leading-none text-slate-950">{value}</p>{detail ? <p className="mt-2 text-xs text-slate-500">{detail}</p> : null}{typeof progress === "number" ? <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-teal-600 transition-[width]" style={{ width: `${progress}%` }} /></div> : null}</div></div>;
+  return <div className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-[0_7px_22px_rgba(15,23,42,0.035)] sm:min-h-28 sm:gap-4 sm:px-4 sm:py-4"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600 sm:size-14"><Icon className="size-5 sm:size-7" strokeWidth={1.8} /></span><div className="min-w-0 flex-1"><p className="text-[10px] font-medium text-slate-500 sm:text-xs">{label}</p><p className="mt-0.5 text-xl font-bold leading-none text-slate-950 sm:mt-1 sm:text-2xl">{value}</p>{detail ? <p className="mt-1 text-[10px] text-slate-500 sm:mt-2 sm:text-xs">{detail}</p> : null}{typeof progress === "number" ? <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 sm:mt-3"><div className="h-full rounded-full bg-teal-600 transition-[width]" style={{ width: `${progress}%` }} /></div> : null}</div></div>;
 }
 
 function AssignmentRow({ assignment, number, submission, onOpen }: { assignment: Assignment; number: number; submission?: AssignmentSubmission; onOpen: () => void }) {
@@ -175,7 +175,7 @@ function AssignmentRow({ assignment, number, submission, onOpen }: { assignment:
     <article className="group border-b border-slate-200 p-3.5 transition hover:bg-slate-50/70 last:border-0 sm:p-4">
       <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-center">
         <div className="flex items-center gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-lg font-semibold text-teal-700">{String(number).padStart(2, "0")}</span><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-600"><FileText className="size-5" /></span></div>
-        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2.5"><h2 className="text-sm font-semibold text-slate-950 sm:text-base">{assignment.title}</h2><StatusBadge status={status} /></div><p className="mt-1 line-clamp-1 text-xs leading-5 text-slate-500 sm:text-sm">{assignment.description}</p><div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span className="inline-flex items-center gap-1.5"><CalendarDays className="size-3.5" />{assignment.dueAt ? `Due ${formatDate(assignment.dueAt)}` : "No due date"}</span>{assignment.resourceUrl ? <a href={assignment.resourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 transition hover:text-teal-700"><Paperclip className="size-3.5" />Brief / resource</a> : <span className="inline-flex items-center gap-1.5"><Paperclip className="size-3.5" />No attachment</span>}{submission?.submissionUrl ? <a href={submission.submissionUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 transition hover:text-teal-700"><Link2 className="size-3.5" />Submission link</a> : null}</div></div>
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2.5"><h2 className="text-sm font-semibold text-slate-950 sm:text-base">{assignment.title}</h2><StatusBadge status={status} /></div><p className="mt-1 line-clamp-1 text-xs leading-5 text-slate-500 sm:text-sm">{assignment.description}</p><div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500"><span className="inline-flex items-center gap-1.5"><CalendarDays className="size-3.5" />{assignment.dueAt ? `Due ${formatDate(assignment.dueAt)}` : "No due date"}</span>{assignment.resourceUrl ? <a href={assignment.resourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 transition hover:text-teal-700"><Paperclip className="size-3.5" />Brief / resource</a> : <span className="inline-flex items-center gap-1.5"><Paperclip className="size-3.5" />No attachment</span>}{submission?.submissionUrl ? <a href={submission.submissionUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 transition hover:text-teal-700">{submission.submissionFileName ? <FileText className="size-3.5" /> : <Link2 className="size-3.5" />}{submission.submissionFileName ? `Submission file · ${submission.submissionFileName}` : "Submission link"}</a> : null}</div></div>
         <Button type="button" size="sm" variant={status === "needs-submission" ? "default" : "outline"} onClick={onOpen} className={cn("w-full xl:w-40", status !== "needs-submission" && "border-teal-500/70 text-teal-700 hover:bg-teal-50")}>{buttonLabel}{status === "needs-submission" ? <Upload className="size-3.5" /> : null}</Button>
       </div>
     </article>
@@ -208,20 +208,42 @@ function FeedbackPanel({ items, onOpen }: { items: { assignment: Assignment; sub
   return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_7px_22px_rgba(15,23,42,0.035)]"><div className="flex items-start gap-3"><span className="grid size-9 place-items-center rounded-xl bg-sky-50 text-sky-600"><MessageSquareText className="size-5" /></span><div><h2 className="text-sm font-semibold text-slate-950">Recent feedback</h2><p className="mt-0.5 text-xs text-slate-500">Latest notes from your instructor</p></div></div><div className="mt-4 divide-y divide-slate-200">{items.length ? items.map(item => <button key={item.submission.id} type="button" onClick={() => onOpen(item)} className="group flex w-full items-start gap-3 py-4 text-left first:pt-1"><span className="mt-1 grid size-9 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600"><FileCheck2 className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-slate-900">{item.assignment.title}</span><span className="mt-1 block text-[11px] text-slate-500">Reviewed {item.submission.submittedAt ? formatDate(item.submission.submittedAt) : "recently"}</span><span className="mt-2 line-clamp-2 block text-xs leading-5 text-slate-600">{item.submission.feedback}</span></span><ArrowRight className="mt-5 size-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-teal-600" /></button>) : <div className="py-8 text-center"><MessageSquareText className="mx-auto size-7 text-slate-300" /><p className="mt-2 text-xs text-slate-500">Feedback will appear here after review.</p></div>}</div></div>;
 }
 
-function SubmissionDialog({ assignment, submission, pending, onClose, onSubmit }: { assignment: Assignment; submission?: AssignmentSubmission; pending: boolean; onClose: () => void; onSubmit: (text: string, url: string) => void }) {
-  const [text, setText] = useState(submission?.submissionText ?? ""); const [url, setUrl] = useState(submission?.submissionUrl ?? ""); const reviewed = hasReview(submission);
+function SubmissionDialog({ assignment, submission, pending, onClose, onSubmit }: { assignment: Assignment; submission?: AssignmentSubmission; pending: boolean; onClose: () => void; onSubmit: (text: string, url: string, file?: File | null) => void }) {
+  const [text, setText] = useState(submission?.submissionText ?? ""); const [url, setUrl] = useState(submission?.submissionUrl?.startsWith("http") && !hasCloudinaryUrl(submission.submissionUrl) ? submission.submissionUrl : ""); const [file, setFile] = useState<File | null>(null); const reviewed = hasReview(submission);
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="assignment-dialog-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" /><Card className="relative z-10 max-h-[90vh] w-full max-w-xl overflow-y-auto shadow-2xl"><CardContent className="p-6 sm:p-7">
         <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{reviewed ? "Instructor feedback" : submission ? "Update submission" : "Submit assignment"}</p><h2 id="assignment-dialog-title" className="mt-2 text-xl font-bold text-slate-950">{assignment.title}</h2></div><button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900" aria-label="Close dialog"><X className="size-4" /></button></div>
-        <p className="mt-3 text-sm leading-6 text-slate-500">{assignment.submissionInstructions || "Add a short response, a project URL, or both."}</p>{assignment.resourceUrl ? <a href={assignment.resourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-teal-700 hover:text-teal-800"><ExternalLink className="size-4" />Open assignment resource</a> : null}
+        <p className="mt-3 text-sm leading-6 text-slate-500">{assignment.submissionInstructions || "Add a short response, a project URL, a file, or any combination."}</p>{assignment.resourceUrl ? <a href={assignment.resourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-teal-700 hover:text-teal-800"><ExternalLink className="size-4" />Open assignment resource</a> : null}
         {reviewed ? <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 className="size-4" />Reviewed{typeof submission?.score === "number" ? ` · ${submission.score}%` : ""}</div><p className="mt-2 text-sm leading-6 text-emerald-900/80">{submission?.feedback}</p></div> : null}
+        {submission?.submissionFileName && !reviewed ? <div className="mt-5 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-teal-600"><FileText className="size-4" /></span><a href={submission.submissionUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 transition hover:text-teal-700">{submission.submissionFileName}</a><span className="shrink-0 text-xs font-medium text-slate-400">Uploaded</span></div> : null}
         <label className="mt-5 block text-sm font-medium text-slate-700">Response or notes<textarea value={text} onChange={event => setText(event.target.value)} placeholder="Describe your work or paste your response" className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-300 bg-white p-3 text-sm font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" /></label>
         <label className="mt-4 block text-sm font-medium text-slate-700">Project link <span className="font-normal text-slate-400">(optional)</span><input value={url} onChange={event => setUrl(event.target.value)} type="url" placeholder="https://link-to-your-work.com" className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" /></label>
-        <div className="mt-6 flex justify-end gap-3"><Button variant="outline" onClick={onClose}>Cancel</Button>{isFirebaseConfigured ? <Button disabled={pending || (!text.trim() && !url.trim())} onClick={() => onSubmit(text, url)}>{pending ? "Submitting…" : submission ? "Submit update" : "Submit work"}<Send className="size-4" /></Button> : <Button onClick={() => toast.info("Submissions are disabled in demo mode.")}>Preview submission<Send className="size-4" /></Button>}</div>
+        <div className="mt-4">
+          <p className="text-sm font-medium text-slate-700">Attach a file <span className="font-normal text-slate-400">(optional)</span></p>
+          {file ? (
+            <div className="mt-2 flex items-center gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-teal-600"><FileText className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-800">{file.name}</p><p className="text-xs text-slate-500">{formatFileSize(file.size)}</p></div><button type="button" onClick={() => setFile(null)} aria-label="Remove file" className="grid size-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X className="size-4" /></button></div>
+          ) : (
+            <label className="mt-2 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-teal-400 hover:bg-teal-50/40">
+              <Upload className="size-6 text-slate-400" />
+              <span className="mt-2 text-sm font-medium text-slate-700">Choose a file to upload</span>
+              <span className="text-xs text-slate-500">PDF, ZIP, documents, or images · up to 20 MB</span>
+              <input type="file" className="sr-only" onChange={event => { const selected = event.target.files?.[0] ?? null; setFile(selected); event.target.value = ""; }} />
+            </label>
+          )}
+        </div>
+        <div className="mt-6 flex justify-end gap-3"><Button variant="outline" onClick={onClose}>Cancel</Button>{isFirebaseConfigured ? <Button disabled={pending || (!text.trim() && !url.trim() && !file)} onClick={() => onSubmit(text, url, file)}>{pending ? "Submitting…" : submission ? "Submit update" : "Submit work"}<Send className="size-4" /></Button> : <Button onClick={() => toast.info("Submissions are disabled in demo mode.")}>Preview submission<Send className="size-4" /></Button>}</div>
       </CardContent></Card>
     </div>
   );
+}
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function hasCloudinaryUrl(value: string) {
+  return /cloudinary\.com\/\S+\/coursewise\/assignments\//.test(value);
 }
 
 function getStatus(assignment: Assignment, submission?: AssignmentSubmission): AssignmentStatus {
