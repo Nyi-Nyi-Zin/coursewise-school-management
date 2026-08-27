@@ -11,7 +11,6 @@ const mono = DM_Mono({ variable: "--font-course-mono", weight: ["400", "500"], s
 export const metadata: Metadata = {
   title: "Teza Tech Lab | Admin",
   description: "Teza Tech Lab school and course management workspace.",
-  manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon-32x32.png",
     apple: "/icon-180x180.png",

@@ -17,7 +17,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Teza Tech Lab | Student Portal",
   description: "A focused learning portal for Teza Tech Lab students.",
-  manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon-32x32.png",
     apple: "/icon-180x180.png",
