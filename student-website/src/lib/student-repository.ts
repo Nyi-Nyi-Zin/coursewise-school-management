@@ -1,5 +1,5 @@
-import { addDoc, doc, getDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
-import { demoAnnouncements, demoAttendance, demoLessons, type Announcement, type Lesson } from "@/lib/student-data";
+import { addDoc, doc, getDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
+import { demoAnnouncements, demoAttendance, demoLessons, getDemoLessonProgress, setDemoLessonProgress, type Announcement, type Lesson } from "@/lib/student-data";
 import { firestore } from "@/lib/firebase";
 import { authenticatedApiFetch } from "@/lib/authenticated-api";
 import { uploadStudentPhotoToCloudinary, uploadAssignmentFileToCloudinary } from "@/lib/cloudinary-upload-service";
@@ -8,13 +8,15 @@ export type StudentProfile = { id: string; name: string; email: string; studentI
 export type EnrollmentContext = { courseId: string; batchId: string; courseTitle: string; batchName: string };
 export type PrivateQuizAttempt = { id: string; quizId: string; courseId: string; batchId: string; score: number; totalMarks: number; submittedAt?: string };
 export type QuizKind = "chapter_quiz" | "final_exam";
-export type BatchQuiz = { id: string; title: string; description: string; durationMinutes: number; totalMarks: number; kind: QuizKind; chapter?: string; passingPercent?: number; maxRetakes?: number; opensAt?: string | null; closesAt?: string | null };
+export type BatchQuiz = { id: string; title: string; description: string; durationMinutes: number; totalMarks: number; kind: QuizKind; chapter?: string; passingPercent?: number; maxRetakes?: number; drawQuestionCount?: number; retakeCooldownHours?: number; opensAt?: string | null; closesAt?: string | null; eligible: boolean; lockReason?: string | null; completedChapterCount: number; totalChapterCount: number; nextEligibleAt?: string | null; bestPercentage: number; attemptCount: number; passed: boolean };
 export type QuizQuestionType = "multiple_choice" | "multiple_select" | "true_false";
 export type QuizQuestion = { id: string; prompt: string; options: string[]; marks: number; type?: QuizQuestionType };
 export type SubmittedQuizAnswer = { questionId: string; selectedAnswerIndex: number; selectedIndices?: number[] };
-export type QuestionReviewItem = { questionId: string; selectedIndex: number | null; selectedIndices: number[]; correctAnswerIndex: number; correctAnswerIndices: number[]; marksEarned: number };
-export type QuizSubmissionResult = { id: string; kind: QuizKind; score: number; totalMarks: number; percentage: number; passed: boolean; attemptNumber: number; attemptCount: number; remainingAttempts: number | null; timeSpentSeconds: number; certificateIssued?: boolean; review?: QuestionReviewItem[] };
-export type QuizResultsSummary = { quizId: string; kind: QuizKind; title: string; chapter: string; passingPercent: number; attemptCount: number; remainingAttempts: number | null; bestPercentage: number; passed: boolean; latest: { score: number; totalMarks: number; percentage: number; passed: boolean; timeSpentSeconds: number; submittedAtMillis: number | null } | null };
+export type QuestionReviewItem = { questionId: string; prompt: string; options: string[]; explanation: string; selectedIndex: number | null; selectedIndices: number[]; selectedAnswers: string[]; correctAnswerIndex: number; correctAnswerIndices: number[]; correctAnswers: string[]; correct: boolean; marksEarned: number };
+export type QuizSubmissionResult = { id: string; kind: QuizKind; score: number; totalMarks: number; percentage: number; passed: boolean; attemptNumber: number; attemptCount: number; remainingAttempts: number | null; timeSpentSeconds: number; bestPercentage?: number; integrityViolations?: number; nextEligibleAt?: string | null; certificateIssued?: boolean; review?: QuestionReviewItem[] };
+export type QuizResultsSummary = { quizId: string; kind: QuizKind; title: string; chapter: string; passingPercent: number; attemptCount: number; remainingAttempts: number | null; bestPercentage: number; passed: boolean; nextEligibleAt?: string | null; latest: { score: number; totalMarks: number; percentage: number; passed: boolean; timeSpentSeconds: number; submittedAtMillis: number | null; integrityViolations?: number } | null; review?: QuestionReviewItem[] };
+export type AssessmentSession = { sessionId: string; kind: QuizKind; title: string; chapter: string; passingPercent: number; startedAtMillis: number; expiresAtMillis: number | null; integrityViolations: number; checkedQuestionIds: string[]; questions: QuizQuestion[] };
+export type ChapterAnswerFeedback = { questionId: string; correct: boolean; marksEarned: number; explanation: string; correctIndices: number[]; correctAnswers: string[] };
 export type Assignment = { id: string; title: string; description: string; courseId: string; batchId: string; dueAt?: string; resourceUrl?: string; submissionInstructions?: string };
 export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; submissionFileName?: string; feedback?: string; score?: number | null };
 export type StudentCertificate = { id: string; certificateId: string; verificationCode: string; studentName: string; studentCode: string; courseTitle: string; batchName: string; quizTitle: string; score: number; totalMarks: number; percentage: number; issuedAt?: string; templateKey: "classic" | "modern" };
@@ -121,6 +123,44 @@ export async function getPublishedLessons(courseId?: string): Promise<Lesson[]> 
     .map(({ lesson }) => lesson);
 }
 
+export async function getLessonById(lessonId: string): Promise<Lesson | null> {
+  if (!lessonId) return null;
+  if (!firestore) return demoLessons.find((lesson) => lesson.id === lessonId) ?? null;
+  const snapshot = await getDoc(doc(firestore, "lessons", lessonId));
+  if (!snapshot.exists()) return null;
+  const data = snapshot.data();
+  return { id: snapshot.id, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson;
+}
+
+export async function getLessonProgress(studentId?: string, courseId?: string): Promise<Map<string, Lesson["status"]>> {
+  if (!firestore) return getDemoLessonProgress();
+  if (!studentId || !courseId) return new Map();
+  // Students only ever read their own progress, so equality filters on
+  // courseId + studentId are served without a composite index.
+  const snapshot = await getDocs(query(collection(firestore, "lessonProgress"), where("courseId", "==", courseId), where("studentId", "==", studentId)));
+  const progress = new Map<string, Lesson["status"]>();
+  snapshot.docs.forEach((item) => {
+    const status = item.data().status;
+    if (status === "new" || status === "continue" || status === "complete") progress.set(String(item.data().lessonId ?? item.id), status);
+  });
+  return progress;
+}
+
+export async function updateLessonProgress(studentId: string | undefined, lessonId: string, courseId: string, status: Lesson["status"]): Promise<void> {
+  if (!firestore) {
+    setDemoLessonProgress(lessonId, status);
+    return;
+  }
+  if (!studentId || !courseId || !lessonId) throw new Error("Lesson progress requires an active course enrollment.");
+  await setDoc(doc(firestore, "lessonProgress", `${lessonId}_${studentId}`), {
+    lessonId,
+    studentId,
+    courseId,
+    status,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
 export async function getStudentAttendance(studentId: string, courseId?: string, batchId?: string) {
   if (!firestore) return demoAttendance;
   if (!courseId || !batchId) return [];
@@ -183,7 +223,7 @@ export async function getBatchQuizzes(courseId?: string, batchId?: string): Prom
 }
 
 function toBatchQuiz(id: string, data: Record<string, unknown>): BatchQuiz {
-  return { id, title: String(data.title ?? "Quiz"), description: String(data.description ?? ""), durationMinutes: Number(data.durationMinutes ?? 0), totalMarks: Number(data.totalMarks ?? 0), kind: data.kind === "final_exam" ? "final_exam" : "chapter_quiz", chapter: String(data.chapter ?? "") || undefined, passingPercent: Number.isFinite(Number(data.passingPercent)) ? Number(data.passingPercent) : undefined, maxRetakes: Number.isFinite(Number(data.maxRetakes)) ? Number(data.maxRetakes) : undefined, opensAt: asDateString(data.opensAt), closesAt: asDateString(data.closesAt) };
+  return { id, title: String(data.title ?? "Quiz"), description: String(data.description ?? ""), durationMinutes: Number(data.durationMinutes ?? 0), totalMarks: Number(data.totalMarks ?? 0), kind: data.kind === "final_exam" ? "final_exam" : "chapter_quiz", chapter: String(data.chapter ?? "") || undefined, passingPercent: Number.isFinite(Number(data.passingPercent)) ? Number(data.passingPercent) : undefined, maxRetakes: Number.isFinite(Number(data.maxRetakes)) ? Number(data.maxRetakes) : undefined, drawQuestionCount: Number(data.drawQuestionCount ?? 50), retakeCooldownHours: Number(data.retakeCooldownHours ?? 24), opensAt: asDateString(data.opensAt), closesAt: asDateString(data.closesAt), eligible: data.eligible !== false, lockReason: typeof data.lockReason === "string" ? data.lockReason : null, completedChapterCount: Number(data.completedChapterCount ?? 0), totalChapterCount: Number(data.totalChapterCount ?? 0), nextEligibleAt: asDateString(data.nextEligibleAt), bestPercentage: Number(data.bestPercentage ?? 0), attemptCount: Number(data.attemptCount ?? 0), passed: data.passed === true };
 }
 
 export async function getQuizMeta(quizId: string): Promise<BatchQuiz | null> {
@@ -198,8 +238,20 @@ export async function getQuizQuestions(quizId: string): Promise<QuizQuestion[]> 
   return snapshot.docs.map((item) => ({ id: item.id, prompt: String(item.data().prompt ?? ""), options: Array.isArray(item.data().options) ? item.data().options.map(String) : [], marks: Number(item.data().marks ?? 1), ...(item.data().type ? { type: item.data().type as QuizQuestionType } : {}) }));
 }
 
-export async function submitQuizAttempt(quizId: string, answers: SubmittedQuizAnswer[], startedAt?: number): Promise<QuizSubmissionResult> {
-  const data = await authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/submit`, { method: "POST", body: JSON.stringify({ answers, ...(typeof startedAt === "number" ? { startedAt } : {}) }) }) as QuizSubmissionResult;
+export async function startAssessment(quizId: string): Promise<AssessmentSession> {
+  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/start`, { method: "POST" }) as Promise<AssessmentSession>;
+}
+
+export async function checkChapterAnswer(quizId: string, questionId: string, selectedIndices: number[]): Promise<ChapterAnswerFeedback> {
+  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/check`, { method: "POST", body: JSON.stringify({ questionId, selectedIndices }) }) as Promise<ChapterAnswerFeedback>;
+}
+
+export async function recordExamIntegrityViolation(quizId: string, reason: string): Promise<{ violationCount: number; shouldSubmit: boolean }> {
+  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/integrity`, { method: "POST", body: JSON.stringify({ reason }) }) as Promise<{ violationCount: number; shouldSubmit: boolean }>;
+}
+
+export async function submitQuizAttempt(quizId: string, sessionId: string, answers: SubmittedQuizAnswer[]): Promise<QuizSubmissionResult> {
+  const data = await authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/submit`, { method: "POST", body: JSON.stringify({ sessionId, answers }) }) as QuizSubmissionResult;
   return { ...data, score: Number(data.score ?? 0), totalMarks: Number(data.totalMarks ?? 0), percentage: Number(data.percentage ?? 0), attemptNumber: Number(data.attemptNumber ?? 1), attemptCount: Number(data.attemptCount ?? 1), remainingAttempts: typeof data.remainingAttempts === "number" ? data.remainingAttempts : null, timeSpentSeconds: Number(data.timeSpentSeconds ?? 0), passed: Boolean(data.passed), kind: data.kind ?? "chapter_quiz", certificateIssued: Boolean(data.certificateIssued), review: Array.isArray(data.review) ? data.review : undefined };
 }
 

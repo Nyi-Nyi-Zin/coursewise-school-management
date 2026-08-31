@@ -200,12 +200,14 @@ function remainingAttempts(maxRetakes: number, previousAttempts: number) {
   return !Number.isFinite(maxRetakes) || maxRetakes < 0 ? null : Math.max(0, maxRetakes + 1 - previousAttempts);
 }
 
-function elapsedSeconds(durationSeconds: number, startedAt: number | null, now: number) {
-  if (durationSeconds <= 0) return 0;
-  if (startedAt === null) return durationSeconds;
-  const raw = Math.max(0, now - startedAt);
-  if (raw > (durationSeconds + 120) * 1000) throw new ApiError(409, "Time is up for this assessment.");
-  return Math.min(durationSeconds, Math.round(raw / 1000));
+function elapsedSeconds(kind: QuizKind, durationSeconds: number, startedAt: number | null, now: number) {
+  if (startedAt === null) return 0;
+  if (kind === "final_exam" && durationSeconds > 0) {
+    if (now - startedAt > (durationSeconds + 120) * 1000) throw new ApiError(409, "Time is up for this assessment.");
+    return Math.min(durationSeconds, Math.round(Math.max(0, now - startedAt) / 1000));
+  }
+  // Chapter quizzes are untimed: report real elapsed time without enforcing a limit.
+  return Math.round(Math.max(0, now - startedAt) / 1000);
 }
 
 function emptySummary(quizId: string, studentId: string, kind: QuizKind): StoredQuizSummary {
@@ -249,7 +251,7 @@ export async function submitQuiz(studentId: string, quizId: string, rawAnswers: 
     if (context.kind === "final_exam" && previous?.passed) throw new ApiError(409, "You already passed this final exam.");
     if (context.kind === "final_exam" && remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this final exam.");
     const attemptReference = context.db.collection("quizAttempts").doc();
-    const attempt: AttemptOutcome = { attemptId: attemptReference.id, attemptNumber: previousAttempts + 1, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, passed: grading.percentage >= context.passingPercent, timeSpentSeconds: elapsedSeconds(context.durationSeconds, startedAt, now), submittedAtMillis: now };
+    const attempt: AttemptOutcome = { attemptId: attemptReference.id, attemptNumber: previousAttempts + 1, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, passed: grading.percentage >= context.passingPercent, timeSpentSeconds: elapsedSeconds(context.kind, context.durationSeconds, startedAt, now), submittedAtMillis: now };
     transaction.set(attemptReference, { quizId, kind: context.kind, studentId, courseId: context.courseId, batchId: context.batchId, attemptNumber: attempt.attemptNumber, answers, score: attempt.score, totalMarks: attempt.totalMarks, percentage: attempt.percentage, passed: attempt.passed, timeSpentSeconds: attempt.timeSpentSeconds, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });
     transaction.set(counterReference, { quizId, studentId, count: attempt.attemptNumber, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(summaryReference, mergeSummary(previous, attempt, context.kind, quizId, studentId), { merge: true });

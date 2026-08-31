@@ -86,13 +86,38 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Per-student lesson progress. Each student owns one document per lesson
+    // (document id "{lessonId}_{studentId}") and may only ever write their own
+    // lesson status, so the Lessons page can render real learning progress.
+    match /lessonProgress/{progressId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow create: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.lessonId is string &&
+        request.resource.data.courseId is string &&
+        request.resource.data.status in ['new', 'continue', 'complete'] &&
+        get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.enrolledStudentIds.hasAny([request.auth.uid])
+      );
+      allow update: if isAdmin() || (
+        signedIn() &&
+        resource.data.studentId == request.auth.uid &&
+        request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.status in ['new', 'continue', 'complete'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+      );
+      allow delete: if isAdmin();
+    }
+
     match /quizzes/{quizId} {
       allow read: if isAdmin() || (isPublished() && canReadBatchContent());
       allow create, update, delete: if isAdmin();
 
       // Question documents contain display text, options, marks, and sort order only.
       match /questions/{questionId} {
-        allow read: if isAdmin() || quizIsReadable(quizId);
+        // Students receive only the server-selected session questions. Direct
+        // collection access would expose the complete final-exam question bank.
+        allow read: if isAdmin();
         allow create, update, delete: if isAdmin();
       }
 
@@ -118,6 +143,12 @@ service cloud.firestore {
     match /quizAttemptCounters/{counterId} {
       allow read, write: if isAdmin();
     }
+
+    // Trusted assessment state and immutable chapter-review snapshots are
+    // written/read through authenticated server routes only.
+    match /assessmentSessions/{sessionId} { allow read, write: if isAdmin(); }
+    match /quizAttemptReviews/{reviewId} { allow read, write: if isAdmin(); }
+    match /enrollmentLocks/{studentId} { allow read, write: if isAdmin(); }
 
     match /certificates/{certificateId} {
       allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);

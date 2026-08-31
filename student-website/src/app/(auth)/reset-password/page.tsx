@@ -10,6 +10,8 @@ import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { firebaseAuth, isFirebaseConfigured } from "../../../lib/firebase";
+import { verifyStudentAuthSecurity } from "../../../lib/recaptcha";
+import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
 
 type Stage = "loading" | "ready" | "invalid" | "done";
 
@@ -50,8 +52,10 @@ export default function ResetPasswordPage() {
       toast.error("Passwords do not match.");
       return;
     }
+    if (!isStrongPassword(password)) { toast.error(STRONG_PASSWORD_MESSAGE); return; }
     setSubmitting(true);
     try {
+      await verifyStudentAuthSecurity("student_reset_confirm", resetEmail);
       await confirmPasswordReset(firebaseAuth!, oobCode, password);
       setStage("done");
     } catch {

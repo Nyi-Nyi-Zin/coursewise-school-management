@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs, query, where } from "firebase/firesto
 
 import { getFirebaseClient } from "./firebase";
 import type { QuizKind } from "@/lib/firebase-quiz-workflows";
+import { authenticatedApiFetch } from "./authenticated-api";
 
 export type StudentResultRow = {
   quizId: string;
@@ -19,9 +20,21 @@ export type StudentResultRow = {
   passed: boolean;
   submittedAtMillis: number | null;
   timeSpentSeconds: number;
+  integrityViolations: number;
+  nextEligibleAtMillis: number | null;
+};
+
+export type StudentProgress = {
+  profile: { id: string; name: string; email: string; studentCode: string; photoUrl: string; isActive: boolean };
+  enrollment: { courseId: string; batchId: string; courseTitle: string; batchName: string } | null;
+  progress: { overallPercentage: number; completedItems: number; totalItems: number; completedLessons: number; totalLessons: number; completedChapters: number; totalChapters: number; passedFinals: number; totalFinals: number };
+  results: StudentResultRow[];
+  certificate: { status: "not_eligible" | "eligible_pending" | "issued"; count: number };
 };
 
 export async function loadStudentResults(studentId: string): Promise<StudentResultRow[]> {
+  return (await loadStudentProgress(studentId)).results;
+  /* istanbul ignore next -- retained compatibility path */
   // Quiz summaries are readable by administrators under the Firestore rules.
   // Reading them directly keeps the Results view available even when the
   // server-side quiz scoring stores these summaries in Firestore.
@@ -48,8 +61,14 @@ export async function loadStudentResults(studentId: string): Promise<StudentResu
       passed: summary.passed === true,
       submittedAtMillis: nullableNumber(summary.latestSubmittedAtMillis),
       timeSpentSeconds: numberValue(summary.latestTimeSpentSeconds),
+      integrityViolations: numberValue(summary.latestIntegrityViolations),
+      nextEligibleAtMillis: nullableNumber(summary.nextEligibleAtMillis),
     };
   }));
+}
+
+export async function loadStudentProgress(studentId: string): Promise<StudentProgress> {
+  return authenticatedApiFetch(`/api/students?studentId=${encodeURIComponent(studentId)}`) as Promise<StudentProgress>;
 }
 
 function stringValue(value: unknown, fallback = "") {

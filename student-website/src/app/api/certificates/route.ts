@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { listStudentCertificates } from "@/lib/quiz-backend";
+import { listStudentCertificates } from "@/lib/assessment-backend";
 import { apiErrorResponse, requireAuthenticatedUser } from "@/lib/server-api";
 
 export const runtime = "nodejs";

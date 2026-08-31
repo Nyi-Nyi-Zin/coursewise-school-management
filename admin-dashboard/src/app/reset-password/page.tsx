@@ -5,6 +5,7 @@ import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 import { getFirebaseClient, hasFirebaseConfiguration } from "@/lib/firebase";
+import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../shared/auth-validation";
 
 type Stage = "loading" | "ready" | "invalid" | "done";
 
@@ -51,6 +52,7 @@ export default function AdminResetPasswordPage() {
       setMessage("Passwords do not match.");
       return;
     }
+    if (!isStrongPassword(password)) { setError(true); setMessage(STRONG_PASSWORD_MESSAGE); return; }
     setSubmitting(true);
     setMessage(null);
     try {

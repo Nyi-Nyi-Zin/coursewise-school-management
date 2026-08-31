@@ -253,7 +253,7 @@ function QuizRow({ quiz, number, attempts }: { quiz: BatchQuiz; number: number; 
         <p className="mt-1 line-clamp-1 text-xs leading-5 text-slate-500">{quiz.description || quiz.chapter || "Assessment for your current course module."}</p>
         <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
           <span className="inline-flex items-center gap-1.5"><ClipboardCheck className="size-3.5" />{quiz.totalMarks} marks</span>
-          <span className="inline-flex items-center gap-1.5"><Clock3 className="size-3.5" />{quiz.durationMinutes} min</span>
+          {quiz.kind === "final_exam" ? <span className="inline-flex items-center gap-1.5"><Clock3 className="size-3.5" />{quiz.durationMinutes} min</span> : null}
           <span className="inline-flex items-center gap-1.5"><CalendarDays className="size-3.5" />{quiz.closesAt ? `Due ${formatPortalDate(quiz.closesAt, true)}` : "Self-paced"}</span>
           {completed ? <span className="font-semibold text-teal-700">Best score {bestScore}%</span> : null}
         </div>
@@ -261,9 +261,11 @@ function QuizRow({ quiz, number, attempts }: { quiz: BatchQuiz; number: number; 
       <div className="sm:text-right">
         {upcoming ? (
           <span className="inline-flex h-9 items-center rounded-lg border border-slate-200 px-4 text-xs font-semibold text-slate-500">Opens {formatPortalDate(quiz.opensAt, true)}</span>
+        ) : quiz.kind === "final_exam" && !quiz.eligible ? (
+          <div className="max-w-56 sm:text-right"><span className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-xs font-semibold text-amber-800"><LockKeyhole className="size-3.5" />Final locked</span><p className="mt-1 text-[11px] leading-4 text-amber-700">{quiz.lockReason}</p></div>
         ) : (
           <Link href={`/quizzes/take?id=${quiz.id}`} className={cn("inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold transition", completed ? "border border-teal-500 text-teal-700 hover:bg-teal-50" : "bg-teal-700 text-white shadow-sm hover:bg-teal-800")}>
-            {completed ? "Try again" : "Start quiz"}<Play className="size-3.5" fill="currentColor" />
+            {quiz.kind === "final_exam" ? quiz.attemptCount ? "Retake final" : "Start final" : completed ? "Try again" : "Start quiz"}<Play className="size-3.5" fill="currentColor" />
           </Link>
         )}
       </div>

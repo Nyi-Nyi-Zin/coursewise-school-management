@@ -35,6 +35,7 @@ import {
   type QuizQuestionType,
   type QuizSubmissionResult,
 } from "@/lib/student-repository";
+import { AssessmentRunner } from "@/components/assessment-runner";
 
 type AnswerMap = Record<string, number[]>;
 
@@ -47,7 +48,7 @@ export default function TakeQuizPage() {
         </Card>
       }
     >
-      <TakeQuizContent />
+      <AssessmentRunner />
     </Suspense>
   );
 }
@@ -87,7 +88,9 @@ function TakeQuizContent() {
   );
   const items = questions.data ?? [];
   const totalMarks = items.reduce((sum, q) => sum + q.marks, 0);
-  const timingEnabled = Boolean(durationSeconds > 0 && !result && items.length > 0);
+  // Only final exams are timed. Chapter quizzes have no countdown or
+  // auto-submit, so students may complete them at their own pace.
+  const timingEnabled = isExam && Boolean(durationSeconds > 0 && !result && items.length > 0);
 
   useEffect(() => {
     if (!timingEnabled) return;
@@ -95,21 +98,17 @@ function TakeQuizContent() {
     return () => clearInterval(timer);
   }, [timingEnabled]);
 
-  const examStartedAt = timingEnabled ? questions.dataUpdatedAt || null : null;
-  const remainingSeconds = examStartedAt
+  const startedAt = items.length > 0 ? questions.dataUpdatedAt || null : null;
+  const remainingSeconds = timingEnabled && startedAt
     ? Math.max(
         0,
-        durationSeconds - Math.round((nowTick - examStartedAt) / 1000),
+        durationSeconds - Math.round((nowTick - startedAt) / 1000),
       )
     : null;
 
   const submission = useMutation({
     mutationFn: () =>
-      submitQuizAttempt(
-        quizId,
-        buildSubmission(items, answers),
-        examStartedAt ?? undefined,
-      ),
+      submitQuizAttempt(quizId, `${quizId}_legacy`, buildSubmission(items, answers)),
     onSuccess: (outcome) => {
       setResult(outcome);
       queryClient.invalidateQueries({ queryKey: ["student", "quiz-attempts"] });
@@ -299,13 +298,15 @@ function TakeQuizContent() {
               value={totalMarks}
               label="Total marks"
             />
-            <StatCard
-              icon={Clock3}
-              iconColor="text-amber-600"
-              iconBg="bg-amber-50"
-              value={meta.data?.durationMinutes ? `${meta.data.durationMinutes} min` : "—"}
-              label="Time limit"
-            />
+            {isExam ? (
+              <StatCard
+                icon={Clock3}
+                iconColor="text-amber-600"
+                iconBg="bg-amber-50"
+                value={meta.data?.durationMinutes ? `${meta.data.durationMinutes} min` : "—"}
+                label="Time limit"
+              />
+            ) : null}
             <StatCard
               icon={RotateCcw}
               iconColor="text-violet-600"

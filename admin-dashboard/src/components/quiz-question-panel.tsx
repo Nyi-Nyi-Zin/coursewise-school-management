@@ -13,6 +13,7 @@ export function QuizQuestionPanel({ quizId, quizTitle, onClose }: { quizId: stri
   const [questions, setQuestions] = useState<QuizQuestionDraft[]>([]);
   const [attempts, setAttempts] = useState<QuizAttemptSummary[]>([]);
   const [prompt, setPrompt] = useState("");
+  const [explanation, setExplanation] = useState("");
   const [type, setType] = useState<QuestionType>("multiple_choice");
   const [options, setOptions] = useState("\n\n");
   const [correctAnswerIndices, setCorrectAnswerIndices] = useState<number[]>([0]);
@@ -36,7 +37,7 @@ export function QuizQuestionPanel({ quizId, quizTitle, onClose }: { quizId: stri
     if (visibleOptions.length < 2) { setError("Add at least two answer options."); return null; }
     const validAnswers = correctAnswerIndices.filter(index => index >= 0 && index < visibleOptions.length);
     if (!validAnswers.length) { setError("Choose at least one correct answer."); return null; }
-    const item: QuizQuestionDraft = { id: crypto.randomUUID(), prompt: prompt.trim(), type, options: visibleOptions, correctAnswerIndex: validAnswers[0], ...(type === "multiple_select" ? { correctAnswerIndices: validAnswers } : {}), marks: Math.max(1, marks || 1), sortOrder: questions.length };
+    const item: QuizQuestionDraft = { id: crypto.randomUUID(), prompt: prompt.trim(), explanation: explanation.trim(), type, options: visibleOptions, correctAnswerIndex: validAnswers[0], ...(type === "multiple_select" ? { correctAnswerIndices: validAnswers } : {}), marks: Math.max(1, marks || 1), sortOrder: questions.length };
     try {
       if (hasFirebaseConfiguration) await saveQuizQuestion(quizId, item);
       setQuestions(current => [...current, item]);
@@ -44,7 +45,7 @@ export function QuizQuestionPanel({ quizId, quizTitle, onClose }: { quizId: stri
       setError(cause instanceof Error ? `Could not save question: ${cause.message}` : "Could not save question. Please try again.");
       return null;
     }
-    setPrompt(""); setOptions("\n\n"); setCorrectAnswerIndices([0]); setMarks(1); setError("");
+    setPrompt(""); setExplanation(""); setOptions("\n\n"); setCorrectAnswerIndices([0]); setMarks(1); setError("");
     return item;
   };
   const submit = async () => {

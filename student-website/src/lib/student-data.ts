@@ -6,6 +6,7 @@ export const studentQueryKeys = {
   profile: ["student", "profile"] as const,
   announcements: ["student", "announcements"] as const,
   lessons: ["student", "lessons"] as const,
+  lessonProgress: ["student", "lessonProgress"] as const,
   quizzes: ["student", "quizzes"] as const,
   attendance: ["student", "attendance"] as const,
   assignments: ["student", "assignments"] as const,
@@ -27,3 +28,40 @@ export const demoAttendance: { date: string; status: AttendanceStatus; note: str
   { date: "Wed, 20 Aug", status: "Late", note: "Joined 10 minutes late" },
   { date: "Fri, 22 Aug", status: "Present", note: "On time" },
 ];
+
+const DEMO_LESSON_PROGRESS_KEY = "demo-lesson-progress";
+
+// Demo mode stores per-student lesson status in localStorage so progress
+// survives reloads without a Firebase project. On clean profiles the seed
+// mirrors the representative statuses demoLessons already ships with.
+export function getDemoLessonProgress(): Map<string, Lesson["status"]> {
+  const seed = new Map(demoLessons.map((lesson) => [lesson.id, lesson.status] as const));
+  if (typeof window === "undefined") return seed;
+  try {
+    const stored = window.localStorage.getItem(DEMO_LESSON_PROGRESS_KEY);
+    if (!stored) {
+      window.localStorage.setItem(DEMO_LESSON_PROGRESS_KEY, JSON.stringify([...seed]));
+      return seed;
+    }
+    const restored = new Map<string, Lesson["status"]>();
+    const parsed = JSON.parse(stored) as [string, Lesson["status"]][];
+    parsed.forEach(([lessonId, status]) => {
+      if (lessonId && (status === "new" || status === "continue" || status === "complete")) restored.set(lessonId, status);
+    });
+    return restored;
+  } catch {
+    // Storage may be unavailable (private mode); fall back to the in-memory seed.
+    return seed;
+  }
+}
+
+export function setDemoLessonProgress(lessonId: string, status: Lesson["status"]): void {
+  if (typeof window === "undefined") return;
+  try {
+    const next = new Map(getDemoLessonProgress());
+    next.set(lessonId, status);
+    window.localStorage.setItem(DEMO_LESSON_PROGRESS_KEY, JSON.stringify([...next]));
+  } catch {
+    // Non-fatal in demo mode: the status just won't persist across reloads.
+  }
+}

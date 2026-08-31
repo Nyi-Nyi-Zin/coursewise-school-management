@@ -67,7 +67,7 @@ export function evaluateAttemptEligibility(input: EligibilityInput): Eligibility
     }
   }
 
-  const elapsedSeconds = measureElapsedTime(input.durationSeconds, input.startedAt, input.now);
+  const elapsedSeconds = measureElapsedTime(input.kind === 'final_exam' ? input.durationSeconds : 0, input.startedAt, input.now);
   if (elapsedSeconds === null) {
     return { ok: false, code: 'time-expired', message: 'Time is up for this assessment.' };
   }

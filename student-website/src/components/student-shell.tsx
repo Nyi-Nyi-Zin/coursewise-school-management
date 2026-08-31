@@ -208,7 +208,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
         </>
       ) : null}
 
-      <main className="mx-auto w-full max-w-[1480px] flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pt-7 lg:px-8 xl:px-10">
+      <main className="mx-auto min-w-0 w-full max-w-[1480px] flex-1 overflow-x-hidden px-4 pb-10 pt-6 sm:px-6 sm:pt-7 lg:px-8 xl:px-10">
         {children}
       </main>
       <div className="pb-20 lg:pb-0">
@@ -218,12 +218,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden"
         aria-label="Mobile student navigation"
       >
-        <div
-          className="mx-auto grid max-w-lg"
-          style={{
-            gridTemplateColumns: `repeat(${mobileNavigation.length}, minmax(0, 1fr))`,
-          }}
-        >
+        <div className="mx-auto flex max-w-lg gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {mobileNavigation.map(item => {
             const Icon = item.icon;
             const active =
@@ -236,12 +231,12 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition-colors",
+                  "flex min-w-[68px] flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2 text-[9px] font-medium transition-colors sm:text-[10px]",
                   active ? "text-teal-700" : "text-slate-400"
                 )}
               >
                 <Icon className="size-5" />
-                {item.label}
+                <span className="w-full truncate text-center">{item.label}</span>
               </Link>
             );
           })}

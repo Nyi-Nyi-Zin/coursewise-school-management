@@ -1,4 +1,4 @@
-import { collection, deleteField, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, getDoc, getDocs, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 import { getFirebaseClient } from './firebase';
 
@@ -7,6 +7,7 @@ export type QuizKind = 'chapter_quiz' | 'final_exam';
 export type QuizQuestionDraft = {
   id: string;
   prompt: string;
+  explanation?: string;
   /** Older questions without a type are treated as multiple choice. */
   type?: 'multiple_choice' | 'multiple_select' | 'true_false';
   options: string[];
@@ -31,6 +32,7 @@ export type QuizAttemptSummary = {
 function publicQuestionData(question: QuizQuestionDraft) {
   return {
     prompt: question.prompt,
+    explanation: question.explanation ?? '',
     ...(question.type ? { type: question.type } : {}),
     options: question.options,
     marks: question.marks,
@@ -72,6 +74,7 @@ export async function loadQuizQuestions(quizId: string): Promise<QuizQuestionDra
     return {
       id: record.id,
       prompt: String(data.prompt ?? ''),
+      explanation: String(data.explanation ?? ''),
       options: Array.isArray(data.options) ? data.options : [],
       marks: Number(data.marks ?? 1),
       sortOrder: Number(data.sortOrder ?? 0),
@@ -87,6 +90,12 @@ export async function loadQuizQuestions(quizId: string): Promise<QuizQuestionDra
 export async function publishQuiz(quizId: string, questions: QuizQuestionDraft[]) {
   const { db } = getFirebaseClient();
   const quizReference = doc(db, 'quizzes', quizId);
+  const quizSnapshot = await getDoc(quizReference);
+  const quizData = quizSnapshot.data();
+  if (quizData?.kind === 'final_exam') {
+    const drawCount = Math.max(1, Number(quizData.drawQuestionCount ?? 50));
+    if (questions.length < drawCount) throw new Error(`Add at least ${drawCount} questions before publishing this final exam.`);
+  }
   await updateDoc(quizReference, {
     isPublished: true,
     totalMarks: questions.reduce((total, question) => total + question.marks, 0),

@@ -1,5 +1,6 @@
 import { arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, DocumentSnapshot, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter, where } from "firebase/firestore";
 import { getFirebaseClient } from "./firebase";
+import { authenticatedApiFetch } from "./authenticated-api";
 
 export type CourseRecord = { id: string; title: string; isActive: boolean; enrolledStudentIds: string[] };
 export type BatchRecord = { id: string; courseId: string; name: string; isActive: boolean; enrolledStudentIds: string[] };
@@ -131,6 +132,7 @@ export async function deleteEnrollment(enrollment: EnrollmentRecord) {
     const studentSnapshot = await transaction.get(studentRef);
     const studentData = studentSnapshot.data() ?? {};
     transaction.delete(enrollmentRef);
+    transaction.delete(doc(db, "enrollmentLocks", enrollment.studentId));
     transaction.update(batchRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
     transaction.update(courseRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
     const studentUpdates: Record<string, unknown> = {
@@ -149,21 +151,7 @@ export async function linkBatchToCourse(batchId: string, courseId: string) {
 }
 
 export async function enrollStudent(courseId: string, batchId: string, studentId: string) {
-  const { db } = getFirebaseClient();
-  const courseRef = doc(db, "courses", courseId);
-  const batchRef = doc(db, "batches", batchId);
-  const enrollmentRef = doc(db, "enrollments", `${courseId}_${batchId}_${studentId}`);
-  const studentRef = doc(db, "users", studentId);
-  const existingActiveEnrollments = await getDocs(query(collection(db, "enrollments"), where("studentId", "==", studentId), where("status", "==", "active")));
-  if (existingActiveEnrollments.docs.length > 0) {
-    throw new Error("This student is already enrolled. Use Update to move them instead.");
-  }
-  await runTransaction(db, async transaction => {
-    transaction.set(enrollmentRef, { studentId, courseId, batchId, status: "active", enrolledAt: serverTimestamp() }, { merge: true });
-    transaction.update(courseRef, { enrolledStudentIds: arrayUnion(studentId), updatedAt: serverTimestamp() });
-    transaction.update(batchRef, { enrolledStudentIds: arrayUnion(studentId), updatedAt: serverTimestamp() });
-    transaction.set(studentRef, { activeCourseId: courseId, activeBatchId: batchId, enrollments: arrayUnion({ courseId, batchId }), updatedAt: serverTimestamp() }, { merge: true });
-  });
+  await authenticatedApiFetch("/api/students", { method: "PUT", body: JSON.stringify({ courseId, batchId, studentId }) });
 }
 
 export async function updateEnrollmentBatch(enrollment: EnrollmentRecord, batchId: string) {
@@ -202,6 +190,7 @@ export async function updateEnrollmentBatch(enrollment: EnrollmentRecord, batchI
       status: enrollment.status,
       updatedAt: serverTimestamp(),
     }, { merge: true });
+    transaction.set(doc(db, "enrollmentLocks", enrollment.studentId), { studentId: enrollment.studentId, courseId: enrollment.courseId, batchId, active: enrollment.status === "active", updatedAt: serverTimestamp() }, { merge: true });
     transaction.update(previousBatchRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
     transaction.update(nextBatchRef, { enrolledStudentIds: arrayUnion(enrollment.studentId), updatedAt: serverTimestamp() });
     transaction.set(studentRef, {

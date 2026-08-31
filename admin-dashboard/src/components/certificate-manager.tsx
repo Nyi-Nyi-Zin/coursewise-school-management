@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Award, BadgeCheck, Loader2, Printer, Send } from "lucide-react";
-import Image from "next/image";
+import { Award, Loader2, Printer, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+
+import { CertificateTemplate } from "@/components/certificate-template";
 
 import {
   issueCertificate,
@@ -209,10 +210,6 @@ export function CertificateManager() {
               <InputField label="Batch number" value={draft.batchName} onChange={batchName => setDraft(current => ({ ...current, batchName }))} />
               <InputField label="Completion date" type="date" value={draft.completionDate} onChange={completionDate => setDraft(current => ({ ...current, completionDate }))} />
               <InputField label="Certificate serial ID" value={draft.certificateId} onChange={certificateId => setDraft(current => ({ ...current, certificateId }))} mono />
-              <SelectField label="Certificate template" value={draft.templateKey} onChange={templateKey => setDraft(current => ({ ...current, templateKey: templateKey as CertificateDraft["templateKey"] }))}>
-                <option value="classic">Classic green & gold</option>
-                <option value="modern">Modern teal</option>
-              </SelectField>
             </div>
           )}
 
@@ -288,38 +285,17 @@ export function CertificateManager() {
 }
 
 function CertificatePreview({ draft, verificationCode }: { draft: CertificateDraft; verificationCode: string }) {
-  const modern = draft.templateKey === "modern";
   return (
-    <div id="certificate-print-area" className={`certificate-print-area relative aspect-[1.414/1] w-full overflow-hidden p-[3.5%] shadow-[0_24px_70px_rgba(20,61,54,.13)] ring-1 ring-stone-200 ${modern ? "bg-white" : "bg-[#fffdf7]"}`}>
-      <div className="absolute inset-0 opacity-[.045]" style={{ backgroundImage: "radial-gradient(#143d36 0.8px, transparent 0.8px)", backgroundSize: "12px 12px" }} />
-      <div className={`absolute -left-[7%] -top-[18%] size-[38%] rounded-full border-[22px] ${modern ? "border-teal-200/50" : "border-[#d4f59b]/45"}`} />
-      <div className="absolute -bottom-[28%] -right-[8%] size-[48%] rounded-full border-[28px] border-[#143d36]/10" />
-      <div className="relative flex h-full flex-col border border-[#143d36]/25 px-[6%] py-[4.5%] text-center">
-        <div className="absolute inset-[7px] border border-[#c4a45b]/35" />
-        <div className="relative flex items-center justify-center gap-2.5">
-          <Image src="/teza-tech-lab-logo.svg" alt="Teza Tech Lab" width={44} height={44} className="size-[clamp(28px,4vw,44px)] rounded-lg" />
-          <div className="text-left">
-            <p className="font-display text-[clamp(12px,2vw,20px)] font-semibold leading-none text-[#143d36]">Teza Tech Lab</p>
-            <p className="mt-1 text-[clamp(5px,.65vw,8px)] font-bold uppercase tracking-[.24em] text-[#b08b37]">Learn · Build · Achieve</p>
-          </div>
-        </div>
-
-        <div className="relative mt-[4%] text-[clamp(6px,.8vw,10px)] font-bold uppercase tracking-[.42em] text-[#b08b37]">Certificate of Completion</div>
-        <p className="relative mt-[3%] text-[clamp(6px,.8vw,10px)] italic text-stone-500">This certificate is proudly presented to</p>
-        <h4 className="relative mx-auto mt-[1.5%] min-w-[55%] border-b border-[#c4a45b]/60 px-4 pb-[1%] font-display text-[clamp(18px,4vw,42px)] font-semibold leading-none text-[#143d36]">
-          {draft.studentName || "Student Name"}
-        </h4>
-        <p className="relative mx-auto mt-[2.2%] max-w-[74%] text-[clamp(6px,1vw,12px)] leading-relaxed text-stone-600">
-          for successfully completing <strong className="text-[#143d36]">{draft.courseTitle || "Course Name"}</strong> in <strong className="text-[#143d36]">{draft.batchName || "Batch Number"}</strong> on {displayDate(draft.completionDate)}.
-        </p>
-
-        <div className="relative mt-auto grid grid-cols-3 items-end gap-3 text-[clamp(5px,.65vw,8px)] text-stone-500">
-          <div className="text-left"><p className="font-mono font-bold text-[#143d36]">{draft.certificateId || "Certificate Serial ID"}</p><p className="mt-1 border-t border-stone-300 pt-1 uppercase tracking-wider">Serial ID</p></div>
-          <div className="flex justify-center"><BadgeCheck className="size-[clamp(24px,4vw,44px)] text-[#b08b37]" strokeWidth={1.25} /></div>
-          <div className="text-right"><p className="font-display text-[clamp(7px,1vw,12px)] font-semibold italic text-[#143d36]">Authorized Signature</p><p className="mt-1 border-t border-stone-300 pt-1 uppercase tracking-wider">Teza Tech Lab</p></div>
-        </div>
-        {verificationCode ? <p className="relative mt-2 font-mono text-[clamp(5px,.6vw,7px)] tracking-wider text-stone-400">Verification: {verificationCode}</p> : null}
-      </div>
+    <>
+      <CertificateTemplate
+        id="certificate-print-area"
+        studentName={draft.studentName}
+        courseTitle={draft.courseTitle}
+        batchName={draft.batchName}
+        issuedDate={displayDate(draft.completionDate)}
+        certificateId={draft.certificateId}
+        verificationCode={verificationCode}
+      />
       <style jsx global>{`
         @page { size: A4 landscape; margin: 0; }
         @media print {
@@ -329,7 +305,7 @@ function CertificatePreview({ draft, verificationCode }: { draft: CertificateDra
           #certificate-print-area { position: fixed !important; inset: 0 !important; width: 297mm !important; height: 210mm !important; box-shadow: none !important; }
         }
       `}</style>
-    </div>
+    </>
   );
 }
 

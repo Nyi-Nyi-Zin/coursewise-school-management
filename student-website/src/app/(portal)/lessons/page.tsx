@@ -1,11 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
   CalendarDays,
-  Check,
   CheckCircle2,
   Clock3,
   FileText,
@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { LessonStatusControl } from "@/components/lesson-status-control";
+import { useLessonProgress } from "@/components/use-lesson-progress";
 import { useStudentCourse } from "@/components/student-course-provider";
 import { demoLessons, studentQueryKeys, type Lesson } from "@/lib/student-data";
 import { isFirebaseConfigured } from "@/lib/firebase";
@@ -29,20 +31,27 @@ const filters: { value: LessonFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "continue", label: "In progress" },
   { value: "complete", label: "Completed" },
-  { value: "new", label: "Upcoming" },
+  { value: "new", label: "New" },
 ];
 
 export default function LessonsPage() {
   const { enrollment } = useStudentCourse();
+  const { statuses, updateStatus } = useLessonProgress();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<LessonFilter>("all");
   const [sort, setSort] = useState<LessonSort>("order");
-  const { data: lessons = [], isLoading, isError, refetch } = useQuery({
+  const lessonsQuery = useQuery({
     queryKey: [...studentQueryKeys.lessons, enrollment?.courseId],
     queryFn: () => getPublishedLessons(enrollment?.courseId),
     initialData: isFirebaseConfigured ? undefined : demoLessons,
     enabled: !isFirebaseConfigured || Boolean(enrollment),
   });
+
+  const { isLoading, isError, refetch } = lessonsQuery;
+  const lessons = useMemo(() => {
+    if (!statuses) return lessonsQuery.data ?? [];
+    return (lessonsQuery.data ?? []).map(lesson => statuses.has(lesson.id) ? { ...lesson, status: statuses.get(lesson.id)! } : lesson);
+  }, [lessonsQuery.data, statuses]);
 
   const completedLessons = lessons.filter(lesson => lesson.status === "complete").length;
   const progress = lessons.length ? Math.round((completedLessons / lessons.length) * 100) : 0;
@@ -137,7 +146,7 @@ export default function LessonsPage() {
       <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {isLoading
           ? Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />)
-          : visibleLessons.map((lesson, index) => <LessonCard key={lesson.id} lesson={lesson} number={lessons.indexOf(lesson) + 1 || index + 1} />)}
+          : visibleLessons.map((lesson, index) => <LessonCard key={lesson.id} lesson={lesson} number={lessons.indexOf(lesson) + 1 || index + 1} disabled={!isFirebaseConfigured && !enrollment} pending={updateStatus.isPending} onChangeStatus={status => updateStatus.mutate({ lessonId: lesson.id, status })} />)}
       </div>
 
       {!isLoading && lessons.length > 0 && visibleLessons.length === 0 ? (
@@ -171,7 +180,7 @@ function StatCard({ icon: Icon, label, value, detail, progress, compact = false 
   );
 }
 
-function LessonCard({ lesson, number }: { lesson: Lesson; number: number }) {
+function LessonCard({ lesson, number, disabled, pending, onChangeStatus }: { lesson: Lesson; number: number; disabled: boolean; pending: boolean; onChangeStatus: (status: Lesson["status"]) => void }) {
   const resources = [
     { href: lesson.telegramUrl, label: "Telegram", icon: Send },
     { href: lesson.videoUrl, label: "Video", icon: Video },
@@ -180,7 +189,6 @@ function LessonCard({ lesson, number }: { lesson: Lesson; number: number }) {
   const inProgress = lesson.status === "continue";
   const complete = lesson.status === "complete";
   const lessonProgress = complete ? 100 : inProgress ? 60 : 0;
-  const primaryResource = resources[0];
 
   return (
     <article className={cn(
@@ -191,12 +199,12 @@ function LessonCard({ lesson, number }: { lesson: Lesson; number: number }) {
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-xl font-semibold text-teal-700">
           {String(number).padStart(2, "0")}
         </span>
-        <div className="min-w-0 flex-1 pr-20">
+        <div className="min-w-0 flex-1">
           {inProgress ? <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-teal-700">Resume learning</p> : null}
           <h2 className="text-base font-semibold leading-5 text-slate-950">{lesson.title}</h2>
           <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500">{lesson.description}</p>
         </div>
-        <StatusBadge status={lesson.status} />
+        <LessonStatusControl lessonTitle={lesson.title} status={lesson.status} disabled={disabled} pending={pending} onChange={onChangeStatus} />
       </div>
 
       {inProgress ? (
@@ -208,29 +216,19 @@ function LessonCard({ lesson, number }: { lesson: Lesson; number: number }) {
 
       <div className="mt-auto flex items-end justify-between gap-3 pt-4">
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1.5"><Clock3 className="size-4" />{lesson.duration || "Self-paced"}</span>
+          {lesson.duration ? <span className="inline-flex items-center gap-1.5"><Clock3 className="size-4" />{lesson.duration}</span> : null}
           <span className="inline-flex items-center gap-1.5"><FileText className="size-4" />{resources.length} {resources.length === 1 ? "resource" : "resources"}</span>
           {resources.length > 1 ? resources.map(resource => {
             const Icon = resource.icon;
             return <a key={resource.label} href={resource.href} target="_blank" rel="noreferrer" aria-label={`Open ${resource.label} resource for ${lesson.title}`} title={resource.label} className="text-slate-400 transition hover:text-teal-700"><Icon className="size-4" /></a>;
           }) : null}
         </div>
-        {primaryResource ? (
-          <a href={primaryResource.href} target="_blank" rel="noreferrer" className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-teal-500/70 px-4 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
-            {inProgress ? "Continue" : "Start lesson"}
-          </a>
-        ) : (
-          <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 px-4 text-xs font-semibold text-slate-400">No resources</span>
-        )}
+        <Link href={`/lessons/${lesson.id}`} className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-teal-500/70 px-4 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+          {complete ? "Review lesson" : inProgress ? "Continue" : "Start lesson"}
+        </Link>
       </div>
     </article>
   );
-}
-
-function StatusBadge({ status }: { status: Lesson["status"] }) {
-  if (status === "complete") return <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-semibold text-teal-700"><Check className="size-3" />Completed</span>;
-  if (status === "continue") return <span className="absolute right-3 top-3 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">In progress</span>;
-  return <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-600"><Clock3 className="size-3" />Upcoming</span>;
 }
 
 function durationMinutes(duration: string) {

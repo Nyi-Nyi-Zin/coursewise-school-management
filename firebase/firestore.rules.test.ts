@@ -28,6 +28,8 @@ async function seedBatchIsolationFixture() {
       setDoc(doc(db, "quizzes", "quiz-a"), { title: "Batch A Quiz", courseId: "course-1", batchId: "batch-a", isPublished: true }),
       setDoc(doc(db, "quizzes/quiz-a/questions/question-a"), { prompt: "Question", options: ["A", "B"], marks: 1, sortOrder: 1 }),
       setDoc(doc(db, "quizzes/quiz-a/answerKeys/question-a"), { correctAnswerIndex: 1 }),
+      setDoc(doc(db, "lessonProgress", "lesson-a_student-a"), { lessonId: "lesson-a", studentId: "student-a", courseId: "course-1", status: "continue" }),
+      setDoc(doc(db, "lessonProgress", "lesson-b_student-b"), { lessonId: "lesson-b", studentId: "student-b", courseId: "course-1", status: "complete" }),
     ]);
   });
 }
@@ -73,6 +75,27 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     await assertSucceeds(setDoc(doc(admin, "enrollments", "course-1_batch-b_student-a"), { studentId: "student-a", courseId: "course-1", batchId: "batch-b", status: "active" }));
     await assertSucceeds(setDoc(enrollmentRef, { status: "inactive" }, { merge: true }));
     await assertSucceeds(deleteDoc(enrollmentRef));
+  });
+
+  it("lets a student read and update only their own lesson progress", async () => {
+    await seedBatchIsolationFixture();
+    const studentA = testEnv.authenticatedContext("student-a").firestore();
+    await assertSucceeds(getDoc(doc(studentA, "lessonProgress", "lesson-a_student-a")));
+    await assertFails(getDoc(doc(studentA, "lessonProgress", "lesson-b_student-b")));
+    await assertSucceeds(setDoc(doc(studentA, "lessonProgress", "lesson-a_student-a"), { status: "complete", updatedAt: new Date() }, { merge: true }));
+  });
+
+  it("lets an enrolled student create lesson progress for a course lesson", async () => {
+    await seedBatchIsolationFixture();
+    const studentA = testEnv.authenticatedContext("student-a").firestore();
+    await assertSucceeds(setDoc(doc(studentA, "lessonProgress", "lesson-b_student-a"), { lessonId: "lesson-b", studentId: "student-a", courseId: "course-1", status: "continue", updatedAt: new Date() }));
+  });
+
+  it("rejects invalid lesson progress statuses and foreign students", async () => {
+    await seedBatchIsolationFixture();
+    const studentA = testEnv.authenticatedContext("student-a").firestore();
+    await assertFails(setDoc(doc(studentA, "lessonProgress", "lesson-b_student-a"), { lessonId: "lesson-b", studentId: "student-a", courseId: "course-1", status: "watched", updatedAt: new Date() }));
+    await assertFails(setDoc(doc(studentA, "lessonProgress", "lesson-a_student-b"), { lessonId: "lesson-a", studentId: "student-b", courseId: "course-1", status: "continue", updatedAt: new Date() }));
   });
 
   it("still denies enrolment deletes and writes for non-administrators", async () => {

@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 
 import { getFirebaseAdmin } from "@/lib/firebase-admin";
+import { isStrongPassword, isValidEmail, normalizeEmail, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,37 @@ const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
 class RegistrationError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
+}
+
+const AUTH_ACTIONS = new Set(["student_login", "student_reset_request", "student_reset_confirm"]);
+
+async function verifyRecaptcha(token: string, action: string, request: Request) {
+  const secret = process.env.RECAPTCHA_V3_SECRET_KEY;
+  if (!secret) throw new RegistrationError(503, "Security verification is not configured.");
+  const parameters = new URLSearchParams({ secret, response: token });
+  const ip = clientIp(request); if (ip !== "unknown") parameters.set("remoteip", ip);
+  const result = await fetch("https://www.google.com/recaptcha/api/siteverify", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: parameters, cache: "no-store" }).then(response => response.json()) as { success?: boolean; score?: number; action?: string };
+  if (!result.success || result.action !== action || Number(result.score ?? 0) < 0.5) throw new RegistrationError(403, "Security verification failed. Please try again.");
+}
+
+async function enforceAuthRateLimit(request: Request, action: string, email: string) {
+  const salt = process.env.SIGNUP_RATE_LIMIT_SALT; if (!salt) throw new RegistrationError(503, "Security verification is not configured.");
+  const settings: Record<string, { max: number; window: number }> = { student_login: { max: 5, window: 900_000 }, student_reset_request: { max: 3, window: 3_600_000 }, student_reset_confirm: { max: 5, window: 3_600_000 } };
+  const setting = settings[action]; const key = createHmac("sha256", salt).update(`${action}:${clientIp(request)}:${email}`).digest("hex"); const reference = getFirebaseAdmin().db.doc(`system/authRateLimits_${key}`); const now = Date.now();
+  await getFirebaseAdmin().db.runTransaction(async transaction => { const snapshot = await transaction.get(reference); const started = Number(snapshot.data()?.windowStartedAtMillis ?? 0); const active = now - started < setting.window; const count = active ? Number(snapshot.data()?.count ?? 0) : 0; if (count >= setting.max) throw new RegistrationError(429, "Too many attempts. Please wait and try again."); transaction.set(reference, { action, count: count + 1, windowStartedAtMillis: active ? started : now, expiresAtMillis: (active ? started : now) + setting.window, updatedAt: FieldValue.serverTimestamp() }); });
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json().catch(() => { throw new RegistrationError(400, "Security verification failed."); });
+    const action = String(body?.action ?? ""); const email = normalizeEmail(String(body?.email ?? "")); const token = String(body?.token ?? "");
+    if (!AUTH_ACTIONS.has(action) || !isValidEmail(email) || !token) throw new RegistrationError(400, "Security verification failed.");
+    await verifyRecaptcha(token, action, request); await enforceAuthRateLimit(request, action, email);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof RegistrationError) return jsonError(error.status, error.message);
+    return jsonError(500, "Security verification failed.");
+  }
 }
 
 function jsonError(status: number, message: string) {
@@ -67,6 +99,7 @@ async function createNumberedStudentProfile(userId: string, input: { name: strin
       name: input.name,
       email: input.email,
       role: "student",
+      requiresEmailVerification: true,
       studentId,
       isActive: true,
       createdAt: FieldValue.serverTimestamp(),
@@ -80,12 +113,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => { throw new RegistrationError(400, "A valid registration request is required."); });
     const name = String(body?.name ?? "").trim();
-    const email = String(body?.email ?? "").trim().toLowerCase();
+    const email = normalizeEmail(String(body?.email ?? ""));
     const password = String(body?.password ?? "");
-    if (!name || !email.includes("@") || password.length < 6) {
-      throw new RegistrationError(400, "A name, valid email address, and password of at least 6 characters are required.");
-    }
+    const recaptchaToken = String(body?.recaptchaToken ?? "");
+    if (!name || !isValidEmail(email)) throw new RegistrationError(400, "Enter a valid email address.");
+    if (!isStrongPassword(password)) throw new RegistrationError(400, STRONG_PASSWORD_MESSAGE);
+    if (!recaptchaToken) throw new RegistrationError(400, "Security verification failed.");
 
+    await verifyRecaptcha(recaptchaToken, "student_signup", request);
     await enforceRateLimit(request);
 
     const { auth } = getFirebaseAdmin();
