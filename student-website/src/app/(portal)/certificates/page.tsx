@@ -156,6 +156,7 @@ function CertificatePreview({ certificate }: { certificate: StudentCertificate }
       studentName={certificate.studentName}
       courseTitle={certificate.courseTitle}
       batchName={certificate.batchName}
+      courseDescription={certificate.courseDescription}
       issuedDate={formatDate(certificate.issuedAt)}
       certificateId={certificate.certificateId}
       verificationCode={certificate.verificationCode}
@@ -236,6 +237,7 @@ function PrintCertificate({ certificate }: { certificate: StudentCertificate }) 
       studentName={certificate.studentName}
       courseTitle={certificate.courseTitle}
       batchName={certificate.batchName}
+      courseDescription={certificate.courseDescription}
       issuedDate={formatDate(certificate.issuedAt)}
       certificateId={certificate.certificateId}
       verificationCode={certificate.verificationCode}

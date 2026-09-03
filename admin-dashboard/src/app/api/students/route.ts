@@ -111,22 +111,25 @@ export async function PUT(request: Request) {
     const batchId = String(body?.batchId ?? "").trim();
     if (!studentId || !courseId || !batchId) throw new ApiError(400, "Student, course, and batch are required.");
     const { db } = getFirebaseAdmin();
-    const [existing, batchSnapshot] = await Promise.all([
-      db.collection("enrollments").where("studentId", "==", studentId).where("status", "==", "active").get(),
-      db.doc(`batches/${batchId}`).get(),
-    ]);
-    if (!batchSnapshot.exists || batchSnapshot.data()?.courseId !== courseId) throw new ApiError(409, "The selected batch does not belong to this course.");
-    if (!existing.empty) throw new ApiError(409, "This student already has an active course. Remove or update that enrollment first.");
+    const studentReference = db.doc(`users/${studentId}`);
+    const batchReference = db.doc(`batches/${batchId}`);
     const enrollmentReference = db.doc(`enrollments/${courseId}_${batchId}_${studentId}`);
     await db.runTransaction(async transaction => {
-      const [student, enrollment] = await Promise.all([transaction.get(db.doc(`users/${studentId}`)), transaction.get(enrollmentReference)]);
+      const [student, batch, enrollment] = await Promise.all([
+        transaction.get(studentReference),
+        transaction.get(batchReference),
+        transaction.get(enrollmentReference),
+      ]);
       if (!student.exists || student.data()?.role !== "student") throw new ApiError(404, "Student not found.");
-      if (student.data()?.activeCourseId || student.data()?.activeBatchId || (enrollment.exists && enrollment.data()?.status === "active")) throw new ApiError(409, "This student already has an active course.");
+      if (!batch.exists || batch.data()?.courseId !== courseId) throw new ApiError(409, "The selected batch does not belong to this course.");
+      if (enrollment.exists && enrollment.data()?.status === "active") throw new ApiError(409, "This student is already enrolled in the selected batch.");
       transaction.set(enrollmentReference, { studentId, courseId, batchId, status: "active", enrolledAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      // These fields identify the course shown first in the student portal;
+      // they are not a uniqueness lock. Other active enrolments remain valid.
       transaction.set(db.doc(`enrollmentLocks/${studentId}`), { studentId, courseId, batchId, active: true, updatedAt: FieldValue.serverTimestamp() });
-      transaction.set(db.doc(`users/${studentId}`), { activeCourseId: courseId, activeBatchId: batchId, enrollments: FieldValue.arrayUnion({ courseId, batchId }), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      transaction.set(studentReference, { activeCourseId: courseId, activeBatchId: batchId, enrollments: FieldValue.arrayUnion({ courseId, batchId }), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       transaction.set(db.doc(`courses/${courseId}`), { enrolledStudentIds: FieldValue.arrayUnion(studentId), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      transaction.set(db.doc(`batches/${batchId}`), { enrolledStudentIds: FieldValue.arrayUnion(studentId), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      transaction.set(batchReference, { enrolledStudentIds: FieldValue.arrayUnion(studentId), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

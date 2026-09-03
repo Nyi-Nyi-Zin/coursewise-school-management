@@ -19,7 +19,7 @@ export type AssessmentSession = { sessionId: string; kind: QuizKind; title: stri
 export type ChapterAnswerFeedback = { questionId: string; correct: boolean; marksEarned: number; explanation: string; correctIndices: number[]; correctAnswers: string[] };
 export type Assignment = { id: string; title: string; description: string; courseId: string; batchId: string; dueAt?: string; resourceUrl?: string; submissionInstructions?: string };
 export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; submissionFileName?: string; feedback?: string; score?: number | null };
-export type StudentCertificate = { id: string; certificateId: string; verificationCode: string; studentName: string; studentCode: string; courseTitle: string; batchName: string; quizTitle: string; score: number; totalMarks: number; percentage: number; issuedAt?: string; templateKey: "classic" | "modern" };
+export type StudentCertificate = { id: string; certificateId: string; verificationCode: string; studentName: string; studentCode: string; courseTitle: string; batchName: string; courseDescription: string; quizTitle: string; score: number; totalMarks: number; percentage: number; issuedAt?: string; templateKey: "classic" | "modern" };
 
 export async function getStudentProfile(userId: string): Promise<StudentProfile> {
   if (!firestore) return { id: userId, name: "Student", email: "student@example.com", studentId: "TL-2026-001" };
@@ -270,6 +270,7 @@ export async function getMyCertificates(): Promise<StudentCertificate[]> {
     studentCode: String(item.studentCode ?? ""),
     courseTitle: String(item.courseTitle ?? ""),
     batchName: String(item.batchName ?? ""),
+    courseDescription: String(item.courseDescription ?? item.includedTopics ?? ""),
     quizTitle: String(item.quizTitle ?? ""),
     score: Number(item.score ?? 0),
     totalMarks: Number(item.totalMarks ?? 0),

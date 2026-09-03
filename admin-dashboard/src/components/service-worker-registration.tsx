@@ -24,9 +24,21 @@ export function ServiceWorkerRegistration() {
     window.addEventListener("appinstalled", handleAppInstalled);
 
     if ("serviceWorker" in navigator && window.isSecureContext) {
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((error: unknown) => {
-        console.error("Service worker registration failed:", error);
-      });
+      if (process.env.NODE_ENV === "development") {
+        // A previously installed PWA can keep an old client bundle alive and
+        // hide local code changes. Development must always use Next's live
+        // assets, so remove registrations and cached PWA responses.
+        void navigator.serviceWorker.getRegistrations().then(registrations =>
+          Promise.all(registrations.map(registration => registration.unregister()))
+        );
+        if ("caches" in window) {
+          void caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key))));
+        }
+      } else {
+        navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((error: unknown) => {
+          console.error("Service worker registration failed:", error);
+        });
+      }
     }
 
     return () => {

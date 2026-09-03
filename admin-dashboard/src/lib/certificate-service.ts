@@ -13,6 +13,7 @@ export type AdminCertificate = {
   courseTitle: string;
   batchId: string;
   batchName: string;
+  courseDescription: string;
   completionDate: string;
   issuedAt: string | null;
   templateKey: "classic" | "modern";

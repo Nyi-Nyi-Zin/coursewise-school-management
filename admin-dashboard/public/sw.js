@@ -1,4 +1,4 @@
-const CACHE_NAME = "teza-admin-v2";
+const CACHE_NAME = "teza-admin-v3";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {

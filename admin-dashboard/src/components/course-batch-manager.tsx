@@ -210,9 +210,10 @@ export function CourseBatchManager() {
       batchId: string;
       studentId: string;
     }) => enrollStudent(courseId, batchId, studentId),
-    onSuccess: async (_, variables) => {
+    onSuccess: async () => {
       await client.invalidateQueries({ queryKey: coursesKey });
       await client.invalidateQueries({ queryKey: batchesKey });
+      await client.invalidateQueries({ queryKey: allBatchesKey });
       await client.invalidateQueries({ queryKey: enrollmentsKey });
       await client.invalidateQueries({ queryKey: studentsKey });
     },
@@ -868,7 +869,7 @@ function EnrollmentModal({ batches, courses, students, batchId, studentId, setBa
         >
           <option value="">Select a student</option>
           {students.map(item => (
-            <option key={item.id} value={item.id} disabled={Boolean(item.activeBatchId)}>
+            <option key={item.id} value={item.id}>
               {item.name}
               {item.studentId ? ` · ${item.studentId}` : ""}
             </option>

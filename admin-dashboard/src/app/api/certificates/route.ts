@@ -15,6 +15,7 @@ type CertificateBody = {
   courseTitle?: unknown;
   batchId?: unknown;
   batchName?: unknown;
+  courseDescription?: unknown;
   completionDate?: unknown;
   templateKey?: unknown;
 };
@@ -49,6 +50,7 @@ function certificateRecord(id: string, data: Record<string, unknown>) {
     courseTitle: String(data.courseTitle ?? "Course"),
     batchId: String(data.batchId ?? ""),
     batchName: String(data.batchName ?? "Batch"),
+    courseDescription: String(data.courseDescription ?? data.includedTopics ?? ""),
     completionDate: String(data.completionDate ?? issuedAt?.slice(0, 10) ?? ""),
     issuedAt,
     templateKey: data.templateKey === "modern" ? "modern" : "classic",
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
       courseTitle: text(body.courseTitle, "Course name"),
       batchId: text(body.batchId, "Batch"),
       batchName: text(body.batchName, "Batch number"),
+      courseDescription: text(body.courseDescription, "Course description"),
       completionDate,
       quizId: "manual-admin-issue",
       quizTitle: "Course completion",

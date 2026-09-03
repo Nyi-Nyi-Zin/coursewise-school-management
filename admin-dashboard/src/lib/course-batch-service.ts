@@ -1,6 +1,5 @@
 import { arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, DocumentSnapshot, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter, where } from "firebase/firestore";
 import { getFirebaseClient } from "./firebase";
-import { authenticatedApiFetch } from "./authenticated-api";
 
 export type CourseRecord = { id: string; title: string; isActive: boolean; enrolledStudentIds: string[] };
 export type BatchRecord = { id: string; courseId: string; name: string; isActive: boolean; enrolledStudentIds: string[] };
@@ -127,20 +126,39 @@ export async function deleteEnrollment(enrollment: EnrollmentRecord) {
   const batchRef = doc(db, "batches", enrollment.batchId);
   const courseRef = doc(db, "courses", enrollment.courseId);
   const studentRef = doc(db, "users", enrollment.studentId);
+  const activeEnrollments = await getDocs(query(
+    collection(db, "enrollments"),
+    where("studentId", "==", enrollment.studentId),
+    where("status", "==", "active"),
+  ));
+  const remainingActive = activeEnrollments.docs
+    .filter(item => item.id !== enrollment.id)
+    .map(item => ({ courseId: String(item.data().courseId ?? ""), batchId: String(item.data().batchId ?? "") }))
+    .filter(item => item.courseId && item.batchId);
 
   await runTransaction(db, async transaction => {
     const studentSnapshot = await transaction.get(studentRef);
     const studentData = studentSnapshot.data() ?? {};
     transaction.delete(enrollmentRef);
-    transaction.delete(doc(db, "enrollmentLocks", enrollment.studentId));
     transaction.update(batchRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
-    transaction.update(courseRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
+    if (!remainingActive.some(item => item.courseId === enrollment.courseId)) {
+      transaction.update(courseRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
+    }
     const studentUpdates: Record<string, unknown> = {
       enrollments: arrayRemove({ courseId: enrollment.courseId, batchId: enrollment.batchId }),
       updatedAt: serverTimestamp(),
     };
-    if (studentData.activeCourseId === enrollment.courseId) studentUpdates.activeCourseId = deleteField();
-    if (studentData.activeBatchId === enrollment.batchId) studentUpdates.activeBatchId = deleteField();
+    const removedSelectedEnrollment = studentData.activeCourseId === enrollment.courseId && studentData.activeBatchId === enrollment.batchId;
+    if (removedSelectedEnrollment) {
+      const fallback = remainingActive[0];
+      studentUpdates.activeCourseId = fallback?.courseId ?? deleteField();
+      studentUpdates.activeBatchId = fallback?.batchId ?? deleteField();
+      if (fallback) {
+        transaction.set(doc(db, "enrollmentLocks", enrollment.studentId), { studentId: enrollment.studentId, ...fallback, active: true, updatedAt: serverTimestamp() });
+      } else {
+        transaction.delete(doc(db, "enrollmentLocks", enrollment.studentId));
+      }
+    }
     transaction.update(studentRef, studentUpdates);
   });
 }
@@ -151,7 +169,44 @@ export async function linkBatchToCourse(batchId: string, courseId: string) {
 }
 
 export async function enrollStudent(courseId: string, batchId: string, studentId: string) {
-  await authenticatedApiFetch("/api/students", { method: "PUT", body: JSON.stringify({ courseId, batchId, studentId }) });
+  const { db } = getFirebaseClient();
+  const studentRef = doc(db, "users", studentId);
+  const batchRef = doc(db, "batches", batchId);
+  const enrollmentRef = doc(db, "enrollments", `${courseId}_${batchId}_${studentId}`);
+
+  await runTransaction(db, async transaction => {
+    const [student, batch, enrollment] = await Promise.all([
+      transaction.get(studentRef),
+      transaction.get(batchRef),
+      transaction.get(enrollmentRef),
+    ]);
+    if (!student.exists() || student.data()?.role !== "student") throw new Error("Student not found.");
+    if (!batch.exists() || batch.data()?.courseId !== courseId) throw new Error("The selected batch does not belong to this course.");
+    if (enrollment.exists() && enrollment.data()?.status === "active") throw new Error("This student is already enrolled in the selected batch.");
+
+    transaction.set(enrollmentRef, {
+      studentId,
+      courseId,
+      batchId,
+      status: "active",
+      enrolledAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    transaction.set(studentRef, {
+      activeCourseId: courseId,
+      activeBatchId: batchId,
+      enrollments: arrayUnion({ courseId, batchId }),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    transaction.set(doc(db, "courses", courseId), {
+      enrolledStudentIds: arrayUnion(studentId),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    transaction.set(batchRef, {
+      enrolledStudentIds: arrayUnion(studentId),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
 }
 
 export async function updateEnrollmentBatch(enrollment: EnrollmentRecord, batchId: string) {

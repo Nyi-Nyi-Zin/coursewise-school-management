@@ -44,6 +44,7 @@ function emptyDraft(certificateId = ""): CertificateDraft {
     courseTitle: "",
     batchId: "",
     batchName: "",
+    courseDescription: "",
     completionDate: localDate(),
     templateKey: "classic",
   };
@@ -115,6 +116,7 @@ export function CertificateManager() {
       courseTitle: course?.title ?? "",
       batchId: "",
       batchName: "",
+      courseDescription: "",
       studentId: "",
       studentName: "",
       studentCode: "",
@@ -153,6 +155,7 @@ export function CertificateManager() {
       courseTitle: certificate.courseTitle,
       batchId: certificate.batchId,
       batchName: certificate.batchName,
+      courseDescription: certificate.courseDescription,
       completionDate: certificate.completionDate,
       templateKey: certificate.templateKey,
     });
@@ -165,7 +168,7 @@ export function CertificateManager() {
   };
   const canIssue = Boolean(
     draft.studentId && draft.studentName && draft.studentCode && draft.courseId &&
-    draft.courseTitle && draft.batchId && draft.batchName && draft.completionDate && draft.certificateId,
+    draft.courseTitle && draft.batchId && draft.batchName && draft.courseDescription && draft.completionDate && draft.certificateId,
   );
 
   return (
@@ -208,6 +211,7 @@ export function CertificateManager() {
               <InputField label="Student name" value={draft.studentName} onChange={studentName => setDraft(current => ({ ...current, studentName }))} />
               <InputField label="Course name" value={draft.courseTitle} onChange={courseTitle => setDraft(current => ({ ...current, courseTitle }))} />
               <InputField label="Batch number" value={draft.batchName} onChange={batchName => setDraft(current => ({ ...current, batchName }))} />
+              <TextareaField label="Course description" value={draft.courseDescription} onChange={courseDescription => setDraft(current => ({ ...current, courseDescription }))} />
               <InputField label="Completion date" type="date" value={draft.completionDate} onChange={completionDate => setDraft(current => ({ ...current, completionDate }))} />
               <InputField label="Certificate serial ID" value={draft.certificateId} onChange={certificateId => setDraft(current => ({ ...current, certificateId }))} mono />
             </div>
@@ -292,6 +296,7 @@ function CertificatePreview({ draft, verificationCode }: { draft: CertificateDra
         studentName={draft.studentName}
         courseTitle={draft.courseTitle}
         batchName={draft.batchName}
+        courseDescription={draft.courseDescription}
         issuedDate={displayDate(draft.completionDate)}
         certificateId={draft.certificateId}
         verificationCode={verificationCode}
@@ -321,6 +326,14 @@ function InputField({ label, value, onChange, type = "text", mono }: { label: st
   return (
     <label className="block text-sm font-bold text-stone-700">{label}
       <input type={type} value={value} onChange={event => onChange(event.target.value)} className={`mt-2 h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-600 ${mono ? "font-mono" : ""}`} />
+    </label>
+  );
+}
+
+function TextareaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block text-sm font-bold text-stone-700">{label}
+      <textarea value={value} onChange={event => onChange(event.target.value)} rows={3} placeholder="Computer Hardware Assembly, Operating System Installation & Configuration, Hardware / Software Troubleshooting, and Network Fundamentals" className="mt-2 w-full resize-y rounded-xl border border-stone-200 px-3 py-2.5 text-sm leading-5 outline-none focus:border-emerald-600" />
     </label>
   );
 }

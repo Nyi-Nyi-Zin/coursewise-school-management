@@ -40,6 +40,7 @@ export type IssuedCertificate = {
   id: string; certificateId: string; verificationCode: string;
   studentId: string; studentName: string; studentCode: string;
   courseId: string; courseTitle: string; batchId: string; batchName: string;
+  courseDescription: string;
   quizId: string; quizTitle: string; score: number; totalMarks: number; percentage: number;
   attemptNumber: number; issuedAt: string | null; templateKey: "classic" | "modern";
 };
@@ -393,6 +394,6 @@ export async function listStudentCertificates(studentId: string): Promise<Issued
   const snapshot = await getFirebaseAdmin().db.collection("certificates").where("studentId", "==", studentId).get();
   return snapshot.docs.map(document => {
     const data = document.data();
-    return { id: document.id, certificateId: String(data.certificateId ?? document.id), verificationCode: String(data.verificationCode ?? ""), studentId: String(data.studentId ?? studentId), studentName: String(data.studentName ?? "Student"), studentCode: String(data.studentCode ?? ""), courseId: String(data.courseId ?? ""), courseTitle: String(data.courseTitle ?? "Course"), batchId: String(data.batchId ?? ""), batchName: String(data.batchName ?? "Batch"), quizId: String(data.quizId ?? ""), quizTitle: String(data.quizTitle ?? "Final exam"), score: Number(data.score ?? 0), totalMarks: Number(data.totalMarks ?? 0), percentage: Number(data.percentage ?? 0), attemptNumber: Number(data.attemptNumber ?? 1), issuedAt: dateString(data.issuedAt), templateKey: data.templateKey === "modern" ? "modern" : "classic" } satisfies IssuedCertificate;
+    return { id: document.id, certificateId: String(data.certificateId ?? document.id), verificationCode: String(data.verificationCode ?? ""), studentId: String(data.studentId ?? studentId), studentName: String(data.studentName ?? "Student"), studentCode: String(data.studentCode ?? ""), courseId: String(data.courseId ?? ""), courseTitle: String(data.courseTitle ?? "Course"), batchId: String(data.batchId ?? ""), batchName: String(data.batchName ?? "Batch"), courseDescription: String(data.courseDescription ?? data.includedTopics ?? ""), quizId: String(data.quizId ?? ""), quizTitle: String(data.quizTitle ?? "Final exam"), score: Number(data.score ?? 0), totalMarks: Number(data.totalMarks ?? 0), percentage: Number(data.percentage ?? 0), attemptNumber: Number(data.attemptNumber ?? 1), issuedAt: dateString(data.issuedAt), templateKey: data.templateKey === "modern" ? "modern" : "classic" } satisfies IssuedCertificate;
   }).sort((left, right) => (right.issuedAt ?? "").localeCompare(left.issuedAt ?? ""));
 }
