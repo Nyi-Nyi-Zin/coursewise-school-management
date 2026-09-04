@@ -16,8 +16,15 @@ export async function requireAuthenticatedUser(request: Request) {
   if (!match) throw new ApiError(401, "Sign in to continue.");
 
   try {
-    return await getFirebaseAdmin().auth.verifyIdToken(match[1], true);
-  } catch {
+    const { auth, db } = getFirebaseAdmin();
+    const token = await auth.verifyIdToken(match[1], true);
+    const profile = await db.doc(`users/${token.uid}`).get();
+    if (!profile.exists || profile.data()?.role !== "student" || profile.data()?.isActive === false) {
+      throw new ApiError(401, "Your student account is inactive or no longer available. Please sign in with an active account.");
+    }
+    return token;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(401, "Your session is invalid or has expired. Please sign in again.");
   }
 }

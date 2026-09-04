@@ -9,6 +9,8 @@ import {
   BookOpen,
   CalendarDays,
   Camera,
+  Eye,
+  EyeOff,
   GraduationCap,
   KeyRound,
   LogOut,
@@ -33,6 +35,7 @@ import {
   updateStudentName,
   uploadStudentPhoto,
 } from "@/lib/student-repository";
+import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
 
 export default function ProfilePage() {
   const { user, firebaseActive } = useStudentAuth();
@@ -428,12 +431,15 @@ function ChangePasswordDialog({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const newPasswordTooShort = newPassword.length > 0 && newPassword.length < 6;
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const newPasswordInvalid = newPassword.length > 0 && !isStrongPassword(newPassword);
   const confirmMismatch =
     confirmPassword.length > 0 && confirmPassword !== newPassword;
   const canSubmit =
     Boolean(currentPassword) &&
-    newPassword.length >= 6 &&
+    isStrongPassword(newPassword) &&
     confirmPassword === newPassword &&
     !pending;
 
@@ -473,44 +479,58 @@ function ChangePasswordDialog({
 
           <p className="mt-3 text-sm leading-6 text-slate-500">
             Enter your current password to verify your identity, then choose a
-            new password of at least 6 characters.
+            strong new password.
           </p>
 
           <div className="mt-5 space-y-4">
             <label className="block text-sm font-medium text-slate-700">
               Current password
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={event => setCurrentPassword(event.target.value)}
-                placeholder="Enter current password"
-                className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-              />
+              <div className="relative mt-2">
+                <input
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={event => setCurrentPassword(event.target.value)}
+                  placeholder="Enter current password"
+                  autoComplete="current-password"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 pr-11 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                />
+                <PasswordVisibilityButton visible={showCurrentPassword} onClick={() => setShowCurrentPassword(value => !value)} />
+              </div>
             </label>
             <label className="block text-sm font-medium text-slate-700">
               New password
-              <input
-                type="password"
-                value={newPassword}
-                onChange={event => setNewPassword(event.target.value)}
-                placeholder="At least 6 characters"
-                className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-              />
+              <div className="relative mt-2">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={event => setNewPassword(event.target.value)}
+                  placeholder="8+ upper, lower, number, symbol"
+                  autoComplete="new-password"
+                  minLength={8}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 pr-11 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                />
+                <PasswordVisibilityButton visible={showNewPassword} onClick={() => setShowNewPassword(value => !value)} />
+              </div>
             </label>
-            {newPasswordTooShort ? (
+            {newPasswordInvalid ? (
               <p className="text-xs font-medium text-red-600">
-                New password must be at least 6 characters.
+                {STRONG_PASSWORD_MESSAGE}
               </p>
             ) : null}
             <label className="block text-sm font-medium text-slate-700">
               Confirm new password
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={event => setConfirmPassword(event.target.value)}
-                placeholder="Re-enter new password"
-                className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-              />
+              <div className="relative mt-2">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={event => setConfirmPassword(event.target.value)}
+                  placeholder="Re-enter new password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 pr-11 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                />
+                <PasswordVisibilityButton visible={showConfirmPassword} onClick={() => setShowConfirmPassword(value => !value)} />
+              </div>
             </label>
             {confirmMismatch ? (
               <p className="text-xs font-medium text-red-600">
@@ -536,6 +556,10 @@ function ChangePasswordDialog({
       </Card>
     </div>
   );
+}
+
+function PasswordVisibilityButton({ visible, onClick }: { visible: boolean; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 hover:text-teal-700" aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>;
 }
 
 function EditProfileDialog({

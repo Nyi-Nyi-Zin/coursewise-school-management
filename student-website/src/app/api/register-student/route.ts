@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 
 import { getFirebaseAdmin } from "@/lib/firebase-admin";
-import { isStrongPassword, isValidEmail, normalizeEmail, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
+import { isEnglishName, isStrongPassword, isValidEmail, normalizeEmail, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
 
 export const runtime = "nodejs";
 
@@ -21,8 +21,13 @@ async function verifyRecaptcha(token: string, action: string, request: Request) 
   if (!secret) throw new RegistrationError(503, "Security verification is not configured.");
   const parameters = new URLSearchParams({ secret, response: token });
   const ip = clientIp(request); if (ip !== "unknown") parameters.set("remoteip", ip);
-  const result = await fetch("https://www.google.com/recaptcha/api/siteverify", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: parameters, cache: "no-store" }).then(response => response.json()) as { success?: boolean; score?: number; action?: string };
-  if (!result.success || result.action !== action || Number(result.score ?? 0) < 0.5) throw new RegistrationError(403, "Security verification failed. Please try again.");
+  const result = await fetch("https://www.google.com/recaptcha/api/siteverify", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: parameters, cache: "no-store" }).then(response => response.json()) as { success?: boolean; score?: number; action?: string; "error-codes"?: string[] };
+  if (!result.success || result.action !== action || Number(result.score ?? 0) < 0.5) {
+    const diagnostic = process.env.NODE_ENV === "development"
+      ? ` (Google: ${result["error-codes"]?.join(", ") || `action=${result.action ?? "none"}, score=${result.score ?? 0}`})`
+      : "";
+    throw new RegistrationError(403, `Security verification failed. Please try again.${diagnostic}`);
+  }
 }
 
 async function enforceAuthRateLimit(request: Request, action: string, email: string) {
@@ -37,7 +42,8 @@ export async function PUT(request: Request) {
     const body = await request.json().catch(() => { throw new RegistrationError(400, "Security verification failed."); });
     const action = String(body?.action ?? ""); const email = normalizeEmail(String(body?.email ?? "")); const token = String(body?.token ?? "");
     if (!AUTH_ACTIONS.has(action) || !isValidEmail(email) || !token) throw new RegistrationError(400, "Security verification failed.");
-    await verifyRecaptcha(token, action, request); await enforceAuthRateLimit(request, action, email);
+    await verifyRecaptcha(token, action, request);
+    await enforceAuthRateLimit(request, action, email);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof RegistrationError) return jsonError(error.status, error.message);
@@ -116,7 +122,8 @@ export async function POST(request: Request) {
     const email = normalizeEmail(String(body?.email ?? ""));
     const password = String(body?.password ?? "");
     const recaptchaToken = String(body?.recaptchaToken ?? "");
-    if (!name || !isValidEmail(email)) throw new RegistrationError(400, "Enter a valid email address.");
+    if (!isEnglishName(name)) throw new RegistrationError(400, "Enter your full name using English letters only.");
+    if (!isValidEmail(email)) throw new RegistrationError(400, "Enter a valid email address.");
     if (!isStrongPassword(password)) throw new RegistrationError(400, STRONG_PASSWORD_MESSAGE);
     if (!recaptchaToken) throw new RegistrationError(400, "Security verification failed.");
 

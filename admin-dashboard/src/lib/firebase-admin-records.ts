@@ -1,15 +1,28 @@
 import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 
+import { authenticatedApiFetch } from './authenticated-api';
 import { getFirebaseClient } from './firebase';
 import type { ManagementSection, OfflineItem } from './offline-records';
 
 export async function saveFirebaseAdminRecord(section: ManagementSection, item: OfflineItem) {
+  if (section === 'students') {
+    const fields = item.fields ?? {};
+    await authenticatedApiFetch('/api/students', {
+      method: 'PATCH',
+      body: JSON.stringify({ studentId: item.id, name: item.title, email: fields.email ?? '', photoUrl: fields.photoUrl ?? '', isActive: item.status === 'Active' }),
+    });
+    return;
+  }
   const { db } = getFirebaseClient();
   const target = doc(db, collectionName(section), item.id);
   await setDoc(target, { ...firebaseData(section, item), updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function deleteFirebaseAdminRecord(section: ManagementSection, id: string) {
+  if (section === 'students') {
+    await authenticatedApiFetch('/api/students', { method: 'DELETE', body: JSON.stringify({ studentId: id }) });
+    return;
+  }
   const { db } = getFirebaseClient();
   await deleteDoc(doc(db, collectionName(section), id));
 }

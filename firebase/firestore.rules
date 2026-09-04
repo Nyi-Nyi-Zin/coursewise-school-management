@@ -6,10 +6,14 @@ service cloud.firestore {
     function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
     function isAdmin() { return signedIn() && userDoc().data.role == 'admin'; }
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
+    function isActiveStudent() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        userDoc().data.role == 'student' && userDoc().data.isActive != false;
+    }
     function isPublished() { return resource.data.isPublished == true; }
     function hasBatchFields(data) { return data.courseId is string && data.batchId is string; }
     function isBatchMember(courseId, batchId) {
-      return signedIn() && exists(/databases/$(database)/documents/enrollments/$(courseId + '_' + batchId + '_' + request.auth.uid));
+      return isActiveStudent() && exists(/databases/$(database)/documents/enrollments/$(courseId + '_' + batchId + '_' + request.auth.uid));
     }
     function isActiveBatchMember(courseId, batchId) {
       return isBatchMember(courseId, batchId) && get(/databases/$(database)/documents/enrollments/$(courseId + '_' + batchId + '_' + request.auth.uid)).data.status == 'active';
@@ -17,8 +21,14 @@ service cloud.firestore {
     function canReadBatchContent() {
       return hasBatchFields(resource.data) && isActiveBatchMember(resource.data.courseId, resource.data.batchId);
     }
+    function hasQuizBatchScope(data) {
+      return data.keys().hasAll(['batchId']) && data.batchId is string && data.batchId != '';
+    }
+    function canReadQuizContent() {
+      return resource.data.courseId is string && (hasQuizBatchScope(resource.data) ? canReadBatchContent() : canReadCourseContent());
+    }
     function canReadCourseContent() {
-      return signedIn() && resource.data.courseId is string &&
+      return isActiveStudent() && resource.data.courseId is string &&
         get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.enrolledStudentIds.hasAny([request.auth.uid]);
     }
     function canReadOwnBatchRecord() {
@@ -50,14 +60,14 @@ service cloud.firestore {
 
     match /courses/{courseId} {
       // Course documents maintain enrolledStudentIds solely for safe course-list discovery.
-      allow read: if isAdmin() || (signedIn() && resource.data.enrolledStudentIds.hasAny([request.auth.uid]));
+      allow read: if isAdmin() || (isActiveStudent() && resource.data.enrolledStudentIds.hasAny([request.auth.uid]));
       allow create, update, delete: if isAdmin();
 
     }
 
     // Each batch belongs to one course through its courseId field.
     match /batches/{batchId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.enrolledStudentIds.hasAny([request.auth.uid]));
+      allow read: if isAdmin() || (isActiveStudent() && resource.data.enrolledStudentIds.hasAny([request.auth.uid]));
       allow create, update, delete: if isAdmin();
     }
 
@@ -90,9 +100,9 @@ service cloud.firestore {
     // (document id "{lessonId}_{studentId}") and may only ever write their own
     // lesson status, so the Lessons page can render real learning progress.
     match /lessonProgress/{progressId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow read: if isAdmin() || (isActiveStudent() && resource.data.studentId == request.auth.uid);
       allow create: if isAdmin() || (
-        signedIn() &&
+        isActiveStudent() &&
         request.resource.data.studentId == request.auth.uid &&
         request.resource.data.lessonId is string &&
         request.resource.data.courseId is string &&
@@ -100,7 +110,7 @@ service cloud.firestore {
         get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.enrolledStudentIds.hasAny([request.auth.uid])
       );
       allow update: if isAdmin() || (
-        signedIn() &&
+        isActiveStudent() &&
         resource.data.studentId == request.auth.uid &&
         request.resource.data.studentId == request.auth.uid &&
         request.resource.data.status in ['new', 'continue', 'complete'] &&
@@ -110,7 +120,7 @@ service cloud.firestore {
     }
 
     match /quizzes/{quizId} {
-      allow read: if isAdmin() || (isPublished() && canReadBatchContent());
+      allow read: if isAdmin() || (isPublished() && canReadQuizContent());
       allow create, update, delete: if isAdmin();
 
       // Question documents contain display text, options, marks, and sort order only.
@@ -135,7 +145,7 @@ service cloud.firestore {
 
     // Trusted per-student roll-ups written only by the grading backend.
     match /quizSummaries/{summaryId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow read: if isAdmin() || (isActiveStudent() && resource.data.studentId == request.auth.uid);
       allow write: if isAdmin();
     }
 
@@ -151,7 +161,7 @@ service cloud.firestore {
     match /enrollmentLocks/{studentId} { allow read, write: if isAdmin(); }
 
     match /certificates/{certificateId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow read: if isAdmin() || (isActiveStudent() && resource.data.studentId == request.auth.uid);
       allow write: if isAdmin();
     }
 
@@ -168,10 +178,11 @@ service cloud.firestore {
     match /assignmentSubmissions/{submissionId} {
       allow read: if isAdmin() || canReadOwnBatchRecord();
       allow create: if signedIn() && request.resource.data.studentId == request.auth.uid &&
+        isActiveStudent() &&
         hasBatchFields(request.resource.data) && request.resource.data.assignmentId is string &&
         assignmentIsReadable(request.resource.data.assignmentId, request.resource.data.courseId, request.resource.data.batchId);
       allow update: if isAdmin();
-      allow delete: if isAdmin() || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow delete: if isAdmin() || (isActiveStudent() && resource.data.studentId == request.auth.uid);
     }
   }
 }

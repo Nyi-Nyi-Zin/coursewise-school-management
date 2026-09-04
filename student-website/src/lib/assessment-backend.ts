@@ -117,7 +117,7 @@ async function loadAssessmentContext(quizId: string) {
   const data = quiz.data() ?? {};
   const courseId = String(data.courseId ?? "");
   const batchId = String(data.batchId ?? "");
-  if (!courseId || !batchId) throw new ApiError(409, "This assessment is missing course or batch information.");
+  if (!courseId) throw new ApiError(409, "This assessment is missing course information.");
   const [questionSnapshot, answerKeySnapshot] = await Promise.all([
     quiz.ref.collection("questions").orderBy("sortOrder").get(), quiz.ref.collection("answerKeys").get(),
   ]);
@@ -153,10 +153,32 @@ export async function assertBatchEnrollment(studentId: string, courseId: string,
   if (!enrollment.exists || enrollment.data()?.status !== "active") throw new ApiError(403, "You are not enrolled in this course batch.");
 }
 
+/** A quiz with no batchId is shared by all active batches in its course. */
+async function resolveQuizBatch(studentId: string, courseId: string, quizBatchId: string) {
+  if (quizBatchId) {
+    await assertBatchEnrollment(studentId, courseId, quizBatchId);
+    return quizBatchId;
+  }
+  const student = await getFirebaseAdmin().db.doc(`users/${studentId}`).get();
+  const activeCourseId = String(student.data()?.activeCourseId ?? "");
+  const activeBatchId = String(student.data()?.activeBatchId ?? "");
+  if (activeCourseId !== courseId || !activeBatchId) throw new ApiError(403, "You are not enrolled in this course.");
+  await assertBatchEnrollment(studentId, courseId, activeBatchId);
+  return activeBatchId;
+}
+
+async function loadPublishedQuizzes(courseId: string, batchId: string) {
+  const snapshot = await getFirebaseAdmin().db.collection("quizzes").where("courseId", "==", courseId).where("isPublished", "==", true).get();
+  return snapshot.docs.filter(item => {
+    const quizBatchId = String(item.data().batchId ?? "");
+    return !quizBatchId || quizBatchId === batchId;
+  });
+}
+
 async function chapterCompletion(studentId: string, courseId: string, batchId: string) {
   const db = getFirebaseAdmin().db;
-  const quizzes = await db.collection("quizzes").where("courseId", "==", courseId).where("batchId", "==", batchId).where("isPublished", "==", true).get();
-  const chapterIds = quizzes.docs.filter(item => item.data().kind !== "final_exam").map(item => item.id);
+  const quizzes = await loadPublishedQuizzes(courseId, batchId);
+  const chapterIds = quizzes.filter(item => item.data().kind !== "final_exam").map(item => item.id);
   const summaries = chapterIds.length ? await db.getAll(...chapterIds.map(id => db.doc(`quizSummaries/${id}_${studentId}`))) : [];
   const completed = summaries.filter(item => item.exists && Number(item.data()?.attemptCount ?? 0) > 0).length;
   return { completed, total: chapterIds.length, eligible: completed === chapterIds.length };
@@ -187,14 +209,14 @@ function publicSession(context: Awaited<ReturnType<typeof loadAssessmentContext>
 
 export async function startAssessment(studentId: string, quizId: string) {
   const context = await loadAssessmentContext(quizId);
-  await assertBatchEnrollment(studentId, context.courseId, context.batchId);
+  const enrolledBatchId = await resolveQuizBatch(studentId, context.courseId, context.batchId);
   const now = Date.now();
   assertWindow(context, now);
   const sessionReference = context.db.doc(`assessmentSessions/${quizId}_${studentId}`);
   const [existingSnapshot, summarySnapshot] = await Promise.all([sessionReference.get(), context.db.doc(`quizSummaries/${quizId}_${studentId}`).get()]);
   const summary = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
   if (context.kind === "final_exam") {
-    const chapters = await chapterCompletion(studentId, context.courseId, context.batchId);
+    const chapters = await chapterCompletion(studentId, context.courseId, enrolledBatchId);
     if (!chapters.eligible) throw new ApiError(409, `Complete all chapter quizzes first (${chapters.completed}/${chapters.total}).`);
     if (summary?.passed) throw new ApiError(409, "You already passed this final exam.");
     if (remainingAttempts(context.maxRetakes, summary?.attemptCount ?? 0) === 0) throw new ApiError(409, "No attempts remain for this final exam.");
@@ -211,7 +233,7 @@ export async function startAssessment(studentId: string, quizId: string) {
     const indices = byId.get(id)!.options.map((_, index) => index);
     return [id, context.kind === "final_exam" ? shuffle(indices) : indices];
   }));
-  const session: StoredSession = { quizId, studentId, courseId: context.courseId, batchId: context.batchId, kind: context.kind, status: "active", questionIds, optionOrders, answers: {}, checkedQuestionIds: [], startedAtMillis: now, expiresAtMillis: context.durationSeconds > 0 ? now + context.durationSeconds * 1000 : null, integrityViolations: 0, submittedAttemptId: null };
+  const session: StoredSession = { quizId, studentId, courseId: context.courseId, batchId: enrolledBatchId, kind: context.kind, status: "active", questionIds, optionOrders, answers: {}, checkedQuestionIds: [], startedAtMillis: now, expiresAtMillis: context.durationSeconds > 0 ? now + context.durationSeconds * 1000 : null, integrityViolations: 0, submittedAttemptId: null };
   await sessionReference.set({ ...session, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
   return publicSession(context, session);
 }
@@ -224,7 +246,7 @@ function displayedToOriginal(session: StoredSession, questionId: string, display
 export async function checkChapterAnswer(studentId: string, quizId: string, rawQuestionId: unknown, rawSelectedIndices: unknown) {
   const context = await loadAssessmentContext(quizId);
   if (context.kind !== "chapter_quiz") throw new ApiError(404, "Answer checking is available only for chapter quizzes.");
-  await assertBatchEnrollment(studentId, context.courseId, context.batchId);
+  await resolveQuizBatch(studentId, context.courseId, context.batchId);
   const questionId = String(rawQuestionId ?? "");
   const displayed = Array.isArray(rawSelectedIndices) ? rawSelectedIndices.map(Number).filter(Number.isInteger) : [];
   if (!displayed.length) throw new ApiError(400, "Choose an answer before continuing.");
@@ -264,14 +286,14 @@ function mergeSummary(previous: StoredQuizSummary | undefined, outcome: { attemp
   return { ...base, attemptCount: base.attemptCount + 1, bestScore: beatsBest ? outcome.score : base.bestScore, bestTotalMarks: beatsBest ? outcome.totalMarks : base.bestTotalMarks, bestPercentage: beatsBest ? outcome.percentage : base.bestPercentage, bestAttemptId: beatsBest ? outcome.attemptId : base.bestAttemptId ?? outcome.attemptId, latestAttemptId: outcome.attemptId, latestScore: outcome.score, latestTotalMarks: outcome.totalMarks, latestPercentage: outcome.percentage, latestPassed: outcome.passed, latestSubmittedAtMillis: outcome.submittedAtMillis, latestTimeSpentSeconds: outcome.timeSpentSeconds, passed: base.passed || outcome.passed, nextEligibleAtMillis: context.kind === "final_exam" && !outcome.passed ? outcome.submittedAtMillis + context.retakeCooldownHours * 3_600_000 : null, latestIntegrityViolations: violations } satisfies StoredQuizSummary;
 }
 
-async function certificateSnapshot(studentId: string, context: Awaited<ReturnType<typeof loadAssessmentContext>>) {
-  const [student, course, batch] = await Promise.all([context.db.doc(`users/${studentId}`).get(), context.db.doc(`courses/${context.courseId}`).get(), context.db.doc(`batches/${context.batchId}`).get()]);
+async function certificateSnapshot(studentId: string, context: Awaited<ReturnType<typeof loadAssessmentContext>>, batchId: string) {
+  const [student, course, batch] = await Promise.all([context.db.doc(`users/${studentId}`).get(), context.db.doc(`courses/${context.courseId}`).get(), context.db.doc(`batches/${batchId}`).get()]);
   return { studentName: String(student.data()?.name ?? "Student"), studentCode: String(student.data()?.studentId ?? "Pending"), courseTitle: String(course.data()?.title ?? "Course"), batchName: String(batch.data()?.name ?? "Batch"), quizTitle: context.title };
 }
 
 export async function submitAssessment(studentId: string, quizId: string, rawSessionId: unknown, rawAnswers: unknown) {
   const context = await loadAssessmentContext(quizId);
-  await assertBatchEnrollment(studentId, context.courseId, context.batchId);
+  await resolveQuizBatch(studentId, context.courseId, context.batchId);
   const sessionId = `${quizId}_${studentId}`;
   if (String(rawSessionId ?? "") !== sessionId) throw new ApiError(409, "Your assessment session is invalid. Start again.");
   const sessionReference = context.db.doc(`assessmentSessions/${sessionId}`);
@@ -301,7 +323,7 @@ export async function submitAssessment(studentId: string, quizId: string, rawSes
   const summaryReference = context.db.doc(`quizSummaries/${quizId}_${studentId}`);
   const counterReference = context.db.doc(`quizAttemptCounters/${quizId}_${studentId}`);
   const certificateReference = context.db.doc(`certificates/cert_${quizId}_${studentId}`);
-  const certificateData = context.kind === "final_exam" && passed ? await certificateSnapshot(studentId, context) : null;
+  const certificateData = context.kind === "final_exam" && passed ? await certificateSnapshot(studentId, context, session.batchId) : null;
   const review = context.kind === "chapter_quiz" ? buildFullReview(sessionQuestions, answers, grading.gradedQuestions) : undefined;
   const committed = await context.db.runTransaction(async transaction => {
     const [freshSession, summarySnapshot, counterSnapshot, certificateDocument] = await Promise.all([transaction.get(sessionReference), transaction.get(summaryReference), transaction.get(counterReference), transaction.get(certificateReference)]);
@@ -313,14 +335,14 @@ export async function submitAssessment(studentId: string, quizId: string, rawSes
     if (context.kind === "final_exam" && remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this final exam.");
     const attemptReference = context.db.collection("quizAttempts").doc();
     const outcome = { attemptId: attemptReference.id, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, passed, timeSpentSeconds: Math.max(0, Math.round((now - session.startedAtMillis) / 1000)), submittedAtMillis: now };
-    transaction.set(attemptReference, { quizId, kind: context.kind, sessionId, studentId, courseId: context.courseId, batchId: context.batchId, attemptNumber: previousAttempts + 1, answers, ...outcome, integrityViolations: session.integrityViolations, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });
+    transaction.set(attemptReference, { quizId, kind: context.kind, sessionId, studentId, courseId: context.courseId, batchId: session.batchId, attemptNumber: previousAttempts + 1, answers, ...outcome, integrityViolations: session.integrityViolations, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });
     transaction.set(counterReference, { quizId, studentId, count: previousAttempts + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(summaryReference, mergeSummary(previous, outcome, context, studentId, session.integrityViolations), { merge: true });
     if (review) transaction.set(context.db.doc(`quizAttemptReviews/${attemptReference.id}`), { quizId, studentId, review, createdAt: FieldValue.serverTimestamp() });
     transaction.set(sessionReference, { status: "submitted", submittedAttemptId: attemptReference.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     let certificateIssued = false;
     if (certificateData && !certificateDocument.exists) {
-      transaction.set(certificateReference, { certificateId: `CT-${new Date(now).getFullYear()}-${randomCode(6)}`, verificationCode: randomCode(10), studentId, ...certificateData, courseId: context.courseId, batchId: context.batchId, quizId, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, attemptNumber: previousAttempts + 1, issuedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp(), templateKey: "classic" });
+      transaction.set(certificateReference, { certificateId: `CT-${new Date(now).getFullYear()}-${randomCode(6)}`, verificationCode: randomCode(10), studentId, ...certificateData, courseId: context.courseId, batchId: session.batchId, quizId, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, attemptNumber: previousAttempts + 1, issuedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp(), templateKey: "classic" });
       certificateIssued = true;
     }
     return { attemptId: attemptReference.id, certificateIssued };
@@ -340,7 +362,7 @@ function responseFromAttempt(context: Awaited<ReturnType<typeof loadAssessmentCo
 export async function recordIntegrityViolation(studentId: string, quizId: string, reason: unknown) {
   const context = await loadAssessmentContext(quizId);
   if (context.kind !== "final_exam") throw new ApiError(400, "Integrity tracking applies only to final exams.");
-  await assertBatchEnrollment(studentId, context.courseId, context.batchId);
+  await resolveQuizBatch(studentId, context.courseId, context.batchId);
   const reference = context.db.doc(`assessmentSessions/${quizId}_${studentId}`);
   const count = await context.db.runTransaction(async transaction => {
     const snapshot = await transaction.get(reference);
@@ -354,7 +376,7 @@ export async function recordIntegrityViolation(studentId: string, quizId: string
 
 export async function loadAssessmentResults(studentId: string, quizId: string) {
   const context = await loadAssessmentContext(quizId);
-  await assertBatchEnrollment(studentId, context.courseId, context.batchId);
+  await resolveQuizBatch(studentId, context.courseId, context.batchId);
   const summarySnapshot = await context.db.doc(`quizSummaries/${quizId}_${studentId}`).get();
   const summary = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
   let review: unknown[] | undefined;
@@ -368,12 +390,12 @@ export async function loadAssessmentResults(studentId: string, quizId: string) {
 export async function listAssessmentCatalog(studentId: string, courseId: string, batchId: string) {
   await assertBatchEnrollment(studentId, courseId, batchId);
   const db = getFirebaseAdmin().db;
-  const snapshot = await db.collection("quizzes").where("courseId", "==", courseId).where("batchId", "==", batchId).where("isPublished", "==", true).get();
-  const chapterIds = snapshot.docs.filter(item => item.data().kind !== "final_exam").map(item => item.id);
-  const summaries = snapshot.docs.length ? await db.getAll(...snapshot.docs.map(item => db.doc(`quizSummaries/${item.id}_${studentId}`))) : [];
+  const quizzes = await loadPublishedQuizzes(courseId, batchId);
+  const chapterIds = quizzes.filter(item => item.data().kind !== "final_exam").map(item => item.id);
+  const summaries = quizzes.length ? await db.getAll(...quizzes.map(item => db.doc(`quizSummaries/${item.id}_${studentId}`))) : [];
   const summaryByQuiz = new Map(summaries.filter(item => item.exists).map(item => [String(item.data()?.quizId ?? ""), item.data() as StoredQuizSummary]));
   const completedChapters = chapterIds.filter(id => Number(summaryByQuiz.get(id)?.attemptCount ?? 0) > 0).length;
-  return snapshot.docs.map(document => {
+  return quizzes.map(document => {
     const data = document.data();
     const kind: QuizKind = data.kind === "final_exam" ? "final_exam" : "chapter_quiz";
     const summary = summaryByQuiz.get(document.id);

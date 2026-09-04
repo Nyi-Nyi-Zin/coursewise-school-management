@@ -32,12 +32,12 @@ export async function GET(request: Request) {
       courseId ? db.doc(`courses/${courseId}`).get() : null, batchId ? db.doc(`batches/${batchId}`).get() : null,
       courseId ? db.collection("lessons").where("courseId", "==", courseId).where("isPublished", "==", true).get() : null,
       courseId ? db.collection("lessonProgress").where("studentId", "==", studentId).where("courseId", "==", courseId).get() : null,
-      courseId && batchId ? db.collection("quizzes").where("courseId", "==", courseId).where("batchId", "==", batchId).where("isPublished", "==", true).get() : null,
+      courseId && batchId ? db.collection("quizzes").where("courseId", "==", courseId).where("isPublished", "==", true).get() : null,
       db.collection("quizSummaries").where("studentId", "==", studentId).get(), db.collection("certificates").where("studentId", "==", studentId).get(),
     ]);
     const completedLessonIds = new Set(lessonProgress?.docs.filter(item => item.data().status === "complete").map(item => String(item.data().lessonId ?? "")) ?? []);
     const summaryByQuiz = new Map(summaries.docs.map(item => [String(item.data().quizId ?? ""), item.data()]));
-    const results = (quizzes?.docs ?? []).map(document => {
+    const results = (quizzes?.docs ?? []).filter(document => { const quizBatchId = String(document.data().batchId ?? ""); return !quizBatchId || quizBatchId === batchId; }).map(document => {
       const quiz = document.data(); const summary = summaryByQuiz.get(document.id);
       return { quizId: document.id, quizTitle: String(quiz.title ?? "Assessment"), chapter: String(quiz.chapter ?? ""), kind: quiz.kind === "final_exam" ? "final_exam" : "chapter_quiz", attemptCount: Number(summary?.attemptCount ?? 0), bestScore: Number(summary?.bestScore ?? 0), bestTotalMarks: Number(summary?.bestTotalMarks ?? 0), bestPercentage: Number(summary?.bestPercentage ?? 0), latestPercentage: Number(summary?.latestPercentage ?? 0), latestPassed: summary?.latestPassed === true, passed: summary?.passed === true, submittedAtMillis: millis(summary?.latestSubmittedAtMillis), timeSpentSeconds: Number(summary?.latestTimeSpentSeconds ?? 0), integrityViolations: Number(summary?.latestIntegrityViolations ?? 0), nextEligibleAtMillis: millis(summary?.nextEligibleAtMillis) };
     });
@@ -99,6 +99,60 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     return apiErrorResponse(error, "Could not create the student account.");
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    await requireAdministrator(request);
+    const body = await request.json().catch(() => { throw new ApiError(400, "A valid student account update is required."); });
+    const studentId = String(body?.studentId ?? "").trim();
+    const name = String(body?.name ?? "").trim();
+    const email = String(body?.email ?? "").trim().toLowerCase();
+    const photoUrl = typeof body?.photoUrl === "string" ? body.photoUrl.trim() : "";
+    const isActive = body?.isActive !== false;
+    if (!studentId || !name || !email.includes("@")) throw new ApiError(400, "A student ID, name, and email address are required.");
+
+    const { auth, db } = getFirebaseAdmin();
+    const profileReference = db.doc(`users/${studentId}`);
+    const profile = await profileReference.get();
+    if (!profile.exists || profile.data()?.role !== "student") throw new ApiError(404, "Student not found.");
+
+    const statusChanged = profile.data()?.isActive !== isActive;
+    // Keep Firebase Authentication aligned with the profile. Disabling plus
+    // revoking refresh tokens invalidates server requests; the portal's live
+    // profile listener then removes an already-open browser session.
+    await auth.updateUser(studentId, { displayName: name, email, disabled: !isActive });
+    await profileReference.set({ name, email, photoUrl: photoUrl || null, isActive, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    if (statusChanged) await auth.revokeRefreshTokens(studentId);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return apiErrorResponse(error, "Student account could not be updated.");
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await requireAdministrator(request);
+    const body = await request.json().catch(() => { throw new ApiError(400, "A student ID is required."); });
+    const studentId = String(body?.studentId ?? "").trim();
+    if (!studentId) throw new ApiError(400, "A student ID is required.");
+
+    const { auth, db } = getFirebaseAdmin();
+    const profileReference = db.doc(`users/${studentId}`);
+    const profile = await profileReference.get();
+    if (!profile.exists || profile.data()?.role !== "student") throw new ApiError(404, "Student not found.");
+
+    // Delete the profile first so Firestore denies the old token and the live
+    // portal listener signs out before the Authentication record disappears.
+    await profileReference.delete();
+    await auth.deleteUser(studentId).catch(error => {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      if (!code.includes("user-not-found")) throw error;
+    });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return apiErrorResponse(error, "Student account could not be deleted.");
   }
 }
 

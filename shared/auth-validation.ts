@@ -1,5 +1,6 @@
 export const STRONG_PASSWORD_MESSAGE = "Use at least 8 characters with uppercase, lowercase, a number, and a symbol.";
 export function isStrongPassword(value: string) { return value.length >= 8 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value); }
+export function isEnglishName(value: string) { return /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/.test(value.trim()); }
 export function normalizeEmail(value: string) { return value.trim().toLowerCase(); }
 export function isValidEmail(value: string) {
   const email = normalizeEmail(value); if (email.length > 254 || /\s/.test(email)) return false;

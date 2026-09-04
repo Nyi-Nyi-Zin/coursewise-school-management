@@ -22,6 +22,9 @@ export function getStudentAuthenticationErrorMessage(error: unknown): string {
   if (/email already has an account/i.test(message)) {
     return "This email already has an account. Please sign in instead.";
   }
+  if (/security verification.*\(Google:/i.test(message)) {
+    return message;
+  }
   if (/security verification/i.test(message)) {
     return "Security verification failed. Please try again.";
   }

@@ -85,6 +85,16 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     await assertSucceeds(setDoc(doc(studentA, "lessonProgress", "lesson-a_student-a"), { status: "complete", updatedAt: new Date() }, { merge: true }));
   });
 
+  it("denies portal data to an inactive student even if their old token still exists", async () => {
+    await seedBatchIsolationFixture();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "users", "student-a"), { isActive: false }, { merge: true });
+    });
+    const inactiveStudent = testEnv.authenticatedContext("student-a").firestore();
+    await assertFails(getDoc(doc(inactiveStudent, "courses", "course-1")));
+    await assertFails(getDoc(doc(inactiveStudent, "lessonProgress", "lesson-a_student-a")));
+  });
+
   it("lets an enrolled student create lesson progress for a course lesson", async () => {
     await seedBatchIsolationFixture();
     const studentA = testEnv.authenticatedContext("student-a").firestore();

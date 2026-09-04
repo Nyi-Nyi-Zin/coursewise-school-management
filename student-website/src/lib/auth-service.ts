@@ -3,12 +3,13 @@ import { doc, getDoc } from "firebase/firestore";
 import { firebaseAuth, isFirebaseConfigured } from "./firebase";
 import { firestore } from "./firebase";
 import { executeRecaptcha, verifyStudentAuthSecurity } from "./recaptcha";
-import { isStrongPassword, isValidEmail, normalizeEmail, STRONG_PASSWORD_MESSAGE } from "../../../shared/auth-validation";
+import { isEnglishName, isStrongPassword, isValidEmail, normalizeEmail, STRONG_PASSWORD_MESSAGE } from "../../../shared/auth-validation";
 
 export type PortalRole = "admin" | "student" | null;
 
 export async function registerStudent({ name, email, password }: { name: string; email: string; password: string }) {
   if (!firebaseAuth || !isFirebaseConfigured) throw new Error("Firebase Authentication is not configured.");
+  if (!isEnglishName(name)) throw new Error("Enter your full name using English letters only.");
   const normalizedEmail = normalizeEmail(email);
   if (!isValidEmail(normalizedEmail)) throw new Error("Enter a valid email address.");
   if (!isStrongPassword(password)) throw new Error(STRONG_PASSWORD_MESSAGE);
@@ -33,6 +34,10 @@ export async function loginStudent({ email, password }: { email: string; passwor
   await verifyStudentAuthSecurity("student_login", normalizedEmail);
   const credential = await signInWithEmailAndPassword(firebaseAuth, normalizedEmail, password);
   const profile = firestore ? await getDoc(doc(firestore, "users", credential.user.uid)).catch(() => null) : null;
+  if (!profile?.exists() || profile.data()?.role !== "student" || profile.data()?.isActive === false) {
+    await signOut(firebaseAuth);
+    throw new Error("This student account is inactive or no longer available. Contact an administrator.");
+  }
   if (profile?.data()?.requiresEmailVerification === true && !credential.user.emailVerified) {
     await sendEmailVerification(credential.user, { url: `${window.location.origin}/login` }).catch(() => undefined);
     await signOut(firebaseAuth);

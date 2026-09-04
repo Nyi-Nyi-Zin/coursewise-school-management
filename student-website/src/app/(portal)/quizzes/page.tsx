@@ -64,7 +64,7 @@ export default function QuizzesPage() {
   });
 
   const quizItems = quizzes.data ?? [];
-  const attemptItems = attempts.data ?? [];
+  const attemptItems = useMemo(() => attempts.data ?? [], [attempts.data]);
   const attemptsByQuiz = useMemo(() => {
     const grouped = new Map<string, PrivateQuizAttempt[]>();
     attemptItems.forEach(attempt => {
@@ -72,14 +72,15 @@ export default function QuizzesPage() {
     });
     return grouped;
   }, [attemptItems]);
+  const bestAttempts = useMemo(() => Array.from(attemptsByQuiz.values()).map(items => items.reduce((best, attempt) => scorePercentage(attempt) > scorePercentage(best) ? attempt : best)), [attemptsByQuiz]);
   const completedCount = attemptsByQuiz.size;
   const availableCount = quizItems.filter(quiz => !attemptsByQuiz.has(quiz.id) && !isUpcoming(quiz)).length;
-  const percentages = attemptItems.map(scorePercentage);
+  const percentages = bestAttempts.map(scorePercentage);
   const averageScore = percentages.length
     ? Math.round(percentages.reduce((sum, percentage) => sum + percentage, 0) / percentages.length)
     : 0;
   const bestScore = percentages.length ? Math.max(...percentages) : 0;
-  const passedCount = attemptItems.filter(attempt => {
+  const passedCount = bestAttempts.filter(attempt => {
     const quiz = quizItems.find(item => item.id === attempt.quizId);
     return scorePercentage(attempt) >= (quiz?.passingPercent ?? 70);
   }).length;
@@ -104,7 +105,7 @@ export default function QuizzesPage() {
   }
 
   return (
-    <section className="pb-2">
+    <section className="min-w-0 pb-24 lg:pb-2">
       <PortalPageHeader
         eyebrow={`Private assessment record${enrollment ? ` · ${enrollment.batchName}` : ""}`}
         title="Quizzes"
@@ -114,7 +115,7 @@ export default function QuizzesPage() {
       <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Quiz summary">
         <MetricCard icon={ClipboardCheck} label="Available quizzes" value={availableCount} detail="Ready to attempt" />
         <MetricCard icon={CheckCircle2} label="Completed quizzes" value={completedCount} detail={`Out of ${quizItems.length} total`} />
-        <MetricCard icon={BarChart3} label="Average score" value={`${averageScore}%`} detail="Across attempted quizzes" />
+        <MetricCard icon={BarChart3} label="Average score" value={`${averageScore}%`} detail="Across completed quizzes" />
         <MetricCard icon={Award} label="Best score" value={`${bestScore}%`} detail={bestScore ? "Your personal best" : "Complete a quiz to score"} />
       </div>
 
@@ -175,38 +176,36 @@ export default function QuizzesPage() {
             </div>
           </div>
 
-          <aside className="space-y-4">
+          <aside className="min-w-0 space-y-4">
             <PortalPanel className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <Trophy className="size-5 text-teal-600" />Your scored attempts
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-4 sm:px-5">
+                <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900">
+                  <Trophy className="size-5 text-teal-600" />Your quiz scores
                 </h2>
-                <span className="text-xs font-semibold text-teal-700">Recent</span>
+                <span className="shrink-0 text-xs font-semibold text-teal-700">Best by quiz</span>
               </div>
-              <div className="overflow-x-auto px-5 pb-4">
+              <div className="px-4 pb-4 sm:px-5">
                 {attempts.isLoading ? (
                   <p className="py-8 text-center text-sm text-slate-500">Loading your attempts…</p>
                 ) : attempts.isError ? (
                   <p className="py-8 text-center text-sm text-red-600">Your attempts could not be loaded.</p>
-                ) : attemptItems.length ? (
-                  <table className="w-full min-w-[390px] text-left text-xs">
+                ) : bestAttempts.length ? (
+                  <table className="w-full table-fixed text-left text-xs">
                     <thead className="text-slate-500">
                       <tr className="border-b border-slate-200">
-                        <th className="py-3 font-medium">Quiz</th><th className="py-3 font-medium">Score</th><th className="py-3 font-medium">Result</th><th className="py-3 text-right font-medium">Best</th>
+                        <th className="w-[38%] py-3 font-medium">Quiz</th><th className="w-[32%] py-3 text-right font-medium">Highest score</th><th className="w-[30%] py-3 text-right font-medium">Result</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {attemptItems.slice(0, 6).map(attempt => {
+                      {bestAttempts.slice(0, 6).map(attempt => {
                         const quiz = quizItems.find(item => item.id === attempt.quizId);
                         const percentage = scorePercentage(attempt);
                         const passed = percentage >= (quiz?.passingPercent ?? 70);
-                        const best = Math.max(...(attemptsByQuiz.get(attempt.quizId) ?? [attempt]).map(scorePercentage));
                         return (
                           <tr key={attempt.id} className="border-b border-slate-100 last:border-0">
-                            <td className="max-w-40 truncate py-3 pr-3 text-slate-600">{quiz?.title ?? `Quiz ${attempt.quizId.slice(0, 6)}`}</td>
-                            <td className="py-3 font-semibold text-slate-800">{percentage}%</td>
-                            <td className="py-3"><StatusPill tone={passed ? "teal" : "red"}>{passed ? "Passed" : "Needs review"}</StatusPill></td>
-                            <td className="py-3 text-right font-semibold text-slate-700">{best}%</td>
+                            <td className="truncate py-3 pr-2 text-slate-600">{quiz?.title ?? `Quiz ${attempt.quizId.slice(0, 6)}`}</td>
+                            <td className="py-3 text-right font-semibold text-slate-800">{percentage}%</td>
+                            <td className="py-3 text-right"><StatusPill tone={passed ? "teal" : "red"}>{passed ? "Passed" : "Needs review"}</StatusPill></td>
                           </tr>
                         );
                       })}
@@ -224,7 +223,7 @@ export default function QuizzesPage() {
                 <ProgressRing value={quizItems.length ? Math.round((completedCount / quizItems.length) * 100) : 0} />
                 <div className="w-full flex-1 divide-y divide-slate-100 text-sm">
                   <PerformanceLine icon={ClipboardCheck} label="Attempted quizzes" value={`${completedCount} / ${quizItems.length}`} />
-                  <PerformanceLine icon={CheckCircle2} label="Passed attempts" value={`${passedCount} / ${attemptItems.length}`} accent />
+                  <PerformanceLine icon={CheckCircle2} label="Passed quizzes" value={`${passedCount} / ${completedCount}`} accent />
                   <PerformanceLine icon={BarChart3} label="Average score" value={`${averageScore}%`} />
                 </div>
               </div>
