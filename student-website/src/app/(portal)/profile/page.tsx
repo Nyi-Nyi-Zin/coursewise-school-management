@@ -23,7 +23,6 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useStudentAuth } from "@/components/student-auth-provider";
-import { useStudentCourse } from "@/components/student-course-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -31,6 +30,7 @@ import {
   logoutStudent,
 } from "@/lib/auth-service";
 import {
+  getStudentEnrollments,
   getStudentProfile,
   updateStudentName,
   uploadStudentPhoto,
@@ -39,7 +39,6 @@ import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../../shared
 
 export default function ProfilePage() {
   const { user, firebaseActive } = useStudentAuth();
-  const { enrollment } = useStudentCourse();
   const router = useRouter();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +48,11 @@ export default function ProfilePage() {
   const profile = useQuery({
     queryKey: ["student", "profile", user?.uid],
     queryFn: () => getStudentProfile(user!.uid),
+    enabled: Boolean(user?.uid),
+  });
+  const enrollments = useQuery({
+    queryKey: ["student", "enrollments", user?.uid],
+    queryFn: () => getStudentEnrollments(user!.uid),
     enabled: Boolean(user?.uid),
   });
   const photoUpload = useMutation({
@@ -204,23 +208,33 @@ export default function ProfilePage() {
         </InfoCard>
 
         <InfoCard
-          title="Active Learning Batch"
+          title="Enrolled Batches"
           icon={GraduationCap}
           className="lg:col-span-4"
         >
-          <FeaturePanel
-            icon={BookOpen}
-            title={
-              enrollment
-                ? `${enrollment.courseTitle} · ${enrollment.batchName}`
-                : "Awaiting enrollment"
-            }
-            description={
-              enrollment
-                ? "You are currently enrolled in this learning batch."
-                : "An administrator will assign your active learning batch."
-            }
-          />
+          {enrollments.isLoading ? (
+            <div className="flex min-h-40 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-50 to-slate-50 text-sm text-slate-500">
+              Loading enrolled batches…
+            </div>
+          ) : enrollments.data?.length ? (
+            <div className="max-h-56 space-y-3 overflow-y-auto pr-1">
+              {enrollments.data.map((item) => (
+                <FeaturePanel
+                  key={`${item.courseId}-${item.batchId}`}
+                  compact
+                  icon={BookOpen}
+                  title={`${item.courseTitle} / ${item.batchName}`}
+                  description="You are enrolled in this learning batch."
+                />
+              ))}
+            </div>
+          ) : (
+            <FeaturePanel
+              icon={BookOpen}
+              title="Awaiting enrollment"
+              description="An administrator will assign your learning batch."
+            />
+          )}
         </InfoCard>
 
         <InfoCard title="Security" icon={ShieldCheck} className="lg:col-span-4">
@@ -347,15 +361,17 @@ function FeaturePanel({
   icon: Icon,
   title,
   description,
+  compact = false,
 }: {
   icon: typeof ShieldCheck;
   title: string;
   description: string;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex min-h-40 items-center gap-5 rounded-2xl bg-gradient-to-br from-teal-50 to-slate-50 p-5">
-      <span className="grid size-20 shrink-0 place-items-center rounded-full bg-teal-100/70 text-teal-700">
-        <Icon className="size-10" strokeWidth={1.7} />
+    <div className={`flex items-center gap-5 rounded-2xl bg-gradient-to-br from-teal-50 to-slate-50 ${compact ? "min-h-24 p-4" : "min-h-40 p-5"}`}>
+      <span className={`grid shrink-0 place-items-center rounded-full bg-teal-100/70 text-teal-700 ${compact ? "size-12" : "size-20"}`}>
+        <Icon className={compact ? "size-6" : "size-10"} strokeWidth={1.7} />
       </span>
       <div className="min-w-0">
         <h3 className="font-semibold text-slate-900">{title}</h3>

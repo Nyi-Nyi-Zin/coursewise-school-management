@@ -15,6 +15,7 @@ import {
   Megaphone,
   PieChart,
   UserRound,
+  X,
 } from "lucide-react";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { useStudentCourse } from "@/components/student-course-provider";
@@ -63,6 +64,7 @@ export default function StudentHomePage() {
   const { user } = useStudentAuth();
   const { enrollment } = useStudentCourse();
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [selectedBanner, setSelectedBanner] = useState<Announcement | null>(null);
 
   const profile = useQuery({
     queryKey: ["student", "profile", user?.uid],
@@ -156,10 +158,25 @@ export default function StudentHomePage() {
     return () => window.clearInterval(timer);
   }, [banners.length]);
 
+  useEffect(() => {
+    if (!selectedBanner) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedBanner(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [selectedBanner]);
+
   const name = profile.data?.name || user?.displayName || "Student";
   const studentId = profile.data?.studentId || "Pending";
   const photoUrl = profile.data?.photoUrl;
-  const announcement = banners[Math.min(bannerIndex, banners.length - 1)];
   const lessonItems = lessons.data ?? [];
   const completedLessons = lessonItems.filter(
     lesson => lesson.status === "complete",
@@ -334,31 +351,40 @@ export default function StudentHomePage() {
               <Megaphone className="size-5 text-teal-600" />
               Announcements
             </h2>
-            <span className="text-xs font-semibold text-teal-700">View all</span>
           </div>
-          <div className="relative mt-4 min-h-[132px] overflow-hidden rounded-xl border border-emerald-100 bg-gradient-to-r from-lime-50 via-emerald-50/70 to-teal-50 p-5">
-            <div className="relative z-10 max-w-xl">
-              <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-1 text-[11px] font-medium text-teal-700">
-                <Megaphone className="size-3" />
-                {announcement.publishedAt || "Latest"}
-              </span>
-              <h3 className="mt-2 text-lg font-bold text-slate-950">
-                {announcement.title}
-              </h3>
-              <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600 sm:text-sm">
-                {announcement.description}
-              </p>
-              {announcement.linkUrl ? (
-                <a
-                  href={announcement.linkUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Open announcement: ${announcement.title}`}
-                  className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600"
-                />
-              ) : null}
+          <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-xl border border-emerald-100 bg-white">
+            <div
+              className="flex h-full transition-transform duration-700 ease-in-out motion-reduce:transition-none"
+              style={{ transform: `translateX(-${bannerIndex * 100}%)` }}
+            >
+              {banners.map(banner => (
+                <article key={banner.id} className="relative h-full min-w-full">
+                  {banner.bannerUrl ? (
+                    <Image
+                      src={banner.bannerUrl}
+                      alt={banner.title}
+                      fill
+                      sizes="(max-width: 1023px) calc(100vw - 3rem), 50vw"
+                      className="object-contain"
+                    />
+                  ) : null}
+                  {!banner.bannerUrl ? (
+                    <div className="flex h-full flex-col justify-center bg-gradient-to-r from-lime-50 via-emerald-50/70 to-teal-50 px-5">
+                      <h3 className="text-lg font-bold text-slate-950">{banner.title}</h3>
+                      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600 sm:text-sm">{banner.description}</p>
+                    </div>
+                  ) : null}
+                  {banner.bannerUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBanner(banner)}
+                      aria-label={`View announcement: ${banner.title}`}
+                      className="absolute inset-0 cursor-zoom-in rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600"
+                    />
+                  ) : null}
+                </article>
+              ))}
             </div>
-            <ChevronRight className="absolute right-5 top-1/2 size-5 -translate-y-1/2 text-teal-600" />
             {banners.length > 1 ? (
               <div className="absolute bottom-3 right-4 z-20 flex gap-1.5">
                 {banners.map((banner, index) => (
@@ -453,6 +479,36 @@ export default function StudentHomePage() {
           </div>
         </div>
       </section>
+      {selectedBanner?.bannerUrl ? (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-950/90 sm:flex sm:items-center sm:justify-center sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Announcement: ${selectedBanner.title}`}
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) setSelectedBanner(null);
+          }}
+        >
+          <div className="relative h-[100dvh] w-full sm:h-[calc(100dvh-4rem)] sm:max-w-5xl lg:h-[78dvh] lg:max-w-4xl">
+            <Image
+              src={selectedBanner.bannerUrl}
+              alt={selectedBanner.title}
+              fill
+              sizes="100vw"
+              className="object-contain"
+              priority
+            />
+            <button
+              type="button"
+              onClick={() => setSelectedBanner(null)}
+              aria-label="Close announcement"
+              className="absolute right-4 top-4 grid size-11 place-items-center rounded-full bg-black/55 text-white shadow-lg transition hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -16,8 +16,33 @@ export async function GET(request: Request) {
   try {
     await requireAdministrator(request);
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim() ?? "";
-    if (!studentId) throw new ApiError(400, "A student ID is required.");
-    const { db } = getFirebaseAdmin();
+    const { auth, db } = getFirebaseAdmin();
+    if (!studentId) {
+      const profiles = await db.collection("users").where("role", "==", "student").get();
+      const verificationByUid = new Map<string, boolean>();
+      // The Admin SDK accepts at most 100 user identifiers in one lookup.
+      // Fetching in batches keeps this endpoint efficient for larger cohorts.
+      for (let start = 0; start < profiles.docs.length; start += 100) {
+        const identifiers = profiles.docs.slice(start, start + 100).map(profile => ({ uid: profile.id }));
+        const users = await auth.getUsers(identifiers);
+        for (const user of users.users) verificationByUid.set(user.uid, user.emailVerified);
+      }
+      return NextResponse.json({
+        students: profiles.docs.map(profile => {
+          const data = profile.data();
+          return {
+            id: profile.id,
+            name: String(data.name ?? "Student"),
+            email: String(data.email ?? ""),
+            studentId: String(data.studentId ?? ""),
+            photoUrl: String(data.photoUrl ?? ""),
+            isActive: data.isActive !== false,
+            // null means the Firestore profile has no matching Auth account.
+            emailVerified: verificationByUid.has(profile.id) ? verificationByUid.get(profile.id)! : null,
+          };
+        }),
+      });
+    }
     const profileSnapshot = await db.doc(`users/${studentId}`).get();
     if (!profileSnapshot.exists || profileSnapshot.data()?.role !== "student") throw new ApiError(404, "Student not found.");
     const profile = profileSnapshot.data()!;

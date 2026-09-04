@@ -28,11 +28,25 @@ export async function deleteFirebaseAdminRecord(section: ManagementSection, id: 
 }
 
 export async function loadFirebaseAdminRecords(section: ManagementSection): Promise<OfflineItem[]> {
+  if (section === 'students') {
+    const payload = await authenticatedApiFetch('/api/students') as { students: Array<{ id: string; name: string; email: string; studentId: string; photoUrl: string; isActive: boolean; emailVerified: boolean | null }> };
+    return payload.students.map(student => ({
+      id: student.id,
+      title: student.name,
+      description: '',
+      status: student.isActive ? 'Active' : 'Inactive',
+      createdAt: 'Firebase',
+      fields: {
+        studentId: student.studentId,
+        email: student.email,
+        photoUrl: student.photoUrl,
+        emailVerified: student.emailVerified === null ? 'unavailable' : String(student.emailVerified),
+      },
+    }));
+  }
   const { db } = getFirebaseClient();
   const snapshot = await getDocs(collection(db, collectionName(section)));
-  return snapshot.docs
-    .filter(record => section !== 'students' || record.data().role === 'student')
-    .map(record => firebaseItem(section, record.id, record.data() as Record<string, unknown>));
+  return snapshot.docs.map(record => firebaseItem(section, record.id, record.data() as Record<string, unknown>));
 }
 
 function collectionName(section: ManagementSection) {

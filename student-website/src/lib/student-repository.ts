@@ -95,6 +95,68 @@ export async function getStudentEnrollmentContext(userId: string): Promise<Enrol
   };
 }
 
+/** Returns every active course/batch enrollment for use in the student profile. */
+export async function getStudentEnrollments(userId: string): Promise<EnrollmentContext[]> {
+  const database = firestore;
+  if (!database) {
+    return [{ courseId: "demo-web", batchId: "demo-batch", courseTitle: "Web Engineering", batchName: "Demo learning batch" }];
+  }
+
+  const user = await getDoc(doc(database, "users", userId));
+  const profileEnrollments: Array<{ courseId: string; batchId: string }> = Array.isArray(user.data()?.enrollments)
+    ? user.data()!.enrollments
+      .map((item: unknown) => {
+        const enrollment = item as { courseId?: unknown; batchId?: unknown };
+        return { courseId: String(enrollment.courseId ?? ""), batchId: String(enrollment.batchId ?? "") };
+      })
+      .filter(({ courseId, batchId }: { courseId: string; batchId: string }) => Boolean(courseId && batchId))
+    : [];
+  const activeCourseId = String(user.data()?.activeCourseId ?? "");
+  const activeBatchId = String(user.data()?.activeBatchId ?? "");
+  if (activeCourseId && activeBatchId) profileEnrollments.push({ courseId: activeCourseId, batchId: activeBatchId });
+
+  const enrollmentByKey = new Map<string, { courseId: string; batchId: string }>();
+  const addActiveEnrollment = (courseId: string, batchId: string) => {
+    if (courseId && batchId) enrollmentByKey.set(`${courseId}:${batchId}`, { courseId, batchId });
+  };
+
+  await Promise.all(profileEnrollments.map(async ({ courseId, batchId }) => {
+    try {
+      const enrollment = await getDoc(doc(database, "enrollments", `${courseId}_${batchId}_${userId}`));
+      if (enrollment.exists() && enrollment.data().status === "active") addActiveEnrollment(courseId, batchId);
+    } catch {
+      // The collection lookup below can still discover enrollment records.
+    }
+  }));
+
+  try {
+    const snapshot = await getDocs(query(
+      collection(database, "enrollments"),
+      where("studentId", "==", userId),
+      where("status", "==", "active"),
+    ));
+    snapshot.docs.forEach((item) => addActiveEnrollment(
+      String(item.data().courseId ?? ""),
+      String(item.data().batchId ?? ""),
+    ));
+  } catch {
+    // Known enrollment document reads above remain available when listing is denied.
+  }
+
+  return Promise.all([...enrollmentByKey.values()].map(async ({ courseId, batchId }) => {
+    const [course, batch] = await Promise.all([
+      getDoc(doc(database, "courses", courseId)).catch(() => null),
+      getDoc(doc(database, "batches", batchId)).catch(() => null),
+    ]);
+    return {
+      courseId,
+      batchId,
+      courseTitle: course?.exists() ? String(course.data().title ?? "Course") : "Course",
+      batchName: batch?.exists() ? String(batch.data().name ?? "Batch") : "Batch",
+    };
+  }));
+}
+
 export async function getPublishedAnnouncements(courseId?: string, batchId?: string): Promise<Announcement[]> {
   if (!firestore) return demoAnnouncements;
   if (!courseId || !batchId) return [];
