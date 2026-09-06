@@ -54,7 +54,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
       allow update: if isAdmin() || (
         isOwner(userId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photoUrl', 'phone', 'updatedAt'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photoUrl', 'phone', 'updatedAt']) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['photoUrl']) || (
+          resource.data.get('photoUrl', null) in [null, ''] &&
+          request.resource.data.photoUrl is string && request.resource.data.photoUrl.size() > 0
+        ))
       );
     }
 

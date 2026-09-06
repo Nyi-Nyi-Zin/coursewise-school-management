@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStudentAuth } from "@/components/student-auth-provider";
-import { useStudentCourse } from "@/components/student-course-provider";
 import {
   EmptyPortalState,
   formatPortalDate,
@@ -29,6 +28,7 @@ import {
 } from "@/components/portal-ui";
 import {
   getBatchQuizzes,
+  getStudentEnrollments,
   getStudentQuizAttempts,
   type BatchQuiz,
   type PrivateQuizAttempt,
@@ -47,20 +47,24 @@ const quizFilters: { value: QuizFilter; label: string }[] = [
 
 export default function QuizzesPage() {
   const { user } = useStudentAuth();
-  const { enrollment } = useStudentCourse();
+  const enrollments = useQuery({
+    queryKey: ["student", "enrollments", user?.uid],
+    queryFn: () => getStudentEnrollments(user!.uid),
+    enabled: Boolean(user?.uid) || !isFirebaseConfigured,
+  });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<QuizFilter>("all");
-  const enabled = !isFirebaseConfigured || Boolean(user?.uid && enrollment);
+  const enabled = enrollments.isSuccess && (!isFirebaseConfigured || Boolean(user?.uid));
   const quizzes = useQuery({
-    queryKey: ["student", "quizzes", enrollment?.courseId, enrollment?.batchId],
-    queryFn: () => getBatchQuizzes(enrollment?.courseId, enrollment?.batchId),
+    queryKey: ["student", "quizzes", user?.uid, enrollments.data],
+    queryFn: async () => (await Promise.all((enrollments.data ?? []).map(enrollment => getBatchQuizzes(enrollment.courseId, enrollment.batchId)))).flat(),
     enabled,
     refetchOnWindowFocus: false,
   });
   const attempts = useQuery({
-    queryKey: ["student", "quiz-attempts", user?.uid, enrollment?.courseId, enrollment?.batchId],
-    queryFn: () => getStudentQuizAttempts(user!.uid, enrollment?.courseId, enrollment?.batchId),
-    enabled: Boolean(user?.uid && enrollment),
+    queryKey: ["student", "quiz-attempts", user?.uid, enrollments.data],
+    queryFn: async () => (await Promise.all((enrollments.data ?? []).map(enrollment => getStudentQuizAttempts(user!.uid, enrollment.courseId, enrollment.batchId)))).flat(),
+    enabled: enabled && Boolean(user?.uid),
   });
 
   const quizItems = quizzes.data ?? [];
@@ -92,7 +96,7 @@ export default function QuizzesPage() {
     return matchesFilter && searchable.includes(query.trim().toLowerCase());
   });
 
-  if (isFirebaseConfigured && !enrollment) {
+  if (isFirebaseConfigured && enrollments.isSuccess && !enrollments.data.length) {
     return (
       <PortalPanel>
         <EmptyPortalState
@@ -107,7 +111,7 @@ export default function QuizzesPage() {
   return (
     <section className="min-w-0 pb-24 lg:pb-2">
       <PortalPageHeader
-        eyebrow={`Private assessment record${enrollment ? ` · ${enrollment.batchName}` : ""}`}
+        eyebrow="Private assessment record · All enrolled courses"
         title="Quizzes"
         description="Track your quiz progress, attempt assessments, and review your performance."
       />
@@ -119,10 +123,10 @@ export default function QuizzesPage() {
         <MetricCard icon={Award} label="Best score" value={`${bestScore}%`} detail={bestScore ? "Your personal best" : "Complete a quiz to score"} />
       </div>
 
-      {quizzes.isError ? (
+      {quizzes.isError || enrollments.isError ? (
         <PortalPanel className="mt-4 flex flex-wrap items-center justify-between gap-3 border-red-200 p-5 text-sm text-red-700">
-          <span>{quizzes.error instanceof Error ? quizzes.error.message : "Quizzes could not be loaded. Check your connection, then try again."}</span>
-          <Button variant="outline" size="sm" onClick={() => void quizzes.refetch()}>Retry</Button>
+          <span>{(quizzes.error ?? enrollments.error)?.message ?? "Quizzes could not be loaded. Check your connection, then try again."}</span>
+          <Button variant="outline" size="sm" onClick={() => void (enrollments.isError ? enrollments.refetch() : quizzes.refetch())}>Retry</Button>
         </PortalPanel>
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(340px,0.95fr)]">
@@ -158,7 +162,7 @@ export default function QuizzesPage() {
             </div>
 
             <div className="mt-3 space-y-2.5">
-              {quizzes.isLoading ? (
+              {enrollments.isLoading || quizzes.isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />)
               ) : visibleQuizzes.length ? (
                 visibleQuizzes.map((quiz, index) => (

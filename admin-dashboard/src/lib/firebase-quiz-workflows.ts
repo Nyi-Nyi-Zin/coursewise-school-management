@@ -32,7 +32,7 @@ export type QuizAttemptSummary = {
 function publicQuestionData(question: QuizQuestionDraft) {
   return {
     prompt: question.prompt,
-    explanation: question.explanation ?? '',
+    explanation: deleteField(),
     ...(question.type ? { type: question.type } : {}),
     options: question.options,
     marks: question.marks,
@@ -47,7 +47,7 @@ export async function saveQuizQuestion(quizId: string, question: QuizQuestionDra
   batch.set(doc(db, 'quizzes', quizId, 'questions', question.id), publicQuestionData(question), { merge: true });
   batch.set(
     doc(db, 'quizzes', quizId, 'answerKeys', question.id),
-    { correctAnswerIndex: question.correctAnswerIndex, ...(question.correctAnswerIndices ? { correctAnswerIndices: question.correctAnswerIndices } : {}), updatedAt: serverTimestamp() },
+    { explanation: question.explanation ?? "", correctAnswerIndex: question.correctAnswerIndex, ...(question.correctAnswerIndices ? { correctAnswerIndices: question.correctAnswerIndices } : {}), updatedAt: serverTimestamp() },
     { merge: true },
   );
   await batch.commit();
@@ -67,14 +67,14 @@ export async function loadQuizQuestions(quizId: string): Promise<QuizQuestionDra
     getDocs(query(collection(db, 'quizzes', quizId, 'questions'), orderBy('sortOrder'))),
     getDocs(collection(db, 'quizzes', quizId, 'answerKeys')),
   ]);
-  const answerKeys = new Map(answerKeySnapshot.docs.map(key => [key.id, key.data() as { correctAnswerIndex?: number; correctAnswerIndices?: number[] }]));
+  const answerKeys = new Map(answerKeySnapshot.docs.map(key => [key.id, key.data() as { explanation?: string; correctAnswerIndex?: number; correctAnswerIndices?: number[] }]));
   return questionSnapshot.docs.map(record => {
     const data = record.data() as Partial<QuizQuestionDraft>;
     const key = answerKeys.get(record.id);
     return {
       id: record.id,
       prompt: String(data.prompt ?? ''),
-      explanation: String(data.explanation ?? ''),
+      explanation: String(key?.explanation ?? data.explanation ?? ''),
       options: Array.isArray(data.options) ? data.options : [],
       marks: Number(data.marks ?? 1),
       sortOrder: Number(data.sortOrder ?? 0),

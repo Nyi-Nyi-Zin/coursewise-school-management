@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
 const describeWithEmulator = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip;
 let testEnv: RulesTestEnvironment;
@@ -40,6 +40,21 @@ describeWithEmulator("Firestore course and batch isolation", () => {
   });
   afterEach(async () => { await testEnv.clearFirestore(); });
   afterAll(async () => { await testEnv.cleanup(); });
+
+  it("locks a photo after the first upload until an admin resets it", async () => {
+    await seedBatchIsolationFixture();
+    const student = testEnv.authenticatedContext("student-a").firestore();
+    const admin = testEnv.authenticatedContext("admin-1").firestore();
+    const profile = doc(student, "users", "student-a");
+    await assertSucceeds(updateDoc(profile, { photoUrl: "https://example.com/first.jpg" }));
+    await assertFails(updateDoc(profile, { photoUrl: "https://example.com/second.jpg" }));
+    await assertFails(updateDoc(profile, { photoUrl: null }));
+    await assertFails(updateDoc(profile, { photoUrl: "" }));
+    await assertSucceeds(updateDoc(profile, { name: "Updated name" }));
+    await assertSucceeds(updateDoc(doc(admin, "users", "student-a"), { photoUrl: null }));
+    await assertSucceeds(updateDoc(profile, { photoUrl: "https://example.com/replacement.jpg" }));
+    await assertFails(updateDoc(profile, { photoUrl: "https://example.com/third.jpg" }));
+  });
 
   it("allows a student only into their enrolled course and batch content, never answer keys", async () => {
     await seedBatchIsolationFixture();

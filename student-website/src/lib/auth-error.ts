@@ -1,3 +1,5 @@
+import { STRONG_PASSWORD_MESSAGE } from "../../../shared/auth-validation";
+
 export function getStudentAuthenticationErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message.replace("Firebase: ", "") : "";
 
@@ -11,7 +13,7 @@ export function getStudentAuthenticationErrorMessage(error: unknown): string {
     return "Enter a valid email address and try again.";
   }
   if (/auth\/weak-password/.test(message)) {
-    return "Choose a stronger password with at least 6 characters.";
+    return STRONG_PASSWORD_MESSAGE;
   }
   if (/functions\/(not-found|unavailable)|function.*not found/i.test(message)) {
     return "Account registration is temporarily unavailable. Please try again shortly.";

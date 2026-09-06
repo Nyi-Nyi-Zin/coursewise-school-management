@@ -29,7 +29,7 @@ import {
 import {
   getBatchQuizzes,
   getMyCertificates,
-  getPublishedAnnouncements,
+  getStudentAnnouncements,
   getPublishedAssignments,
   getPublishedLessons,
   getStudentAssignmentSubmissions,
@@ -80,13 +80,12 @@ export default function StudentHomePage() {
   const announcements = useQuery({
     queryKey: [
       ...studentQueryKeys.announcements,
-      enrollment?.courseId,
-      enrollment?.batchId,
+      user?.uid,
     ],
     queryFn: () =>
-      getPublishedAnnouncements(enrollment?.courseId, enrollment?.batchId),
+      getStudentAnnouncements(user?.uid ?? ""),
     initialData: isFirebaseConfigured ? undefined : demoAnnouncements,
-    enabled: !isFirebaseConfigured || Boolean(enrollment),
+    enabled: !isFirebaseConfigured || Boolean(user?.uid),
   });
   const quizzes = useQuery({
     queryKey: [

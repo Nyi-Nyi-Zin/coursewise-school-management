@@ -12,7 +12,7 @@ export async function uploadStudentPhotoToCloudinary(file: File): Promise<string
   }
 
   const body = new FormData();
-  body.append("file", file);
+  body.append("file", await compressProfilePhoto(file), "profile.jpg");
   body.append("upload_preset", uploadPreset);
   body.append("folder", "coursewise/avatars");
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body });
@@ -38,4 +38,22 @@ export async function uploadAssignmentFileToCloudinary(file: File): Promise<stri
   const payload = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
   if (!response.ok || !payload?.secure_url) throw new Error(payload?.error?.message ?? "The file could not be uploaded.");
   return payload.secure_url;
+}
+
+export async function compressProfilePhoto(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 500;
+    canvas.height = 500;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Your browser could not prepare this photo.");
+    const side = Math.min(bitmap.width, bitmap.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, 500, 500);
+    context.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 500, 500);
+    return await new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not compress this photo.")), "image/jpeg", 0.8));
+  } finally {
+    bitmap.close();
+  }
 }

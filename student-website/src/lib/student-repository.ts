@@ -30,6 +30,8 @@ export async function getStudentProfile(userId: string): Promise<StudentProfile>
 
 export async function uploadStudentPhoto(userId: string, file: File): Promise<string> {
   if (!firestore) throw new Error("Profile photos are only available in Firebase mode.");
+  const profile = await getStudentProfile(userId);
+  if (profile.photoUrl) throw new Error("You have already uploaded a profile photo. Ask an administrator to reset it before uploading again.");
   const photoUrl = await uploadStudentPhotoToCloudinary(file);
   await updateDoc(doc(firestore, "users", userId), { photoUrl, updatedAt: serverTimestamp() });
   return photoUrl;
@@ -157,10 +159,19 @@ export async function getStudentEnrollments(userId: string): Promise<EnrollmentC
   }));
 }
 
+export async function getStudentAnnouncements(userId: string): Promise<Announcement[]> {
+  if (!firestore) return demoAnnouncements;
+  const enrollments = await getStudentEnrollments(userId);
+  const announcements = await Promise.all(enrollments.map(({ courseId, batchId }) =>
+    getPublishedAnnouncements(courseId, batchId),
+  ));
+  return [...new Map(announcements.flat().map(item => [item.id, item])).values()];
+}
+
 export async function getPublishedAnnouncements(courseId?: string, batchId?: string): Promise<Announcement[]> {
   if (!firestore) return demoAnnouncements;
   if (!courseId || !batchId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "announcements"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("sortOrder", "asc"), limit(8)));
+  const snapshot = await getDocs(query(collection(firestore, "announcements"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("sortOrder", "asc")));
   return snapshot.docs.map((item) => {
     const data = item.data();
     const publishedAt = data.publishedAt as string ?? (data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "") ?? "";

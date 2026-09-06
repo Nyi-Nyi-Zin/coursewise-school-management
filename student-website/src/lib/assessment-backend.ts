@@ -129,7 +129,7 @@ async function loadAssessmentContext(quizId: string) {
     return {
       id: document.id, prompt: String(question.prompt ?? ""),
       options: Array.isArray(question.options) ? question.options.map(String) : [],
-      explanation: String(question.explanation ?? ""),
+      explanation: String(key.explanation ?? question.explanation ?? ""),
       ...(question.type ? { type: question.type as TrustedQuizQuestion["type"] } : {}),
       correctAnswerIndex: Math.trunc(Number(key.correctAnswerIndex ?? -1)),
       ...(Array.isArray(key.correctAnswerIndices) ? { correctAnswerIndices: key.correctAnswerIndices.map(Number) } : {}),

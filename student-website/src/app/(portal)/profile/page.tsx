@@ -57,7 +57,8 @@ export default function ProfilePage() {
   });
   const photoUpload = useMutation({
     mutationFn: (file: File) => uploadStudentPhoto(user!.uid, file),
-    onSuccess: () => {
+    onSuccess: (photoUrl) => {
+      queryClient.setQueryData(["student", "profile", user?.uid], { ...profile.data, photoUrl });
       queryClient.invalidateQueries({
         queryKey: ["student", "profile", user?.uid],
       });
@@ -103,7 +104,7 @@ export default function ProfilePage() {
   function onPhotoSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) photoUpload.mutate(file);
+    if (file && !profile.data?.photoUrl && !photoUpload.isPending) photoUpload.mutate(file);
   }
 
   async function signOut() {
@@ -146,8 +147,8 @@ export default function ProfilePage() {
             </div>
             <button
               type="button"
-              aria-label="Change profile photo"
-              disabled={!firebaseActive || photoUpload.isPending}
+              aria-label="Upload profile photo"
+              disabled={!firebaseActive || !profile.data || Boolean(profile.data.photoUrl) || photoUpload.isPending}
               onClick={() => fileInputRef.current?.click()}
               className="absolute bottom-0 right-0 grid size-10 place-items-center rounded-full border-4 border-white bg-white text-teal-700 shadow-sm transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 sm:size-11"
             >
@@ -173,6 +174,8 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <p role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{profile.data?.photoUrl ? "Your profile photo has been uploaded. Please contact an administrator to reset your photo if you need to change it." : "You may upload your profile photo only once. Please choose your photo carefully before uploading. Photos are automatically resized and compressed to 500 ? 500 pixels."}</p>
 
       <div className="grid gap-5 lg:grid-cols-12">
         <InfoCard
