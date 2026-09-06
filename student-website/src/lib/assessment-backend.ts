@@ -1,6 +1,7 @@
 import "server-only";
 
-import { FieldValue, type DocumentData } from "firebase-admin/firestore";
+import { FieldPath, FieldValue, type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
+import type { QuizCatalogPage, QuizCatalogRequest } from "@/lib/quiz-catalog";
 
 import { getFirebaseAdmin } from "@/lib/firebase-admin";
 import { ApiError } from "@/lib/server-api";
@@ -397,14 +398,88 @@ export async function listAssessmentCatalog(studentId: string, courseId: string,
   const completedChapters = chapterIds.filter(id => Number(summaryByQuiz.get(id)?.attemptCount ?? 0) > 0).length;
   return quizzes.map(document => {
     const data = document.data();
-    const kind: QuizKind = data.kind === "final_exam" ? "final_exam" : "chapter_quiz";
-    const summary = summaryByQuiz.get(document.id);
-    const nextEligibleAt = summary?.nextEligibleAtMillis ? new Date(summary.nextEligibleAtMillis).toISOString() : null;
-    const finalUnlocked = completedChapters === chapterIds.length;
-    const cooldown = Boolean(nextEligibleAt && Date.now() < new Date(nextEligibleAt).getTime());
-    const eligible = kind === "chapter_quiz" || (finalUnlocked && !summary?.passed && !cooldown && remainingAttempts(Number(data.maxRetakes ?? -1), summary?.attemptCount ?? 0) !== 0);
-    return { ...quizCatalogRecord(document.id, data), eligible, lockReason: eligible ? null : summary?.passed ? "Final exam already passed" : cooldown ? "Retake cooldown active" : !finalUnlocked ? `Complete all chapter quizzes (${completedChapters}/${chapterIds.length})` : "No attempts remain", completedChapterCount: completedChapters, totalChapterCount: chapterIds.length, nextEligibleAt, bestPercentage: summary?.bestPercentage ?? 0, attemptCount: summary?.attemptCount ?? 0, passed: summary?.passed ?? false };
+    return catalogEntry(document.id, data, summaryByQuiz.get(document.id), completedChapters, chapterIds.length);
   });
+}
+
+function catalogEntry(id: string, data: DocumentData, summary: StoredQuizSummary | undefined, completedChapters: number, totalChapters: number) {
+  const kind: QuizKind = data.kind === "final_exam" ? "final_exam" : "chapter_quiz";
+  const nextEligibleAt = summary?.nextEligibleAtMillis ? new Date(summary.nextEligibleAtMillis).toISOString() : null;
+  const finalUnlocked = completedChapters === totalChapters;
+  const cooldown = Boolean(nextEligibleAt && Date.now() < new Date(nextEligibleAt).getTime());
+  const eligible = kind === "chapter_quiz" || (finalUnlocked && !summary?.passed && !cooldown && remainingAttempts(Number(data.maxRetakes ?? -1), summary?.attemptCount ?? 0) !== 0);
+  return { ...quizCatalogRecord(id, data), eligible, lockReason: eligible ? null : summary?.passed ? "Final exam already passed" : cooldown ? "Retake cooldown active" : !finalUnlocked ? `Complete all chapter quizzes (${completedChapters}/${totalChapters})` : "No attempts remain", completedChapterCount: completedChapters, totalChapterCount: totalChapters, nextEligibleAt, bestPercentage: summary?.bestPercentage ?? 0, attemptCount: summary?.attemptCount ?? 0, passed: summary?.passed ?? false };
+}
+
+export async function listAssessmentCatalogPage(studentId: string, input: QuizCatalogRequest): Promise<QuizCatalogPage> {
+  const db = getFirebaseAdmin().db;
+  const scopes = [...new Map(input.enrollments.map(scope => [JSON.stringify(scope), scope])).values()];
+  await Promise.all(scopes.map(scope => assertBatchEnrollment(studentId, scope.courseId, scope.batchId)));
+  const batchesByCourse = new Map<string, Set<string>>();
+  for (const scope of scopes) {
+    const batches = batchesByCourse.get(scope.courseId) ?? new Set<string>();
+    batches.add(scope.batchId);
+    batchesByCourse.set(scope.courseId, batches);
+  }
+
+  // Firestore cannot express substring search or join per-student summaries.
+  // Scan projected metadata in bounded chunks; hydrate only the requested page.
+  const metadata = new Map<string, DocumentData>();
+  for (const [courseId, batches] of batchesByCourse) {
+    const base = db.collection("quizzes").where("courseId", "==", courseId).where("isPublished", "==", true)
+      .orderBy(FieldPath.documentId()).select("courseId", "batchId", "title", "description", "chapter", "kind", "opensAt", "passingPercent").limit(200);
+    let cursor: QueryDocumentSnapshot | undefined;
+    while (true) {
+      const snapshot = await (cursor ? base.startAfter(cursor) : base).get();
+      for (const document of snapshot.docs) {
+        const data = document.data();
+        if (!data.batchId || batches.has(String(data.batchId))) metadata.set(document.id, data);
+      }
+      if (snapshot.size < 200) break;
+      cursor = snapshot.docs[snapshot.docs.length - 1];
+    }
+  }
+  const ids = [...metadata.keys()];
+  const summaries = new Map<string, StoredQuizSummary>();
+  for (let offset = 0; offset < ids.length; offset += 200) {
+    const documents = await db.getAll(...ids.slice(offset, offset + 200).map(id => db.doc(`quizSummaries/${id}_${studentId}`)));
+    documents.forEach(document => {
+      if (document.exists) summaries.set(document.id.slice(0, -(studentId.length + 1)), document.data() as StoredQuizSummary);
+    });
+  }
+  const now = Date.now();
+  const records = ids.map(id => {
+    const data = metadata.get(id)!;
+    const summary = summaries.get(id);
+    const completed = Number(summary?.attemptCount ?? 0) > 0;
+    const status = completed ? "completed" : (epochMillis(data.opensAt) ?? 0) > now ? "upcoming" : "available";
+    return { id, data, status, percentage: summary?.bestPercentage ?? 0 };
+  }).sort((a, b) => String(a.data.title ?? "Quiz").localeCompare(String(b.data.title ?? "Quiz"), "en") || a.id.localeCompare(b.id, "en"));
+  const completed = records.filter(record => record.status === "completed");
+  const scores = completed.map(record => ({ id: record.id, title: String(record.data.title ?? "Quiz"), percentage: record.percentage,
+    passed: record.percentage >= (record.data.kind === "final_exam" ? FINAL_PASS_PERCENT : Number(record.data.passingPercent ?? 50)) }));
+  const search = input.query.trim().toLowerCase();
+  const matching = records.filter(({ data, status }) => (input.filter === "all" || input.filter === status)
+    && `${data.title ?? "Quiz"} ${data.description ?? ""} ${data.chapter ?? ""}`.toLowerCase().includes(search));
+  const pageSize = 10;
+  const page = Math.min(input.page, Math.max(0, Math.ceil(matching.length / pageSize) - 1));
+  const selected = matching.slice(page * pageSize, (page + 1) * pageSize);
+  const documents = selected.length ? await db.getAll(...selected.map(record => db.doc(`quizzes/${record.id}`))) : [];
+  const quizzes = documents.filter(document => {
+    const data = document.data();
+    const batches = batchesByCourse.get(String(data?.courseId ?? ""));
+    return document.exists && data?.isPublished === true && batches && (!data.batchId || batches.has(String(data.batchId)));
+  }).sort((a, b) => selected.findIndex(record => record.id === a.id) - selected.findIndex(record => record.id === b.id)).map(document => {
+    const data = document.data()!;
+    const chapters = records.filter(record => record.data.courseId === data.courseId && record.data.kind !== "final_exam"
+      && (!record.data.batchId || record.data.batchId === data.batchId || (!data.batchId && record.data.batchId === scopes.find(scope => scope.courseId === data.courseId)?.batchId)));
+    return catalogEntry(document.id, data, summaries.get(document.id), chapters.filter(record => record.status === "completed").length, chapters.length);
+  });
+  return { quizzes, page, pageSize, total: matching.length,
+    summary: { total: records.length, completed: completed.length, available: records.filter(record => record.status === "available").length,
+      averageScore: completed.length ? Math.round(completed.reduce((sum, record) => sum + record.percentage, 0) / completed.length) : 0,
+      bestScore: completed.reduce((best, record) => Math.max(best, record.percentage), 0), passed: scores.filter(score => score.passed).length },
+    scores: scores.sort((a, b) => b.percentage - a.percentage || a.id.localeCompare(b.id, "en")).slice(0, 6) };
 }
 
 function quizCatalogRecord(id: string, data: DocumentData) {

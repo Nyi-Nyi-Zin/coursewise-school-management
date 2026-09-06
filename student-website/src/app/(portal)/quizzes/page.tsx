@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Award,
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   LockKeyhole,
@@ -27,16 +29,14 @@ import {
   StatusPill,
 } from "@/components/portal-ui";
 import {
-  getBatchQuizzes,
+  getQuizCatalogPage,
   getStudentEnrollments,
-  getStudentQuizAttempts,
   type BatchQuiz,
-  type PrivateQuizAttempt,
 } from "@/lib/student-repository";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
-type QuizFilter = "all" | "available" | "completed" | "upcoming";
+import type { QuizFilter } from "@/lib/quiz-catalog";
 
 const quizFilters: { value: QuizFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -54,47 +54,28 @@ export default function QuizzesPage() {
   });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<QuizFilter>("all");
+  const [page, setPage] = useState(0);
   const enabled = enrollments.isSuccess && (!isFirebaseConfigured || Boolean(user?.uid));
   const quizzes = useQuery({
-    queryKey: ["student", "quizzes", user?.uid, enrollments.data],
-    queryFn: async () => (await Promise.all((enrollments.data ?? []).map(enrollment => getBatchQuizzes(enrollment.courseId, enrollment.batchId)))).flat(),
+    queryKey: ["student", "quizzes", user?.uid, enrollments.data, page, query, filter],
+    queryFn: () => getQuizCatalogPage({ enrollments: enrollments.data ?? [], page, query, filter }),
     enabled,
     refetchOnWindowFocus: false,
   });
-  const attempts = useQuery({
-    queryKey: ["student", "quiz-attempts", user?.uid, enrollments.data],
-    queryFn: async () => (await Promise.all((enrollments.data ?? []).map(enrollment => getStudentQuizAttempts(user!.uid, enrollment.courseId, enrollment.batchId)))).flat(),
-    enabled: enabled && Boolean(user?.uid),
-  });
-
-  const quizItems = quizzes.data ?? [];
-  const attemptItems = useMemo(() => attempts.data ?? [], [attempts.data]);
-  const attemptsByQuiz = useMemo(() => {
-    const grouped = new Map<string, PrivateQuizAttempt[]>();
-    attemptItems.forEach(attempt => {
-      grouped.set(attempt.quizId, [...(grouped.get(attempt.quizId) ?? []), attempt]);
-    });
-    return grouped;
-  }, [attemptItems]);
-  const bestAttempts = useMemo(() => Array.from(attemptsByQuiz.values()).map(items => items.reduce((best, attempt) => scorePercentage(attempt) > scorePercentage(best) ? attempt : best)), [attemptsByQuiz]);
-  const completedCount = attemptsByQuiz.size;
-  const availableCount = quizItems.filter(quiz => !attemptsByQuiz.has(quiz.id) && !isUpcoming(quiz)).length;
-  const percentages = bestAttempts.map(scorePercentage);
-  const averageScore = percentages.length
-    ? Math.round(percentages.reduce((sum, percentage) => sum + percentage, 0) / percentages.length)
-    : 0;
-  const bestScore = percentages.length ? Math.max(...percentages) : 0;
-  const passedCount = bestAttempts.filter(attempt => {
-    const quiz = quizItems.find(item => item.id === attempt.quizId);
-    return scorePercentage(attempt) >= (quiz?.passingPercent ?? 70);
-  }).length;
-
-  const visibleQuizzes = quizItems.filter(quiz => {
-    const status = quizStatus(quiz, attemptsByQuiz.has(quiz.id));
-    const matchesFilter = filter === "all" || status === filter;
-    const searchable = `${quiz.title} ${quiz.description} ${quiz.chapter ?? ""}`.toLowerCase();
-    return matchesFilter && searchable.includes(query.trim().toLowerCase());
-  });
+  const quizItems = quizzes.data?.quizzes ?? [];
+  const summary = quizzes.data?.summary;
+  const totalCount = summary?.total ?? 0;
+  const completedCount = summary?.completed ?? 0;
+  const availableCount = summary?.available ?? 0;
+  const averageScore = summary?.averageScore ?? 0;
+  const bestScore = summary?.bestScore ?? 0;
+  const passedCount = summary?.passed ?? 0;
+  const scores = quizzes.data?.scores ?? [];
+  const total = quizzes.data?.total ?? 0;
+  const pageSize = quizzes.data?.pageSize ?? 10;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const activePage = quizzes.data?.page ?? page;
+  const pageStart = activePage * pageSize;
 
   if (isFirebaseConfigured && enrollments.isSuccess && !enrollments.data.length) {
     return (
@@ -118,7 +99,7 @@ export default function QuizzesPage() {
 
       <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Quiz summary">
         <MetricCard icon={ClipboardCheck} label="Available quizzes" value={availableCount} detail="Ready to attempt" />
-        <MetricCard icon={CheckCircle2} label="Completed quizzes" value={completedCount} detail={`Out of ${quizItems.length} total`} />
+        <MetricCard icon={CheckCircle2} label="Completed quizzes" value={completedCount} detail={`Out of ${totalCount} total`} />
         <MetricCard icon={BarChart3} label="Average score" value={`${averageScore}%`} detail="Across completed quizzes" />
         <MetricCard icon={Award} label="Best score" value={`${bestScore}%`} detail={bestScore ? "Your personal best" : "Complete a quiz to score"} />
       </div>
@@ -137,8 +118,9 @@ export default function QuizzesPage() {
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-slate-400" />
                 <input
                   type="search"
+                  maxLength={200}
                   value={query}
-                  onChange={event => setQuery(event.target.value)}
+                  onChange={event => { setQuery(event.target.value); setPage(0); }}
                   placeholder="Search quizzes"
                   className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
                 />
@@ -148,7 +130,7 @@ export default function QuizzesPage() {
                   <button
                     key={item.value}
                     type="button"
-                    onClick={() => setFilter(item.value)}
+                    onClick={() => { setFilter(item.value); setPage(0); }}
                     aria-pressed={filter === item.value}
                     className={cn(
                       "h-10 whitespace-nowrap rounded-lg px-4 text-xs font-medium transition sm:text-sm",
@@ -164,20 +146,36 @@ export default function QuizzesPage() {
             <div className="mt-3 space-y-2.5">
               {enrollments.isLoading || quizzes.isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />)
-              ) : visibleQuizzes.length ? (
-                visibleQuizzes.map((quiz, index) => (
-                  <QuizRow key={quiz.id} quiz={quiz} number={quizItems.indexOf(quiz) + 1 || index + 1} attempts={attemptsByQuiz.get(quiz.id) ?? []} />
+              ) : quizItems.length ? (
+                quizItems.map((quiz, index) => (
+                  <QuizRow key={quiz.id} quiz={quiz} number={pageStart + index + 1} />
                 ))
               ) : (
                 <PortalPanel>
                   <EmptyPortalState
                     icon={ClipboardCheck}
-                    title={quizItems.length ? "No quizzes match your filters" : "No quizzes published yet"}
-                    description={quizItems.length ? "Try another search term or choose a different status." : "New assessments assigned to your batch will appear here."}
+                    title={totalCount ? "No quizzes match your filters" : "No quizzes published yet"}
+                    description={totalCount ? "Try another search term or choose a different status." : "New assessments assigned to your batch will appear here."}
                   />
                 </PortalPanel>
               )}
             </div>
+            {!enrollments.isLoading && !quizzes.isLoading && pageCount > 1 ? (
+              <nav aria-label="Quiz pagination" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                <p className="text-xs text-slate-500" role="status">
+                  Showing {pageStart + 1}-{pageStart + quizItems.length} of {total}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={activePage === 0} onClick={() => setPage(activePage - 1)}>
+                    <ChevronLeft className="size-4" />Previous
+                  </Button>
+                  <span className="whitespace-nowrap text-xs tabular-nums text-slate-600">Page {activePage + 1} of {pageCount}</span>
+                  <Button variant="outline" size="sm" disabled={activePage === pageCount - 1} onClick={() => setPage(activePage + 1)}>
+                    Next<ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </nav>
+            ) : null}
           </div>
 
           <aside className="min-w-0 space-y-4">
@@ -189,11 +187,11 @@ export default function QuizzesPage() {
                 <span className="shrink-0 text-xs font-semibold text-teal-700">Best by quiz</span>
               </div>
               <div className="px-4 pb-4 sm:px-5">
-                {attempts.isLoading ? (
+                {quizzes.isLoading ? (
                   <p className="py-8 text-center text-sm text-slate-500">Loading your attempts…</p>
-                ) : attempts.isError ? (
+                ) : quizzes.isError ? (
                   <p className="py-8 text-center text-sm text-red-600">Your attempts could not be loaded.</p>
-                ) : bestAttempts.length ? (
+                ) : scores.length ? (
                   <table className="w-full table-fixed text-left text-xs">
                     <thead className="text-slate-500">
                       <tr className="border-b border-slate-200">
@@ -201,13 +199,11 @@ export default function QuizzesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {bestAttempts.slice(0, 6).map(attempt => {
-                        const quiz = quizItems.find(item => item.id === attempt.quizId);
-                        const percentage = scorePercentage(attempt);
-                        const passed = percentage >= (quiz?.passingPercent ?? 70);
+                      {scores.map(score => {
+                        const { percentage, passed } = score;
                         return (
-                          <tr key={attempt.id} className="border-b border-slate-100 last:border-0">
-                            <td className="truncate py-3 pr-2 text-slate-600">{quiz?.title ?? `Quiz ${attempt.quizId.slice(0, 6)}`}</td>
+                          <tr key={score.id} className="border-b border-slate-100 last:border-0">
+                            <td className="truncate py-3 pr-2 text-slate-600">{score.title}</td>
                             <td className="py-3 text-right font-semibold text-slate-800">{percentage}%</td>
                             <td className="py-3 text-right"><StatusPill tone={passed ? "teal" : "red"}>{passed ? "Passed" : "Needs review"}</StatusPill></td>
                           </tr>
@@ -224,9 +220,9 @@ export default function QuizzesPage() {
             <PortalPanel className="p-5">
               <h2 className="text-sm font-semibold text-slate-900">Your performance</h2>
               <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row xl:flex-col 2xl:flex-row">
-                <ProgressRing value={quizItems.length ? Math.round((completedCount / quizItems.length) * 100) : 0} />
+                <ProgressRing value={totalCount ? Math.round((completedCount / totalCount) * 100) : 0} />
                 <div className="w-full flex-1 divide-y divide-slate-100 text-sm">
-                  <PerformanceLine icon={ClipboardCheck} label="Attempted quizzes" value={`${completedCount} / ${quizItems.length}`} />
+                  <PerformanceLine icon={ClipboardCheck} label="Attempted quizzes" value={`${completedCount} / ${totalCount}`} />
                   <PerformanceLine icon={CheckCircle2} label="Passed quizzes" value={`${passedCount} / ${completedCount}`} accent />
                   <PerformanceLine icon={BarChart3} label="Average score" value={`${averageScore}%`} />
                 </div>
@@ -239,10 +235,10 @@ export default function QuizzesPage() {
   );
 }
 
-function QuizRow({ quiz, number, attempts }: { quiz: BatchQuiz; number: number; attempts: PrivateQuizAttempt[] }) {
+function QuizRow({ quiz, number }: { quiz: BatchQuiz; number: number }) {
   const upcoming = isUpcoming(quiz);
-  const completed = attempts.length > 0;
-  const bestScore = completed ? Math.max(...attempts.map(scorePercentage)) : 0;
+  const completed = quiz.attemptCount > 0;
+  const bestScore = quiz.bestPercentage;
   return (
     <article className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_7px_22px_rgba(15,23,42,0.035)] sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:items-center">
       <span className="grid size-12 place-items-center rounded-xl bg-teal-50 text-xl font-semibold text-teal-700">{String(number).padStart(2, "0")}</span>
@@ -286,15 +282,6 @@ function PerformanceLine({ icon: Icon, label, value, accent = false }: { icon: t
   );
 }
 
-function scorePercentage(attempt: PrivateQuizAttempt) {
-  return attempt.totalMarks > 0 ? Math.round((attempt.score / attempt.totalMarks) * 100) : 0;
-}
-
 function isUpcoming(quiz: BatchQuiz) {
   return Boolean(quiz.opensAt && new Date(quiz.opensAt).getTime() > Date.now());
-}
-
-function quizStatus(quiz: BatchQuiz, completed: boolean): QuizFilter {
-  if (completed) return "completed";
-  return isUpcoming(quiz) ? "upcoming" : "available";
 }

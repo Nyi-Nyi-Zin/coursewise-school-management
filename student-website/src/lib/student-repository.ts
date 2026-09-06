@@ -2,6 +2,7 @@ import { addDoc, doc, getDoc, collection, getDocs, limit, orderBy, query, server
 import { demoAnnouncements, demoAttendance, demoLessons, getDemoLessonProgress, setDemoLessonProgress, type Announcement, type Lesson } from "@/lib/student-data";
 import { firestore } from "@/lib/firebase";
 import { authenticatedApiFetch } from "@/lib/authenticated-api";
+import type { QuizCatalogPage, QuizCatalogRequest } from "@/lib/quiz-catalog";
 import { uploadStudentPhotoToCloudinary, uploadAssignmentFileToCloudinary } from "@/lib/cloudinary-upload-service";
 
 export type StudentProfile = { id: string; name: string; email: string; studentId: string; photoUrl?: string; activeCourseId?: string; activeBatchId?: string };
@@ -293,6 +294,15 @@ export async function getBatchQuizzes(courseId?: string, batchId?: string): Prom
   return records
     .map((item) => toBatchQuiz(item.id, item))
     .sort((left, right) => left.title.localeCompare(right.title));
+}
+
+export async function getQuizCatalogPage(input: QuizCatalogRequest): Promise<QuizCatalogPage> {
+  if (!firestore) return { quizzes: [], page: 0, pageSize: 10, total: 0, scores: [], summary: { total: 0, completed: 0, available: 0, averageScore: 0, bestScore: 0, passed: 0 } };
+  const params = new URLSearchParams({
+    page: String(input.page), query: input.query, filter: input.filter,
+    enrollments: JSON.stringify(input.enrollments.map(({ courseId, batchId }) => ({ courseId, batchId }))),
+  });
+  return authenticatedApiFetch(`/api/quizzes?${params}`) as Promise<QuizCatalogPage>;
 }
 
 function toBatchQuiz(id: string, data: Record<string, unknown>): BatchQuiz {
