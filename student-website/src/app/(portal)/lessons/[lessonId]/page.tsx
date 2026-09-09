@@ -16,26 +16,26 @@ import {
 import { LessonStatusControl } from "@/components/lesson-status-control";
 import { useLessonProgress } from "@/components/use-lesson-progress";
 import { EmptyPortalState, PortalPanel } from "@/components/portal-ui";
-import { useStudentCourse } from "@/components/student-course-provider";
+import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import { studentQueryKeys } from "@/lib/student-data";
 import { getLessonById } from "@/lib/student-repository";
 import { isFirebaseConfigured } from "@/lib/firebase";
 
 export default function LessonDetailPage() {
   const { lessonId = "" } = useParams<{ lessonId: string }>();
-  const { enrollment } = useStudentCourse();
-  const { statuses, updateStatus } = useLessonProgress();
+  const { enrollment, enrollmentsQuery, selectionReady } = useCourseBatchSelection("lessons");
+  const { statuses, updateStatus } = useLessonProgress(selectionReady ? enrollment : null);
   const lessonQuery = useQuery({
-    queryKey: [...studentQueryKeys.lessons, lessonId],
-    queryFn: () => getLessonById(lessonId),
-    enabled: Boolean(lessonId),
+    queryKey: [...studentQueryKeys.lessons, enrollment?.courseId, enrollment?.batchId, lessonId],
+    queryFn: () => getLessonById(lessonId, enrollment?.courseId, enrollment?.batchId),
+    enabled: Boolean(lessonId && selectionReady && enrollment),
   });
 
   const lesson = lessonQuery.data && statuses?.has(lessonQuery.data.id)
     ? { ...lessonQuery.data, status: statuses.get(lessonQuery.data.id)! }
     : lessonQuery.data;
 
-  if (lessonQuery.isLoading) {
+  if (lessonQuery.isLoading || enrollmentsQuery.isLoading) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-4 pb-8">
         <div className="h-5 w-32 animate-pulse rounded bg-slate-100" />

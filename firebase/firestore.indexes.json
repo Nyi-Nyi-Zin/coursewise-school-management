@@ -41,6 +41,15 @@
       ]
     },
     {
+      "collectionGroup": "lessonProgress",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "courseId", "order": "ASCENDING" },
+        { "fieldPath": "batchId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "quizAttempts",
       "queryScope": "COLLECTION",
       "fields": [

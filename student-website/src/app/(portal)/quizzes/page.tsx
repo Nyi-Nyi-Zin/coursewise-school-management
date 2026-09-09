@@ -18,6 +18,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import {
   EmptyPortalState,
@@ -47,18 +48,14 @@ const quizFilters: { value: QuizFilter; label: string }[] = [
 
 export default function QuizzesPage() {
   const { user } = useStudentAuth();
-  const enrollments = useQuery({
-    queryKey: ["student", "enrollments", user?.uid],
-    queryFn: () => getStudentEnrollments(user!.uid),
-    enabled: Boolean(user?.uid) || !isFirebaseConfigured,
-  });
+  const { enrollment, enrollments, enrollmentsQuery, selectionReady, selectedKey, selectEnrollment } = useCourseBatchSelection("quizzes");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<QuizFilter>("all");
   const [page, setPage] = useState(0);
-  const enabled = enrollments.isSuccess && (!isFirebaseConfigured || Boolean(user?.uid));
+  const enabled = selectionReady && Boolean(enrollment) && (!isFirebaseConfigured || Boolean(user?.uid));
   const quizzes = useQuery({
-    queryKey: ["student", "quizzes", user?.uid, enrollments.data, page, query, filter],
-    queryFn: () => getQuizCatalogPage({ enrollments: enrollments.data ?? [], page, query, filter }),
+    queryKey: ["student", "quizzes", user?.uid, enrollment?.courseId, enrollment?.batchId, page, query, filter],
+    queryFn: () => getQuizCatalogPage({ enrollments: enrollment ? [enrollment] : [], page, query, filter }),
     enabled,
     refetchOnWindowFocus: false,
   });
@@ -77,7 +74,7 @@ export default function QuizzesPage() {
   const activePage = quizzes.data?.page ?? page;
   const pageStart = activePage * pageSize;
 
-  if (isFirebaseConfigured && enrollments.isSuccess && !enrollments.data.length) {
+  if (isFirebaseConfigured && enrollmentsQuery.isSuccess && !enrollments.length) {
     return (
       <PortalPanel>
         <EmptyPortalState
@@ -96,6 +93,7 @@ export default function QuizzesPage() {
         title="Quizzes"
         description="Track your quiz progress, attempt assessments, and review your performance."
       />
+      <CourseBatchSelector enrollments={enrollments} value={selectedKey} onChange={value => { selectEnrollment(value); setPage(0); }} className="mt-4" />
 
       <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Quiz summary">
         <MetricCard icon={ClipboardCheck} label="Available quizzes" value={availableCount} detail="Ready to attempt" />
@@ -104,10 +102,10 @@ export default function QuizzesPage() {
         <MetricCard icon={Award} label="Best score" value={`${bestScore}%`} detail={bestScore ? "Your personal best" : "Complete a quiz to score"} />
       </div>
 
-      {quizzes.isError || enrollments.isError ? (
+      {quizzes.isError || enrollmentsQuery.isError ? (
         <PortalPanel className="mt-4 flex flex-wrap items-center justify-between gap-3 border-red-200 p-5 text-sm text-red-700">
-          <span>{(quizzes.error ?? enrollments.error)?.message ?? "Quizzes could not be loaded. Check your connection, then try again."}</span>
-          <Button variant="outline" size="sm" onClick={() => void (enrollments.isError ? enrollments.refetch() : quizzes.refetch())}>Retry</Button>
+          <span>{(quizzes.error ?? enrollmentsQuery.error)?.message ?? "Quizzes could not be loaded. Check your connection, then try again."}</span>
+          <Button variant="outline" size="sm" onClick={() => void (enrollmentsQuery.isError ? enrollmentsQuery.refetch() : quizzes.refetch())}>Retry</Button>
         </PortalPanel>
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(340px,0.95fr)]">
@@ -144,7 +142,7 @@ export default function QuizzesPage() {
             </div>
 
             <div className="mt-3 space-y-2.5">
-              {enrollments.isLoading || quizzes.isLoading ? (
+              {enrollmentsQuery.isLoading || quizzes.isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />)
               ) : quizItems.length ? (
                 quizItems.map((quiz, index) => (
@@ -160,7 +158,7 @@ export default function QuizzesPage() {
                 </PortalPanel>
               )}
             </div>
-            {!enrollments.isLoading && !quizzes.isLoading && pageCount > 1 ? (
+            {!enrollmentsQuery.isLoading && !quizzes.isLoading && pageCount > 1 ? (
               <nav aria-label="Quiz pagination" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
                 <p className="text-xs text-slate-500" role="status">
                   Showing {pageStart + 1}-{pageStart + quizItems.length} of {total}

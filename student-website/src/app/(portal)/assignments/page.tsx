@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useStudentAuth } from "@/components/student-auth-provider";
-import { useStudentCourse } from "@/components/student-course-provider";
+import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
 import {
   getPublishedAssignments, getStudentAssignmentSubmissions, submitAssignment,
   type Assignment, type AssignmentSubmission,
@@ -49,7 +49,7 @@ const emptySubmissions: AssignmentSubmission[] = [];
 
 export default function AssignmentsPage() {
   const { user } = useStudentAuth();
-  const { enrollment } = useStudentCourse();
+  const { enrollment, enrollments, enrollmentsQuery, selectionReady, selectedKey, selectEnrollment } = useCourseBatchSelection("assignments");
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssignmentFilter>("all");
@@ -60,13 +60,13 @@ export default function AssignmentsPage() {
     queryKey: [...studentQueryKeys.assignments, enrollment?.courseId, enrollment?.batchId],
     queryFn: () => getPublishedAssignments(enrollment?.courseId, enrollment?.batchId),
     initialData: isFirebaseConfigured ? undefined : demoAssignments,
-    enabled: !isFirebaseConfigured || Boolean(enrollment),
+    enabled: !isFirebaseConfigured || Boolean(selectionReady && enrollment),
   });
   const submissionsQuery = useQuery({
     queryKey: ["student", "assignment-submissions", user?.uid, enrollment?.courseId, enrollment?.batchId],
     queryFn: () => getStudentAssignmentSubmissions(user!.uid, enrollment?.courseId, enrollment?.batchId),
     initialData: isFirebaseConfigured ? undefined : demoSubmissions,
-    enabled: isFirebaseConfigured ? Boolean(user?.uid && enrollment) : true,
+    enabled: isFirebaseConfigured ? Boolean(user?.uid && selectionReady && enrollment) : true,
   });
   const submit = useMutation({
     mutationFn: ({ assignment, text, url, file }: { assignment: Assignment; text: string; url: string; file?: File | null }) => submitAssignment(user!.uid, assignment, { submissionText: text, submissionUrl: url, submissionFile: file ?? undefined }),
@@ -114,9 +114,9 @@ export default function AssignmentsPage() {
     .filter((item): item is { submission: AssignmentSubmission; assignment: Assignment } => Boolean(item.assignment))
     .slice(0, 3);
   const isLoading = assignmentsQuery.isLoading || submissionsQuery.isLoading;
-  const hasError = assignmentsQuery.isError || submissionsQuery.isError;
+  const hasError = enrollmentsQuery.isError || assignmentsQuery.isError || submissionsQuery.isError;
 
-  if (isFirebaseConfigured && !enrollment) {
+  if (isFirebaseConfigured && enrollmentsQuery.isSuccess && !enrollment) {
     return <EmptyState title="You are not enrolled in a learning batch yet." description="Ask an administrator to assign your account to a course and batch." />;
   }
 
@@ -126,6 +126,7 @@ export default function AssignmentsPage() {
         <p className="text-sm font-semibold text-teal-700">Your course work{enrollment ? ` · ${enrollment.batchName}` : " · Demo batch"}</p>
         <h1 className="mt-1 text-4xl font-bold tracking-[-0.04em] text-slate-950">Assignments</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">View and submit your assignments. Track feedback and keep building your skills.</p>
+        <CourseBatchSelector enrollments={enrollments} value={selectedKey} onChange={selectEnrollment} className="mt-4 justify-center" />
       </header>
 
       {hasError ? <ErrorBanner onRetry={() => { void assignmentsQuery.refetch(); void submissionsQuery.refetch(); }} /> : null}

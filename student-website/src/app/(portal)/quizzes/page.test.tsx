@@ -10,30 +10,35 @@ vi.mock("@/lib/firebase", () => ({ isFirebaseConfigured: true }));
 vi.mock("@/lib/student-repository", () => ({ getStudentEnrollments: mocks.enrollments, getQuizCatalogPage: mocks.quizzes }));
 afterEach(cleanup);
 
-it("shows quizzes and attempt results from both enrolled courses", async () => {
+it("shows and remembers one selected course-batch catalog at a time", async () => {
+  window.localStorage.clear();
   mocks.enrollments.mockResolvedValue([
     { courseId: "a", batchId: "batch-a", courseTitle: "A", batchName: "A batch" },
     { courseId: "b", batchId: "batch-b", courseTitle: "B", batchName: "B batch" },
   ]);
-  mocks.quizzes.mockResolvedValue({
-    quizzes: ["a", "b"].map(id => ({ id, title: `Quiz ${id}`, kind: "chapter_quiz", totalMarks: 10, attemptCount: id === "b" ? 1 : 0, bestPercentage: 80 })),
-    page: 0, pageSize: 10, total: 2,
-    summary: { total: 2, completed: 1, available: 1, averageScore: 80, bestScore: 80, passed: 1 },
-    scores: [{ id: "b", title: "Quiz b", percentage: 80, passed: true }],
+  mocks.quizzes.mockImplementation(async ({ enrollments }) => {
+    const id = enrollments[0]?.courseId ?? "none";
+    return {
+      quizzes: [{ id, title: `Quiz ${id}`, kind: "chapter_quiz", totalMarks: 10, attemptCount: 0, bestPercentage: 0 }],
+      page: 0, pageSize: 10, total: 1,
+      summary: { total: 1, completed: 0, available: 1, averageScore: 0, bestScore: 0, passed: 0 },
+      scores: [],
+    };
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><QuizzesPage /></QueryClientProvider>);
   expect(await screen.findByText("Quiz a")).toBeTruthy();
-  expect(await screen.findByRole("heading", { name: "Quiz b" })).toBeTruthy();
-  expect(await screen.findByText("Try again")).toBeTruthy();
-  expect(mocks.quizzes).toHaveBeenCalledWith(expect.objectContaining({ enrollments: [
-    expect.objectContaining({ courseId: "a", batchId: "batch-a" }),
-    expect.objectContaining({ courseId: "b", batchId: "batch-b" }),
-  ], page: 0 }));
-  expect(screen.queryByRole("navigation", { name: "Quiz pagination" })).toBeNull();
+  expect(mocks.quizzes).toHaveBeenLastCalledWith(expect.objectContaining({
+    enrollments: [expect.objectContaining({ courseId: "a", batchId: "batch-a" })],
+  }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Course and batch" }), { target: { value: "b:batch-b" } });
+  expect(await screen.findByText("Quiz b")).toBeTruthy();
+  expect(mocks.quizzes).toHaveBeenLastCalledWith(expect.objectContaining({
+    enrollments: [expect.objectContaining({ courseId: "b", batchId: "batch-b" })], page: 0,
+  }));
+  expect(window.localStorage.getItem("coursewise:student-scope:v1:student:quizzes")).toBe("b:batch-b");
   client.clear();
 });
-
 it("requests server pages and resets search and status filters without slicing the response", async () => {
   mocks.enrollments.mockResolvedValue([{ courseId: "a", batchId: "batch-a" }]);
   mocks.quizzes.mockImplementation(async ({ page }) => ({

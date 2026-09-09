@@ -1,5 +1,5 @@
 export type Announcement = { id: string; title: string; description: string; accent: string; publishedAt: string; bannerUrl?: string; linkUrl?: string };
-export type Lesson = { id: string; title: string; description: string; module: string; duration: string; status: "new" | "complete" | "continue"; thumbnailUrl?: string; telegramUrl?: string; videoUrl?: string; pdfUrl?: string };
+export type Lesson = { id: string; courseId: string; batchId: string; title: string; description: string; module: string; duration: string; status: "new" | "complete" | "continue"; thumbnailUrl?: string; telegramUrl?: string; videoUrl?: string; pdfUrl?: string };
 export type AttendanceStatus = "Present" | "Absent" | "Late" | "Excused";
 
 export const studentQueryKeys = {
@@ -18,9 +18,9 @@ export const demoAnnouncements: Announcement[] = [
 ];
 
 export const demoLessons: Lesson[] = [
-  { id: "web-basics", title: "Modern Web Foundations", description: "Understand the browser, responsive layout, and clean interface patterns.", module: "Module 01", duration: "42 min", status: "continue" },
-  { id: "logic", title: "Programming Logic", description: "Build reliable problem-solving habits through practical exercises.", module: "Module 02", duration: "36 min", status: "new" },
-  { id: "project", title: "Project Planning", description: "Turn a product idea into a well-scoped build plan.", module: "Module 03", duration: "28 min", status: "complete" },
+  { id: "web-basics", courseId: "demo-web", batchId: "demo-batch", title: "Modern Web Foundations", description: "Understand the browser, responsive layout, and clean interface patterns.", module: "Module 01", duration: "42 min", status: "continue" },
+  { id: "logic", courseId: "demo-web", batchId: "demo-batch", title: "Programming Logic", description: "Build reliable problem-solving habits through practical exercises.", module: "Module 02", duration: "36 min", status: "new" },
+  { id: "project", courseId: "demo-web", batchId: "demo-batch", title: "Project Planning", description: "Turn a product idea into a well-scoped build plan.", module: "Module 03", duration: "28 min", status: "complete" },
 ];
 
 export const demoAttendance: { date: string; status: AttendanceStatus; note: string }[] = [

@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useStudentAuth } from "@/components/student-auth-provider";
-import { useStudentCourse } from "@/components/student-course-provider";
+import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import {
   demoAnnouncements,
@@ -29,9 +29,10 @@ import {
 import {
   getBatchQuizzes,
   getMyCertificates,
-  getStudentAnnouncements,
+  getPublishedAnnouncements,
   getPublishedAssignments,
   getPublishedLessons,
+  getLessonProgress,
   getStudentAssignmentSubmissions,
   getStudentProfile,
   getStudentQuizAttempts,
@@ -62,7 +63,7 @@ function formatTaskDate(value?: string | null) {
 
 export default function StudentHomePage() {
   const { user } = useStudentAuth();
-  const { enrollment } = useStudentCourse();
+  const { enrollment, enrollments, enrollmentsQuery, selectionReady, selectedKey, selectEnrollment } = useCourseBatchSelection("home");
   const [bannerIndex, setBannerIndex] = useState(0);
   const [selectedBanner, setSelectedBanner] = useState<Announcement | null>(null);
 
@@ -72,20 +73,21 @@ export default function StudentHomePage() {
     enabled: Boolean(user?.uid),
   });
   const lessons = useQuery({
-    queryKey: [...studentQueryKeys.lessons, enrollment?.courseId],
-    queryFn: () => getPublishedLessons(enrollment?.courseId),
+    queryKey: [...studentQueryKeys.lessons, enrollment?.courseId, enrollment?.batchId],
+    queryFn: () => getPublishedLessons(enrollment?.courseId, enrollment?.batchId),
     initialData: isFirebaseConfigured ? undefined : demoLessons,
-    enabled: !isFirebaseConfigured || Boolean(enrollment),
+    enabled: !isFirebaseConfigured || Boolean(selectionReady && enrollment),
+  });
+  const lessonProgress = useQuery({
+    queryKey: [...studentQueryKeys.lessonProgress, user?.uid, enrollment?.courseId, enrollment?.batchId],
+    queryFn: () => getLessonProgress(user?.uid, enrollment?.courseId, enrollment?.batchId),
+    enabled: !isFirebaseConfigured || Boolean(user?.uid && selectionReady && enrollment),
   });
   const announcements = useQuery({
-    queryKey: [
-      ...studentQueryKeys.announcements,
-      user?.uid,
-    ],
-    queryFn: () =>
-      getStudentAnnouncements(user?.uid ?? ""),
+    queryKey: [...studentQueryKeys.announcements, enrollment?.courseId, enrollment?.batchId],
+    queryFn: () => getPublishedAnnouncements(enrollment?.courseId, enrollment?.batchId),
     initialData: isFirebaseConfigured ? undefined : demoAnnouncements,
-    enabled: !isFirebaseConfigured || Boolean(user?.uid),
+    enabled: !isFirebaseConfigured || Boolean(selectionReady && enrollment),
   });
   const quizzes = useQuery({
     queryKey: [
@@ -94,7 +96,7 @@ export default function StudentHomePage() {
       enrollment?.batchId,
     ],
     queryFn: () => getBatchQuizzes(enrollment?.courseId, enrollment?.batchId),
-    enabled: Boolean(enrollment),
+    enabled: Boolean(selectionReady && enrollment),
   });
   const attempts = useQuery({
     queryKey: [
@@ -110,7 +112,7 @@ export default function StudentHomePage() {
         enrollment?.courseId,
         enrollment?.batchId,
       ),
-    enabled: Boolean(user?.uid && enrollment),
+    enabled: Boolean(user?.uid && selectionReady && enrollment),
   });
   const assignments = useQuery({
     queryKey: [
@@ -120,7 +122,7 @@ export default function StudentHomePage() {
     ],
     queryFn: () =>
       getPublishedAssignments(enrollment?.courseId, enrollment?.batchId),
-    enabled: Boolean(enrollment),
+    enabled: Boolean(selectionReady && enrollment),
   });
   const submissions = useQuery({
     queryKey: [
@@ -136,7 +138,7 @@ export default function StudentHomePage() {
         enrollment?.courseId,
         enrollment?.batchId,
       ),
-    enabled: Boolean(user?.uid && enrollment),
+    enabled: Boolean(user?.uid && selectionReady && enrollment),
   });
   const certificates = useQuery({
     queryKey: ["student", "certificates", user?.uid],
@@ -176,7 +178,7 @@ export default function StudentHomePage() {
   const name = profile.data?.name || user?.displayName || "Student";
   const studentId = profile.data?.studentId || "Pending";
   const photoUrl = profile.data?.photoUrl;
-  const lessonItems = lessons.data ?? [];
+  const lessonItems = (lessons.data ?? []).map(lesson => lessonProgress.data?.has(lesson.id) ? { ...lesson, status: lessonProgress.data.get(lesson.id)! } : lesson);
   const completedLessons = lessonItems.filter(
     lesson => lesson.status === "complete",
   ).length;
@@ -310,6 +312,11 @@ export default function StudentHomePage() {
           </div>
         </div>
       </section>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <div><p className="text-xs font-medium text-slate-500">Viewing progress for</p><p className="text-sm font-semibold text-slate-900">{enrollment ? `${enrollment.courseTitle} / ${enrollment.batchName}` : enrollmentsQuery.isLoading ? "Loading enrollments…" : "No active enrollment"}</p></div>
+        <CourseBatchSelector enrollments={enrollments} value={selectedKey} onChange={value => { selectEnrollment(value); setBannerIndex(0); setSelectedBanner(null); }} />
+      </div>
 
       <section
         className="grid grid-cols-2 gap-3 xl:grid-cols-4"

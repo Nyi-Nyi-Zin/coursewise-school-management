@@ -34,10 +34,6 @@ service cloud.firestore {
     function canReadOwnBatchRecord() {
       return signedIn() && resource.data.studentId == request.auth.uid && hasBatchFields(resource.data) && isActiveBatchMember(resource.data.courseId, resource.data.batchId);
     }
-    function quizIsReadable(quizId) {
-      let quiz = get(/databases/$(database)/documents/quizzes/$(quizId));
-      return quiz.data.isPublished == true && isActiveBatchMember(quiz.data.courseId, quiz.data.batchId);
-    }
     function assignmentIsReadable(assignmentId, courseId, batchId) {
       let assignment = get(/databases/$(database)/documents/assignments/$(assignmentId));
       return assignment.data.isPublished == true && assignment.data.courseId == courseId &&
@@ -96,33 +92,32 @@ service cloud.firestore {
     }
 
     match /lessons/{lessonId} {
-      allow read: if isAdmin() || (isPublished() && canReadCourseContent());
+      allow read: if isAdmin() || (isPublished() && canReadBatchContent());
       allow create, update, delete: if isAdmin();
     }
 
-    // Per-student lesson progress. Each student owns one document per lesson
-    // (document id "{lessonId}_{studentId}") and may only ever write their own
-    // lesson status, so the Lessons page can render real learning progress.
+    // Per-student, per-course-batch lesson progress.
     match /lessonProgress/{progressId} {
-      allow read: if isAdmin() || (isActiveStudent() && resource.data.studentId == request.auth.uid);
+      allow read: if isAdmin() || canReadOwnBatchRecord();
       allow create: if isAdmin() || (
         isActiveStudent() &&
         request.resource.data.studentId == request.auth.uid &&
         request.resource.data.lessonId is string &&
-        request.resource.data.courseId is string &&
+        hasBatchFields(request.resource.data) &&
         request.resource.data.status in ['new', 'continue', 'complete'] &&
-        get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.enrolledStudentIds.hasAny([request.auth.uid])
+        isActiveBatchMember(request.resource.data.courseId, request.resource.data.batchId) &&
+        get(/databases/$(database)/documents/lessons/$(request.resource.data.lessonId)).data.isPublished == true &&
+        get(/databases/$(database)/documents/lessons/$(request.resource.data.lessonId)).data.courseId == request.resource.data.courseId &&
+        get(/databases/$(database)/documents/lessons/$(request.resource.data.lessonId)).data.batchId == request.resource.data.batchId
       );
       allow update: if isAdmin() || (
-        isActiveStudent() &&
-        resource.data.studentId == request.auth.uid &&
+        canReadOwnBatchRecord() &&
         request.resource.data.studentId == request.auth.uid &&
         request.resource.data.status in ['new', 'continue', 'complete'] &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
       );
       allow delete: if isAdmin();
     }
-
     match /quizzes/{quizId} {
       allow read: if isAdmin() || (isPublished() && canReadQuizContent());
       allow create, update, delete: if isAdmin();

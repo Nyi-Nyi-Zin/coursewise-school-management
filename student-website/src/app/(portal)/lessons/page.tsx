@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LessonStatusControl } from "@/components/lesson-status-control";
 import { useLessonProgress } from "@/components/use-lesson-progress";
-import { useStudentCourse } from "@/components/student-course-provider";
+import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
 import { demoLessons, studentQueryKeys, type Lesson } from "@/lib/student-data";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { getPublishedLessons } from "@/lib/student-repository";
@@ -35,16 +35,16 @@ const filters: { value: LessonFilter; label: string }[] = [
 ];
 
 export default function LessonsPage() {
-  const { enrollment } = useStudentCourse();
-  const { statuses, updateStatus } = useLessonProgress();
+  const { enrollment, enrollments, enrollmentsQuery, selectionReady, selectedKey, selectEnrollment } = useCourseBatchSelection("lessons");
+  const { statuses, updateStatus } = useLessonProgress(selectionReady ? enrollment : null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<LessonFilter>("all");
   const [sort, setSort] = useState<LessonSort>("order");
   const lessonsQuery = useQuery({
-    queryKey: [...studentQueryKeys.lessons, enrollment?.courseId],
-    queryFn: () => getPublishedLessons(enrollment?.courseId),
+    queryKey: [...studentQueryKeys.lessons, enrollment?.courseId, enrollment?.batchId],
+    queryFn: () => getPublishedLessons(enrollment?.courseId, enrollment?.batchId),
     initialData: isFirebaseConfigured ? undefined : demoLessons,
-    enabled: !isFirebaseConfigured || Boolean(enrollment),
+    enabled: !isFirebaseConfigured || Boolean(selectionReady && enrollment),
   });
 
   const { isLoading, isError, refetch } = lessonsQuery;
@@ -83,9 +83,10 @@ export default function LessonsPage() {
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
           Explore published lesson materials assigned to your course and batch.<br className="hidden sm:block" /> Learn at your pace and build real-world skills.
         </p>
+        <CourseBatchSelector enrollments={enrollments} value={selectedKey} onChange={selectEnrollment} className="mt-4 justify-center" />
       </header>
 
-      {isError ? <ErrorBanner message="Lessons could not be loaded." onRetry={() => void refetch()} /> : null}
+      {isError || enrollmentsQuery.isError ? <ErrorBanner message="Lessons could not be loaded." onRetry={() => void refetch()} /> : null}
 
       <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Lesson progress">
         <StatCard icon={BookOpen} label="Total lessons" value={lessons.length} detail="Lessons available" />
@@ -151,7 +152,7 @@ export default function LessonsPage() {
 
       {!isLoading && lessons.length > 0 && visibleLessons.length === 0 ? (
         <EmptyState title="No lessons match your filters." description="Try another search term or choose a different lesson status." />
-      ) : isFirebaseConfigured && !enrollment && !isLoading ? (
+      ) : isFirebaseConfigured && !enrollment && !enrollmentsQuery.isLoading && !isLoading ? (
         <EmptyState title="You are not assigned to a learning batch yet." description="Ask an administrator to enroll your Firebase account in a course and batch." />
       ) : !isError && !isLoading && lessons.length === 0 ? (
         <EmptyState title="No lessons have been published yet." description="Your instructor will add learning material here." />

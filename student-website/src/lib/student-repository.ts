@@ -180,38 +180,40 @@ export async function getPublishedAnnouncements(courseId?: string, batchId?: str
   });
 }
 
-export async function getPublishedLessons(courseId?: string): Promise<Lesson[]> {
+export async function getPublishedLessons(courseId?: string, batchId?: string): Promise<Lesson[]> {
   if (!firestore) return demoLessons;
-  if (!courseId) return [];
+  if (!courseId || !batchId) return [];
   // The security rules require the query itself to constrain isPublished, so
   // it must stay in the query. Equality-only filters are served without a
   // composite index (unlike orderBy sortOrder, which needs one that is not
   // deployed), so ordering happens in memory.
-  const snapshot = await getDocs(query(collection(firestore, "lessons"), where("courseId", "==", courseId), where("isPublished", "==", true)));
+  const snapshot = await getDocs(query(collection(firestore, "lessons"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true)));
   return snapshot.docs
     .map((item) => {
       const data = item.data();
-      return { sortOrder: Number(data.sortOrder ?? 0), lesson: { id: item.id, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson };
+      return { sortOrder: Number(data.sortOrder ?? 0), lesson: { id: item.id, courseId, batchId, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson };
     })
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map(({ lesson }) => lesson);
 }
 
-export async function getLessonById(lessonId: string): Promise<Lesson | null> {
+export async function getLessonById(lessonId: string, courseId?: string, batchId?: string): Promise<Lesson | null> {
   if (!lessonId) return null;
-  if (!firestore) return demoLessons.find((lesson) => lesson.id === lessonId) ?? null;
+  if (!firestore) return demoLessons.find((lesson) => lesson.id === lessonId && lesson.courseId === courseId && lesson.batchId === batchId) ?? null;
+  if (!courseId || !batchId) return null;
   const snapshot = await getDoc(doc(firestore, "lessons", lessonId));
   if (!snapshot.exists()) return null;
   const data = snapshot.data();
-  return { id: snapshot.id, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson;
+  if (data.isPublished !== true || data.courseId !== courseId || data.batchId !== batchId) return null;
+  return { id: snapshot.id, courseId, batchId, title: String(data.title ?? "Lesson"), description: String(data.description ?? ""), module: String(data.module ?? "Module"), duration: String(data.duration ?? ""), thumbnailUrl: data.thumbnailUrl as string | undefined, telegramUrl: data.telegramUrl as string | undefined, videoUrl: data.videoUrl as string | undefined, pdfUrl: data.pdfUrl as string | undefined, status: "new" } satisfies Lesson;
 }
 
-export async function getLessonProgress(studentId?: string, courseId?: string): Promise<Map<string, Lesson["status"]>> {
+export async function getLessonProgress(studentId?: string, courseId?: string, batchId?: string): Promise<Map<string, Lesson["status"]>> {
   if (!firestore) return getDemoLessonProgress();
-  if (!studentId || !courseId) return new Map();
+  if (!studentId || !courseId || !batchId) return new Map();
   // Students only ever read their own progress, so equality filters on
-  // courseId + studentId are served without a composite index.
-  const snapshot = await getDocs(query(collection(firestore, "lessonProgress"), where("courseId", "==", courseId), where("studentId", "==", studentId)));
+  // courseId + batchId + studentId are backed by the deployed composite index.
+  const snapshot = await getDocs(query(collection(firestore, "lessonProgress"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("studentId", "==", studentId)));
   const progress = new Map<string, Lesson["status"]>();
   snapshot.docs.forEach((item) => {
     const status = item.data().status;
@@ -220,16 +222,17 @@ export async function getLessonProgress(studentId?: string, courseId?: string): 
   return progress;
 }
 
-export async function updateLessonProgress(studentId: string | undefined, lessonId: string, courseId: string, status: Lesson["status"]): Promise<void> {
+export async function updateLessonProgress(studentId: string | undefined, lessonId: string, courseId: string, batchId: string, status: Lesson["status"]): Promise<void> {
   if (!firestore) {
     setDemoLessonProgress(lessonId, status);
     return;
   }
-  if (!studentId || !courseId || !lessonId) throw new Error("Lesson progress requires an active course enrollment.");
-  await setDoc(doc(firestore, "lessonProgress", `${lessonId}_${studentId}`), {
+  if (!studentId || !courseId || !batchId || !lessonId) throw new Error("Lesson progress requires an active course and batch enrollment.");
+  await setDoc(doc(firestore, "lessonProgress", `${courseId}_${batchId}_${lessonId}_${studentId}`), {
     lessonId,
     studentId,
     courseId,
+    batchId,
     status,
     updatedAt: serverTimestamp(),
   }, { merge: true });

@@ -14,6 +14,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "migrate:lesson-progress": "node --env-file=.env scripts/migrate-lesson-progress.mjs",
     "admin:dev": "pnpm --filter admin-dashboard exec next dev",
     "admin:build": "pnpm --filter admin-dashboard run build",
     "admin:lint": "pnpm --filter admin-dashboard run lint",

@@ -422,12 +422,12 @@ export async function listAssessmentCatalogPage(studentId: string, input: QuizCa
     batchesByCourse.set(scope.courseId, batches);
   }
 
-  // Firestore cannot express substring search or join per-student summaries.
-  // Scan projected metadata in bounded chunks; hydrate only the requested page.
+// Firestore cannot express substring search. Scan projected metadata in
+  // bounded chunks, then fetch only the summaries the student actually has.
   const metadata = new Map<string, DocumentData>();
   for (const [courseId, batches] of batchesByCourse) {
     const base = db.collection("quizzes").where("courseId", "==", courseId).where("isPublished", "==", true)
-      .orderBy(FieldPath.documentId()).select("courseId", "batchId", "title", "description", "chapter", "kind", "opensAt", "passingPercent").limit(200);
+      .orderBy(FieldPath.documentId()).select("courseId", "batchId", "title", "description", "chapter", "kind", "opensAt", "passingPercent", "durationMinutes", "totalMarks", "maxRetakes", "drawQuestionCount", "retakeCooldownHours", "closesAt").limit(200);
     let cursor: QueryDocumentSnapshot | undefined;
     while (true) {
       const snapshot = await (cursor ? base.startAfter(cursor) : base).get();
@@ -440,12 +440,20 @@ export async function listAssessmentCatalogPage(studentId: string, input: QuizCa
     }
   }
   const ids = [...metadata.keys()];
+  const idSet = new Set(ids);
   const summaries = new Map<string, StoredQuizSummary>();
-  for (let offset = 0; offset < ids.length; offset += 200) {
-    const documents = await db.getAll(...ids.slice(offset, offset + 200).map(id => db.doc(`quizSummaries/${id}_${studentId}`)));
-    documents.forEach(document => {
-      if (document.exists) summaries.set(document.id.slice(0, -(studentId.length + 1)), document.data() as StoredQuizSummary);
-    });
+  const summaryQuery = db.collection("quizSummaries").where("studentId", "==", studentId)
+    .orderBy(FieldPath.documentId()).limit(200);
+  let summaryCursor: QueryDocumentSnapshot | undefined;
+  while (true) {
+    const snapshot = await (summaryCursor ? summaryQuery.startAfter(summaryCursor) : summaryQuery).get();
+    for (const document of snapshot.docs) {
+      const quizId = document.id.slice(0, -(studentId.length + 1));
+      const data = document.data() as StoredQuizSummary;
+      if (idSet.has(quizId) && data?.quizId) summaries.set(quizId, data);
+    }
+    if (snapshot.size < 200) break;
+    summaryCursor = snapshot.docs[snapshot.docs.length - 1];
   }
   const now = Date.now();
   const records = ids.map(id => {
@@ -464,16 +472,11 @@ export async function listAssessmentCatalogPage(studentId: string, input: QuizCa
   const pageSize = 10;
   const page = Math.min(input.page, Math.max(0, Math.ceil(matching.length / pageSize) - 1));
   const selected = matching.slice(page * pageSize, (page + 1) * pageSize);
-  const documents = selected.length ? await db.getAll(...selected.map(record => db.doc(`quizzes/${record.id}`))) : [];
-  const quizzes = documents.filter(document => {
-    const data = document.data();
-    const batches = batchesByCourse.get(String(data?.courseId ?? ""));
-    return document.exists && data?.isPublished === true && batches && (!data.batchId || batches.has(String(data.batchId)));
-  }).sort((a, b) => selected.findIndex(record => record.id === a.id) - selected.findIndex(record => record.id === b.id)).map(document => {
-    const data = document.data()!;
-    const chapters = records.filter(record => record.data.courseId === data.courseId && record.data.kind !== "final_exam"
-      && (!record.data.batchId || record.data.batchId === data.batchId || (!data.batchId && record.data.batchId === scopes.find(scope => scope.courseId === data.courseId)?.batchId)));
-    return catalogEntry(document.id, data, summaries.get(document.id), chapters.filter(record => record.status === "completed").length, chapters.length);
+  const quizzes = selected.map(record => {
+    const data = metadata.get(record.id)!;
+    const chapters = records.filter(recordItem => recordItem.data.courseId === data.courseId && recordItem.data.kind !== "final_exam"
+      && (!recordItem.data.batchId || recordItem.data.batchId === data.batchId || (!data.batchId && recordItem.data.batchId === scopes.find(scope => scope.courseId === data.courseId)?.batchId)));
+    return catalogEntry(record.id, data, summaries.get(record.id), chapters.filter(recordItem => recordItem.status === "completed").length, chapters.length);
   });
   return { quizzes, page, pageSize, total: matching.length,
     summary: { total: records.length, completed: completed.length, available: records.filter(record => record.status === "available").length,

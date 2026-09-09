@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const courseId = url.searchParams.get("courseId")?.trim() ?? "";
     const batchId = url.searchParams.get("batchId")?.trim() ?? "";
     if (!courseId || !batchId) throw new ApiError(400, "A course and batch are required.");
-    return NextResponse.json({ quizzes: await listAssessmentCatalog(user.uid, courseId, batchId) });
+    return NextResponse.json({ quizzes: await listAssessmentCatalog(user.uid, courseId, batchId) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return apiErrorResponse(error, "Could not load the quiz catalog.");
   }
