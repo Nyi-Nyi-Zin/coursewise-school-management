@@ -25,6 +25,7 @@ export default function AdminResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setError] = useState(false);
@@ -166,16 +167,26 @@ export default function AdminResetPasswordPage() {
                 <KeyRound size={15} className="text-emerald-700" />
                 Confirm password
               </span>
-              <input
-                className={inputClassName}
-                type={showPassword ? "text" : "password"}
-                autoComplete="new-password"
-                placeholder="Repeat your new password"
-                value={confirmPassword}
-                onChange={event => setConfirmPassword(event.target.value)}
-                required
-                minLength={6}
-              />
+              <span className="relative block">
+                <input
+                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-3 pr-11 text-sm outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+                  type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="Repeat your new password"
+                  value={confirmPassword}
+                  onChange={event => setConfirmPassword(event.target.value)}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(value => !value)}
+                  className="absolute inset-y-0 right-0 grid w-11 place-items-center text-stone-400 hover:text-emerald-700"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </span>
             </label>
             {message ? (
               <p

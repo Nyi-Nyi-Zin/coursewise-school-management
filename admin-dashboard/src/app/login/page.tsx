@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- the bundled SVG logo is already optimized and fixed-size */
 
 import { useRouter } from "next/navigation";
-import { ArrowRight, KeyRound, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, KeyRound, Mail } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { hasFirebaseConfiguration } from "@/lib/firebase-config";
 import { useSingleFlight } from "@/lib/use-single-flight";
@@ -12,6 +12,7 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setError] = useState(false);
@@ -114,16 +115,26 @@ export default function AdminLoginPage() {
               <KeyRound size={15} className="text-emerald-700" />
               Password
             </span>
-            <input
-              className="h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-              type="password"
-              autoComplete="current-password"
-              placeholder="Your password"
-              value={password}
-              onChange={event => setPassword(event.target.value)}
-              required
-              minLength={6}
-            />
+            <span className="relative block">
+              <input
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-3 pr-11 text-sm outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="Your password"
+                value={password}
+                onChange={event => setPassword(event.target.value)}
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(value => !value)}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-stone-400 hover:text-emerald-700"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </span>
           </label>
           {message ? (
             <p

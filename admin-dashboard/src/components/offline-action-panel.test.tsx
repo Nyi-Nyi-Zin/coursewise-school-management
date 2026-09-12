@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 import { OfflineActionPanel } from "./offline-action-panel";
 
@@ -16,6 +16,8 @@ vi.mock("@/lib/course-batch-service", () => ({
   loadBatches: vi.fn(),
 }));
 
+beforeEach(() => save.mockClear());
+
 it("creates a quiz from one linked course-batch selection", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><OfflineActionPanel section="quizzes" initial={null} onClose={() => undefined} onSave={save} /></QueryClientProvider>);
@@ -27,6 +29,22 @@ it("creates a quiz from one linked course-batch selection", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save Quiz" }));
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
     title: "Python basics",
+    fields: expect.objectContaining({ courseId: "course-python", batchId: "batch-linked" }),
+  })));
+  client.clear();
+});
+
+it("creates a lesson from one linked course-batch selection", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><OfflineActionPanel section="lessons" initial={null} onClose={() => undefined} onSave={save} /></QueryClientProvider>);
+  fireEvent.change(screen.getByPlaceholderText("Enter details"), { target: { value: "Getting started" } });
+  const pair = await screen.findByRole("combobox", { name: "Course and batch" });
+  expect(screen.queryByText("Select course")).toBeNull();
+  expect(screen.queryByText("Select batch")).toBeNull();
+  fireEvent.change(pair, { target: { value: "batch-linked" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save Lesson" }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+    title: "Getting started",
     fields: expect.objectContaining({ courseId: "course-python", batchId: "batch-linked" }),
   })));
   client.clear();

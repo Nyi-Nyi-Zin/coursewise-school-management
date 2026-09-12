@@ -71,6 +71,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
 
   const profileName = profile.data?.name || user?.displayName || "Student";
   const photoUrl = profile.data?.photoUrl;
+  const isCertificatesPage = pathname.startsWith("/certificates");
   const mobileNavigation = [
     ...navigation,
     { href: "/profile", label: "Profile", icon: UserCircle2 },
@@ -112,12 +113,14 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
-            <CourseBatchSelector
-              enrollments={enrollments}
-              value={selectedKey}
-              onChange={selectEnrollment}
-              className="ml-auto max-w-[min(44vw,18rem)] lg:ml-0 lg:max-w-48 xl:max-w-64"
-            />
+            <div className="hidden lg:block">
+              <CourseBatchSelector
+                enrollments={enrollments}
+                value={selectedKey}
+                onChange={selectEnrollment}
+                className="max-w-48 xl:max-w-64"
+              />
+            </div>
             {notificationsIconEnabled ? (
               <button
                 className="grid size-10 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
@@ -172,7 +175,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
             onClick={() => setMenuOpen(false)}
             className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm lg:hidden"
           />
-          <aside className="fixed inset-y-0 right-0 z-50 w-80 max-w-[88vw] border-l border-slate-200 bg-white p-5 shadow-2xl lg:hidden">
+          <aside className="fixed inset-y-0 right-0 z-50 w-80 max-w-[88vw] overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl lg:hidden">
             <div className="mb-8 flex items-center justify-between">
               <StudentBrand />
               <button
@@ -184,6 +187,19 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
                 <X className="size-4" />
               </button>
             </div>
+            {enrollments.length ? (
+              <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Course &amp; batch
+                </p>
+                <CourseBatchSelector
+                  enrollments={enrollments}
+                  value={selectedKey}
+                  onChange={selectEnrollment}
+                  className="mt-1 w-full [&>select]:w-full"
+                />
+              </div>
+            ) : null}
             <nav className="grid gap-2" aria-label="Student navigation">
               {mobileNavigation.map(item => {
                 const Icon = item.icon;
@@ -214,7 +230,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
         </>
       ) : null}
 
-      <main key={selectedKey || "no-enrollment"} className="mx-auto min-w-0 w-full max-w-[1480px] flex-1 overflow-x-hidden px-4 pb-10 pt-6 sm:px-6 sm:pt-7 lg:px-8 xl:px-10">
+      <main key={isCertificatesPage ? "certificates-page" : selectedKey || "no-enrollment"} className="mx-auto min-w-0 w-full max-w-[1480px] flex-1 overflow-x-hidden px-4 pb-10 pt-6 sm:px-6 sm:pt-7 lg:px-8 xl:px-10">
         {children}
       </main>
       <div className="pb-20 lg:pb-0">

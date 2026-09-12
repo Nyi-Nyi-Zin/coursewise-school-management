@@ -55,7 +55,6 @@ const finalOnlyFields = new Set([
 const moduleFields: Record<Section, FieldDefinition[]> = {
   overview: [],
   students: [
-    { key: "studentId", label: "Student ID" },
     { key: "email", label: "Email" },
     { key: "photoUrl", label: "Profile photo", type: "image" },
   ],
@@ -152,9 +151,8 @@ export function OfflineActionPanel({
   );
   const isAnnouncement = section === "announcements";
   const isQuiz = section === "quizzes";
-  const usesLinkedBatchPicker = isAnnouncement || isQuiz;
-  const needsCourse =
-    hasFirebaseConfiguration && (isScoped || section === "lessons");
+  const usesLinkedBatchPicker = isScoped;
+  const needsCourse = hasFirebaseConfiguration && isScoped;
   const needsScope = isScoped && hasFirebaseConfiguration && !isAnnouncement;
   const courses = useQuery({
     queryKey: ["admin", "content-courses"],
@@ -192,7 +190,7 @@ export function OfflineActionPanel({
   const canSave =
     Boolean(title.trim()) &&
     (!needsCourse || Boolean(fields.courseId)) &&
-    (!isScoped || Boolean(fields.batchId)) &&
+    (!isScoped || Boolean(selectedLinkedBatch)) &&
     !quizWindowInvalid;
   const visibleFields = moduleFields[section]
     .filter(
@@ -294,7 +292,7 @@ export function OfflineActionPanel({
               />
             </label>
             {needsScope ? (
-              isQuiz ? (
+              usesLinkedBatchPicker ? (
                 <label className="block text-sm font-bold text-stone-700 sm:col-span-2">
                   Course &amp; batch
                   <select
@@ -451,7 +449,7 @@ export function OfflineActionPanel({
             <p className="mt-2 text-center text-xs font-semibold text-amber-700">
               {isQuiz
                 ? "Select a linked course-batch pair before saving."
-                : "Select a course and batch before saving."}
+                : "Select a linked course-batch pair before saving."}
             </p>
           ) : null}
           {quizWindowInvalid ? (

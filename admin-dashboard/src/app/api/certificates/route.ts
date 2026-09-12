@@ -80,6 +80,21 @@ export async function POST(request: Request) {
     if (Number.isNaN(parsedDate.getTime())) throw new ApiError(400, "Completion date is invalid.");
 
     const db = getFirebaseAdmin().db;
+    const studentId = text(body.studentId, "Student");
+    const courseId = text(body.courseId, "Course");
+    const batchId = text(body.batchId, "Batch");
+    const [course, batch, enrollment] = await Promise.all([
+      db.doc(`courses/${courseId}`).get(),
+      db.doc(`batches/${batchId}`).get(),
+      db.doc(`enrollments/${courseId}_${batchId}_${studentId}`).get(),
+    ]);
+    if (!course.exists) throw new ApiError(404, "The selected course was not found.");
+    if (!batch.exists || String(batch.data()?.courseId ?? "") !== courseId) {
+      throw new ApiError(409, "The selected batch is not linked to the selected course.");
+    }
+    if (!enrollment.exists || enrollment.data()?.status !== "active") {
+      throw new ApiError(409, "The selected student is not enrolled in this course-batch pair.");
+    }
     const duplicate = await db.collection("certificates").where("certificateId", "==", certificateId).limit(1).get();
     if (!duplicate.empty) throw new ApiError(409, "That certificate serial ID is already in use.");
 
@@ -87,12 +102,12 @@ export async function POST(request: Request) {
     const data = {
       certificateId,
       verificationCode: randomCode(10),
-      studentId: text(body.studentId, "Student"),
+      studentId,
       studentName: text(body.studentName, "Student name"),
       studentCode: text(body.studentCode, "Student ID"),
-      courseId: text(body.courseId, "Course"),
+      courseId,
       courseTitle: text(body.courseTitle, "Course name"),
-      batchId: text(body.batchId, "Batch"),
+      batchId,
       batchName: text(body.batchName, "Batch number"),
       courseDescription: text(body.courseDescription, "Course description"),
       completionDate,

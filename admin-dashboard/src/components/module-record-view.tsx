@@ -3,6 +3,7 @@
 import type { ManagementSection, OfflineItem } from "@/lib/offline-records";
 import {
   Eye,
+  EyeOff,
   Filter,
   Pencil,
   Users,
@@ -1044,6 +1045,8 @@ function ChangePasswordModal({
 }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const runSingleFlight = useSingleFlight();
   const mismatch = confirm && password !== confirm;
@@ -1102,23 +1105,43 @@ function ChangePasswordModal({
         <div className="mt-6 space-y-4">
           <label className="block text-xs font-bold text-stone-700">
             New password
-            <input
-              type="password"
-              value={password}
-              onChange={event => setPassword(event.target.value)}
-              placeholder="Min. 6 characters"
-              className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal outline-none focus:border-emerald-600"
-            />
+            <span className="relative mt-2 block">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={event => setPassword(event.target.value)}
+                placeholder="Min. 6 characters"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-3 pr-11 text-sm font-normal outline-none focus:border-emerald-600"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(value => !value)}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-stone-400 hover:text-emerald-700"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </span>
           </label>
           <label className="block text-xs font-bold text-stone-700">
             Confirm password
-            <input
-              type="password"
-              value={confirm}
-              onChange={event => setConfirm(event.target.value)}
-              placeholder="Re-enter the password"
-              className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal outline-none focus:border-emerald-600"
-            />
+            <span className="relative mt-2 block">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                value={confirm}
+                onChange={event => setConfirm(event.target.value)}
+                placeholder="Re-enter the password"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-3 pr-11 text-sm font-normal outline-none focus:border-emerald-600"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(value => !value)}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-stone-400 hover:text-emerald-700"
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              >
+                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </span>
           </label>
           {mismatch ? (
             <p className="text-xs font-semibold text-red-600">

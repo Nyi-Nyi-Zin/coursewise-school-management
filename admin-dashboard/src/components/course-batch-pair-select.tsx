@@ -7,6 +7,8 @@ export function CourseBatchPairSelect({
   batches,
   onChange,
   loading = false,
+  ariaLabel = "Filter by course and batch",
+  placeholder,
   className = "h-9 min-w-52 rounded-xl border border-stone-300 bg-white px-3 text-xs font-semibold text-stone-700",
 }: {
   value: CourseBatchScope;
@@ -14,6 +16,8 @@ export function CourseBatchPairSelect({
   batches: BatchRecord[];
   onChange: (next: CourseBatchScope) => void;
   loading?: boolean;
+  ariaLabel?: string;
+  placeholder?: string;
   className?: string;
 }) {
   const courseById = new Map(courses.map(course => [course.id, course]));
@@ -24,7 +28,7 @@ export function CourseBatchPairSelect({
 
   return (
     <select
-      aria-label="Filter by course and batch"
+      aria-label={ariaLabel}
       value={selectedBatch?.id ?? ""}
       onChange={event => {
         const batch = linkedBatches.find(item => item.id === event.target.value);
@@ -32,7 +36,11 @@ export function CourseBatchPairSelect({
       }}
       className={className}
     >
-      <option value="">{loading ? "Loading course–batch pairs…" : "All course–batch pairs"}</option>
+      <option value="">
+        {loading
+          ? "Loading course–batch pairs…"
+          : placeholder ?? "All course–batch pairs"}
+      </option>
       {linkedBatches.map(batch => (
         <option key={batch.id} value={batch.id}>
           {courseById.get(batch.courseId)?.title} — {batch.name}

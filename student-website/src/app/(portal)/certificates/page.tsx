@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { CertificateTemplate } from "@/components/certificate-template";
-import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import { getMyCertificates, type StudentCertificate } from "@/lib/student-repository";
 
 function formatDate(iso?: string, compact = false) {
@@ -21,7 +20,6 @@ function formatDate(iso?: string, compact = false) {
 
 export default function CertificatesPage() {
   const { user } = useStudentAuth();
-  const { enrollment } = useCourseBatchSelection();
   const [printCertificate, setPrintCertificate] = useState<StudentCertificate | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -31,7 +29,7 @@ export default function CertificatesPage() {
     enabled: Boolean(user?.uid),
   });
 
-  const items = (certificates.data ?? []).filter(item => !enrollment || (item.courseTitle === enrollment.courseTitle && item.batchName === enrollment.batchName));
+  const items = certificates.data ?? [];
   const selectedCertificate = items.find(item => item.id === selectedId) ?? items[0];
 
   function print(cert: StudentCertificate) {

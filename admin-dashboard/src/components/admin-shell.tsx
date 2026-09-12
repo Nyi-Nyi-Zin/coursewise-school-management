@@ -218,7 +218,7 @@ export function AdminShell() {
     if (!isRecordSection(section)) return;
     if (section === "students" && !editingItem) {
       try {
-        const account = await createStudentAccount({ name: draft.title, email: draft.fields?.email ?? "", studentId: draft.fields?.studentId ?? "", photoUrl: draft.fields?.photoUrl, isActive: draft.status === "Active" });
+        const account = await createStudentAccount({ name: draft.title, email: draft.fields?.email ?? "", photoUrl: draft.fields?.photoUrl, isActive: draft.status === "Active" });
         const item: OfflineItem = {
           id: account.uid,
           title: draft.title,
@@ -228,7 +228,7 @@ export function AdminShell() {
           fields: { ...draft.fields, studentId: account.studentId },
         };
         await optimisticallySaveAdminRecord(queryClient, "students", item);
-        toast.success("Student account was created.");
+        toast.success(`Student account was created. Assigned Student ID: ${account.studentId}.`);
       } catch (error) {
         toast.error(error instanceof Error ? error.message.replace("Firebase: ", "") : "The student account could not be created.");
       } finally {

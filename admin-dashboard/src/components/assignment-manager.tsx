@@ -528,9 +528,11 @@ function AssignmentForm({
   const [isPublished, setIsPublished] = useState(
     assignment?.isPublished ?? true
   );
-  const courseBatches = batches.filter(item => item.courseId === courseId);
+  const selectedBatch = batches.find(
+    item => item.id === batchId && item.courseId === courseId
+  );
   const submit = () => {
-    if (!title.trim() || !courseId || !batchId) return;
+    if (!title.trim() || !selectedBatch) return;
     onSubmit({
       title: title.trim(),
       description: description.trim(),
@@ -593,41 +595,19 @@ function AssignmentForm({
           />
         </label>
         <label className="mt-4 block text-xs font-bold text-stone-700">
-          Course
-          <select
-            value={courseId}
-            onChange={event => {
-              setCourseId(event.target.value);
-              setBatchId("");
+          Course &amp; batch
+          <CourseBatchPairSelect
+            value={{ courseId, batchId }}
+            courses={courses}
+            batches={batches}
+            ariaLabel="Course and batch"
+            placeholder="Select a linked course-batch pair"
+            onChange={next => {
+              setCourseId(next.courseId);
+              setBatchId(next.batchId);
             }}
-            className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
-          >
-            {courses.map(course => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="mt-4 block text-xs font-bold text-stone-700">
-          Batch
-          <select
-            value={batchId}
-            onChange={event => setBatchId(event.target.value)}
-            className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
-          >
-            <option value="">Select a batch</option>
-            {courseBatches.map(batch => (
-              <option key={batch.id} value={batch.id}>
-                {batch.name}
-              </option>
-            ))}
-            {!courseBatches.length ? (
-              <option value="" disabled>
-                No batches for this course
-              </option>
-            ) : null}
-          </select>
+            className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal"
+          />
         </label>
         <label className="mt-4 block text-xs font-bold text-stone-700">
           Due date
@@ -676,7 +656,7 @@ function AssignmentForm({
           </Button>
           <Button
             type="submit"
-            disabled={!title.trim() || !courseId || !batchId || pending}
+            disabled={!title.trim() || !selectedBatch || pending}
           >
             <BookPlus size={16} />
             {pending

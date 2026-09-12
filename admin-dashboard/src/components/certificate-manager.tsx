@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { CertificateTemplate } from "@/components/certificate-template";
+import { CourseBatchPairSelect } from "@/components/course-batch-pair-select";
 
 import {
   issueCertificate,
@@ -108,11 +109,6 @@ export function CertificateManager() {
   });
 
   const data = options.data;
-  const availableBatches = useMemo(
-    () =>
-      data?.batches.filter(batch => batch.courseId === draft.courseId) ?? [],
-    [data?.batches, draft.courseId]
-  );
   const availableStudents = useMemo(() => {
     if (!data || !draft.courseId || !draft.batchId) return [];
     const studentIds = new Set(
@@ -128,28 +124,19 @@ export function CertificateManager() {
     return data.students.filter(student => studentIds.has(student.id));
   }, [data, draft.batchId, draft.courseId]);
 
-  const selectCourse = (courseId: string) => {
+  const selectPair = ({ courseId, batchId }: { courseId: string; batchId: string }) => {
     const course = data?.courses.find(item => item.id === courseId);
+    const batch = data?.batches.find(
+      item => item.id === batchId && item.courseId === courseId
+    );
     setDraft(current => ({
       ...current,
       certificateId: current.certificateId || newSerial(),
       courseId,
       courseTitle: course?.title ?? "",
-      batchId: "",
-      batchName: "",
-      courseDescription: "",
-      studentId: "",
-      studentName: "",
-      studentCode: "",
-    }));
-    setVerificationCode("");
-  };
-  const selectBatch = (batchId: string) => {
-    const batch = data?.batches.find(item => item.id === batchId);
-    setDraft(current => ({
-      ...current,
       batchId,
       batchName: batch?.name ?? "",
+      courseDescription: "",
       studentId: "",
       studentName: "",
       studentCode: "",
@@ -238,31 +225,22 @@ export function CertificateManager() {
             </p>
           ) : (
             <div className="mt-6 space-y-4">
-              <SelectField
-                label="Course"
-                value={draft.courseId}
-                onChange={selectCourse}
-              >
-                <option value="">Select course</option>
-                {data?.courses.map(course => (
-                  <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Batch number"
-                value={draft.batchId}
-                onChange={selectBatch}
-                disabled={!draft.courseId}
-              >
-                <option value="">Select batch</option>
-                {availableBatches.map(batch => (
-                  <option key={batch.id} value={batch.id}>
-                    {batch.name}
-                  </option>
-                ))}
-              </SelectField>
+              <label className="block text-sm font-bold text-stone-700">
+                Course &amp; batch
+                <CourseBatchPairSelect
+                  value={{
+                    courseId: draft.courseId,
+                    batchId: draft.batchId,
+                  }}
+                  courses={data?.courses ?? []}
+                  batches={data?.batches ?? []}
+                  ariaLabel="Course and batch"
+                  placeholder="Select a linked course-batch pair"
+                  onChange={selectPair}
+                  loading={options.isLoading}
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-normal"
+                />
+              </label>
               <SelectField
                 label="Student"
                 value={draft.studentId}
@@ -294,6 +272,7 @@ export function CertificateManager() {
                 onChange={courseTitle =>
                   setDraft(current => ({ ...current, courseTitle }))
                 }
+                readOnly
               />
               <InputField
                 label="Batch number"
@@ -301,6 +280,7 @@ export function CertificateManager() {
                 onChange={batchName =>
                   setDraft(current => ({ ...current, batchName }))
                 }
+                readOnly
               />
               <TextareaField
                 label="Course description"
@@ -544,12 +524,14 @@ function InputField({
   onChange,
   type = "text",
   mono,
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   mono?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <label className="block text-sm font-bold text-stone-700">
@@ -558,7 +540,8 @@ function InputField({
         type={type}
         value={value}
         onChange={event => onChange(event.target.value)}
-        className={`mt-2 h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-600 ${mono ? "font-mono" : ""}`}
+        readOnly={readOnly}
+        className={`mt-2 h-11 w-full rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-600 ${mono ? "font-mono" : ""} ${readOnly ? "bg-stone-50 text-stone-500" : ""}`}
       />
     </label>
   );
