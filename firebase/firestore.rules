@@ -8,7 +8,7 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
     function isActiveStudent() {
       return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        userDoc().data.role == 'student' && userDoc().data.isActive != false;
+        userDoc().data.role == 'student' && userDoc().data.get('isActive', true) != false;
     }
     function isPublished() { return resource.data.isPublished == true; }
     function hasBatchFields(data) { return data.courseId is string && data.batchId is string; }

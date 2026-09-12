@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Mono, DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
-import { AdminProviders } from "./providers";
 import { desktopViewportWidth, mobileResponsiveEnabled } from "../../../shared/portal-display-settings";
 
 const sans = DM_Sans({ variable: "--font-course-sans", subsets: ["latin"] });
@@ -27,5 +26,5 @@ export const viewport: Viewport = mobileResponsiveEnabled
   : { width: desktopViewportWidth, initialScale: 1, themeColor: "#0B1220" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}><body><AdminProviders>{children}</AdminProviders></body></html>;
+  return <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}><body>{children}</body></html>;
 }

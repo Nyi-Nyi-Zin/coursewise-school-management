@@ -18,20 +18,17 @@ import {
   Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
+import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import {
   EmptyPortalState,
   formatPortalDate,
   MetricCard,
-  PortalPageHeader,
   PortalPanel,
-  ProgressRing,
   StatusPill,
 } from "@/components/portal-ui";
 import {
   getQuizCatalogPage,
-  getStudentEnrollments,
   type BatchQuiz,
 } from "@/lib/student-repository";
 import { isFirebaseConfigured } from "@/lib/firebase";
@@ -48,7 +45,7 @@ const quizFilters: { value: QuizFilter; label: string }[] = [
 
 export default function QuizzesPage() {
   const { user } = useStudentAuth();
-  const { enrollment, enrollments, enrollmentsQuery, selectionReady, selectedKey, selectEnrollment } = useCourseBatchSelection("quizzes");
+  const { enrollment, enrollments, enrollmentsQuery, selectionReady } = useCourseBatchSelection();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<QuizFilter>("all");
   const [page, setPage] = useState(0);
@@ -66,7 +63,6 @@ export default function QuizzesPage() {
   const availableCount = summary?.available ?? 0;
   const averageScore = summary?.averageScore ?? 0;
   const bestScore = summary?.bestScore ?? 0;
-  const passedCount = summary?.passed ?? 0;
   const scores = quizzes.data?.scores ?? [];
   const total = quizzes.data?.total ?? 0;
   const pageSize = quizzes.data?.pageSize ?? 10;
@@ -88,13 +84,9 @@ export default function QuizzesPage() {
 
   return (
     <section className="min-w-0 pb-24 lg:pb-2">
-      <PortalPageHeader
-        eyebrow="Private assessment record · All enrolled courses"
-        title="Quizzes"
-        description="Track your quiz progress, attempt assessments, and review your performance."
-      />
-      <CourseBatchSelector enrollments={enrollments} value={selectedKey} onChange={value => { selectEnrollment(value); setPage(0); }} className="mt-4" />
-
+      <header className="text-center">
+        <h1 className="text-4xl font-bold tracking-[-0.04em] text-slate-950">Quizzes</h1>
+      </header>
       <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Quiz summary">
         <MetricCard icon={ClipboardCheck} label="Available quizzes" value={availableCount} detail="Ready to attempt" />
         <MetricCard icon={CheckCircle2} label="Completed quizzes" value={completedCount} detail={`Out of ${totalCount} total`} />
@@ -105,7 +97,7 @@ export default function QuizzesPage() {
       {quizzes.isError || enrollmentsQuery.isError ? (
         <PortalPanel className="mt-4 flex flex-wrap items-center justify-between gap-3 border-red-200 p-5 text-sm text-red-700">
           <span>{(quizzes.error ?? enrollmentsQuery.error)?.message ?? "Quizzes could not be loaded. Check your connection, then try again."}</span>
-          <Button variant="outline" size="sm" onClick={() => void (enrollmentsQuery.isError ? enrollmentsQuery.refetch() : quizzes.refetch())}>Retry</Button>
+          <Button variant="outline" size="sm" disabled={enrollmentsQuery.isFetching || quizzes.isFetching} onClick={() => void (enrollmentsQuery.isError ? enrollmentsQuery.refetch() : quizzes.refetch())}>{enrollmentsQuery.isFetching || quizzes.isFetching ? "Retrying..." : "Retry"}</Button>
         </PortalPanel>
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(340px,0.95fr)]">
@@ -215,17 +207,6 @@ export default function QuizzesPage() {
               </div>
             </PortalPanel>
 
-            <PortalPanel className="p-5">
-              <h2 className="text-sm font-semibold text-slate-900">Your performance</h2>
-              <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row xl:flex-col 2xl:flex-row">
-                <ProgressRing value={totalCount ? Math.round((completedCount / totalCount) * 100) : 0} />
-                <div className="w-full flex-1 divide-y divide-slate-100 text-sm">
-                  <PerformanceLine icon={ClipboardCheck} label="Attempted quizzes" value={`${completedCount} / ${totalCount}`} />
-                  <PerformanceLine icon={CheckCircle2} label="Passed quizzes" value={`${passedCount} / ${completedCount}`} accent />
-                  <PerformanceLine icon={BarChart3} label="Average score" value={`${averageScore}%`} />
-                </div>
-              </div>
-            </PortalPanel>
           </aside>
         </div>
       )}
@@ -237,6 +218,7 @@ function QuizRow({ quiz, number }: { quiz: BatchQuiz; number: number }) {
   const upcoming = isUpcoming(quiz);
   const completed = quiz.attemptCount > 0;
   const bestScore = quiz.bestPercentage;
+  const retakesLeft = remainingRetakes(quiz);
   return (
     <article className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_7px_22px_rgba(15,23,42,0.035)] sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:items-center">
       <span className="grid size-12 place-items-center rounded-xl bg-teal-50 text-xl font-semibold text-teal-700">{String(number).padStart(2, "0")}</span>
@@ -253,13 +235,14 @@ function QuizRow({ quiz, number }: { quiz: BatchQuiz; number: number }) {
           {quiz.kind === "final_exam" ? <span className="inline-flex items-center gap-1.5"><Clock3 className="size-3.5" />{quiz.durationMinutes} min</span> : null}
           <span className="inline-flex items-center gap-1.5"><CalendarDays className="size-3.5" />{quiz.closesAt ? `Due ${formatPortalDate(quiz.closesAt, true)}` : "Self-paced"}</span>
           {completed ? <span className="font-semibold text-teal-700">Best score {bestScore}%</span> : null}
+          <span className="font-semibold text-slate-700">{retakesLeft === null ? "Unlimited retakes" : `${retakesLeft} retake${retakesLeft === 1 ? "" : "s"} left`}</span>
         </div>
       </div>
       <div className="sm:text-right">
         {upcoming ? (
           <span className="inline-flex h-9 items-center rounded-lg border border-slate-200 px-4 text-xs font-semibold text-slate-500">Opens {formatPortalDate(quiz.opensAt, true)}</span>
-        ) : quiz.kind === "final_exam" && !quiz.eligible ? (
-          <div className="max-w-56 sm:text-right"><span className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-xs font-semibold text-amber-800"><LockKeyhole className="size-3.5" />Final locked</span><p className="mt-1 text-[11px] leading-4 text-amber-700">{quiz.lockReason}</p></div>
+        ) : !quiz.eligible ? (
+          <div className="max-w-56 sm:text-right"><span className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-xs font-semibold text-amber-800"><LockKeyhole className="size-3.5" />{quiz.kind === "final_exam" ? "Final locked" : "Quiz locked"}</span><p className="mt-1 text-[11px] leading-4 text-amber-700">{quiz.lockReason}</p></div>
         ) : (
           <Link href={`/quizzes/take?id=${quiz.id}`} className={cn("inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold transition", completed ? "border border-teal-500 text-teal-700 hover:bg-teal-50" : "bg-teal-700 text-white shadow-sm hover:bg-teal-800")}>
             {quiz.kind === "final_exam" ? quiz.attemptCount ? "Retake final" : "Start final" : completed ? "Try again" : "Start quiz"}<Play className="size-3.5" fill="currentColor" />
@@ -270,16 +253,11 @@ function QuizRow({ quiz, number }: { quiz: BatchQuiz; number: number }) {
   );
 }
 
-function PerformanceLine({ icon: Icon, label, value, accent = false }: { icon: typeof ClipboardCheck; label: string; value: string; accent?: boolean }) {
-  return (
-    <div className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-      <span className="grid size-8 place-items-center rounded-lg bg-teal-50 text-teal-600"><Icon className="size-4" /></span>
-      <span className="min-w-0 flex-1 text-xs text-slate-600">{label}</span>
-      <strong className={cn("text-sm text-slate-900", accent && "text-teal-700")}>{value}</strong>
-    </div>
-  );
-}
-
 function isUpcoming(quiz: BatchQuiz) {
   return Boolean(quiz.opensAt && new Date(quiz.opensAt).getTime() > Date.now());
+}
+
+function remainingRetakes(quiz: BatchQuiz) {
+  if (quiz.maxRetakes === undefined || quiz.maxRetakes < 0) return null;
+  return Math.max(0, quiz.maxRetakes - Math.max(0, quiz.attemptCount - 1));
 }

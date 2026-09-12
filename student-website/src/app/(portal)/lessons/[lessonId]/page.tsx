@@ -23,8 +23,8 @@ import { isFirebaseConfigured } from "@/lib/firebase";
 
 export default function LessonDetailPage() {
   const { lessonId = "" } = useParams<{ lessonId: string }>();
-  const { enrollment, enrollmentsQuery, selectionReady } = useCourseBatchSelection("lessons");
-  const { statuses, updateStatus } = useLessonProgress(selectionReady ? enrollment : null);
+  const { enrollment, enrollmentsQuery, selectionReady } = useCourseBatchSelection();
+  const { statuses, updateStatus, updateStatusOnce } = useLessonProgress(selectionReady ? enrollment : null);
   const lessonQuery = useQuery({
     queryKey: [...studentQueryKeys.lessons, enrollment?.courseId, enrollment?.batchId, lessonId],
     queryFn: () => getLessonById(lessonId, enrollment?.courseId, enrollment?.batchId),
@@ -97,7 +97,7 @@ export default function LessonDetailPage() {
               status={lesson.status}
               disabled={!isFirebaseConfigured && !enrollment}
               pending={updateStatus.isPending}
-              onChange={status => updateStatus.mutate({ lessonId: lesson.id, status })}
+              onChange={status => void updateStatusOnce({ lessonId: lesson.id, status })}
             />
           </div>
 

@@ -22,7 +22,7 @@ import { StudentBrand } from "@/components/student-brand";
 import { StudentFooter } from "@/components/student-footer";
 import { cn } from "@/lib/utils";
 import { useStudentAuth } from "@/components/student-auth-provider";
-import { useStudentCourse } from "@/components/student-course-provider";
+import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
 import { getStudentProfile } from "@/lib/student-repository";
 import {
   attendancePageEnabled,
@@ -47,7 +47,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { firebaseActive, loading, user, role } = useStudentAuth();
-  const { enrollment } = useStudentCourse();
+  const { enrollments, selectedKey, selectEnrollment } = useCourseBatchSelection();
   const profile = useQuery({
     queryKey: ["student", "profile", user?.uid],
     queryFn: () => getStudentProfile(user!.uid),
@@ -112,6 +112,12 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
+            <CourseBatchSelector
+              enrollments={enrollments}
+              value={selectedKey}
+              onChange={selectEnrollment}
+              className="ml-auto max-w-[min(44vw,18rem)] lg:ml-0 lg:max-w-48 xl:max-w-64"
+            />
             {notificationsIconEnabled ? (
               <button
                 className="grid size-10 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
@@ -208,7 +214,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
         </>
       ) : null}
 
-      <main className="mx-auto min-w-0 w-full max-w-[1480px] flex-1 overflow-x-hidden px-4 pb-10 pt-6 sm:px-6 sm:pt-7 lg:px-8 xl:px-10">
+      <main key={selectedKey || "no-enrollment"} className="mx-auto min-w-0 w-full max-w-[1480px] flex-1 overflow-x-hidden px-4 pb-10 pt-6 sm:px-6 sm:pt-7 lg:px-8 xl:px-10">
         {children}
       </main>
       <div className="pb-20 lg:pb-0">
@@ -232,7 +238,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-w-[68px] flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2 text-[9px] font-medium transition-colors sm:text-[10px]",
-                  active ? "text-teal-700" : "text-slate-400"
+                  active ? "text-teal-700" : "text-slate-600"
                 )}
               >
                 <Icon className="size-5" />

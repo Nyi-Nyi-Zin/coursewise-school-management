@@ -5,19 +5,23 @@ import { useState } from "react";
 import { Button } from "./ui/button";
 import { hasFirebaseConfiguration } from "../lib/firebase";
 import { createStudentAccount } from "../lib/admin-student-account-service";
+import { useSingleFlight } from "../lib/use-single-flight";
 
 export function AdminStudentAccountPanel() {
   const [name, setName] = useState(""); const [email, setEmail] = useState("");
   const [resetLink, setResetLink] = useState(""); const [message, setMessage] = useState<string | null>(null); const [creating, setCreating] = useState(false);
+  const runSingleFlight = useSingleFlight();
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!hasFirebaseConfiguration) { setMessage("Connect Firebase before creating student accounts."); return; }
-    setCreating(true); setMessage(null); setResetLink("");
-    try {
-      const account = await createStudentAccount({ name, email });
-      setResetLink(account.resetLink); setName(""); setEmail("");
-      setMessage(`Student ID ${account.studentId} was assigned. Share the password-setup link below with the student.`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "The account could not be created. Confirm you are signed in as an administrator."); }
-    finally { setCreating(false); }
+    await runSingleFlight("admin-create-student", async () => {
+      setCreating(true); setMessage(null); setResetLink("");
+      try {
+        const account = await createStudentAccount({ name, email });
+        setResetLink(account.resetLink); setName(""); setEmail("");
+        setMessage(`Student ID ${account.studentId} was assigned. Share the password-setup link below with the student.`);
+      } catch (error) { setMessage(error instanceof Error ? error.message : "The account could not be created. Confirm you are signed in as an administrator."); }
+      finally { setCreating(false); }
+    });
   }
   return <section className="rounded-3xl border border-stone-200/80 bg-white p-6 shadow-sm"><div className="flex items-start gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-800"><UserPlus size={19} /></span><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800/55">Student onboarding</p><h3 className="mt-1 font-display text-xl font-semibold">Create a student sign-in account</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">Opens a Firebase Authentication account plus the matching student profile, then generates a one-time link the student uses to choose their own password.</p></div></div>
     <form onSubmit={submit} className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">

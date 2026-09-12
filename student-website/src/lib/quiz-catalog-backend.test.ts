@@ -104,3 +104,10 @@ it("keeps final eligibility based on chapters outside the requested page", async
   expect(result.quizzes[0]).toMatchObject({ eligible: false, totalChapterCount: 23, completedChapterCount: 1 });
   expect(result.quizzes[0].lockReason).toBe("Complete all chapter quizzes (1/23)");
 });
+
+it("locks a chapter quiz once its configured retakes are exhausted", async () => {
+  mocks.records = [{ id: "limited", data: { title: "Limited quiz", courseId: "a", batchId: "batch-a", kind: "chapter_quiz", isPublished: true, maxRetakes: 1 } }];
+  mocks.summaries = { limited: { attemptCount: 2, bestPercentage: 60, passed: true } };
+  const result = await listAssessmentCatalogPage("student", input);
+  expect(result.quizzes[0]).toMatchObject({ eligible: false, remainingAttempts: 0, lockReason: "No attempts remain" });
+});

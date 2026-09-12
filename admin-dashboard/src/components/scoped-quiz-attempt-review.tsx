@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
-import { hasFirebaseConfiguration } from "../lib/firebase";
 import type { CourseBatchScope } from "../lib/course-batch-scope";
 import { quizAttemptReviewQueryKey } from "../lib/course-batch-dashboard";
 import { loadBatchQuizAttempts } from "../lib/quiz-attempt-review-service";

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomInt } from "node:crypto";
 import { FieldPath, FieldValue, type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import type { QuizCatalogPage, QuizCatalogRequest } from "@/lib/quiz-catalog";
 
@@ -54,7 +55,7 @@ function randomCode(length: number) {
 function shuffle<T>(values: T[]): T[] {
   const result = [...values];
   for (let index = result.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(Math.random() * (index + 1));
+    const target = randomInt(index + 1);
     [result[index], result[target]] = [result[target], result[index]];
   }
   return result;
@@ -216,13 +217,12 @@ export async function startAssessment(studentId: string, quizId: string) {
   const sessionReference = context.db.doc(`assessmentSessions/${quizId}_${studentId}`);
   const [existingSnapshot, summarySnapshot] = await Promise.all([sessionReference.get(), context.db.doc(`quizSummaries/${quizId}_${studentId}`).get()]);
   const summary = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
+  if (context.kind === "final_exam" && summary?.passed) throw new ApiError(409, "You already passed this final exam.");
+  if (remainingAttempts(context.maxRetakes, summary?.attemptCount ?? 0) === 0) throw new ApiError(409, "No attempts remain for this quiz.");
   if (context.kind === "final_exam") {
     const chapters = await chapterCompletion(studentId, context.courseId, enrolledBatchId);
     if (!chapters.eligible) throw new ApiError(409, `Complete all chapter quizzes first (${chapters.completed}/${chapters.total}).`);
-    if (summary?.passed) throw new ApiError(409, "You already passed this final exam.");
-    if (remainingAttempts(context.maxRetakes, summary?.attemptCount ?? 0) === 0) throw new ApiError(409, "No attempts remain for this final exam.");
     if (summary?.nextEligibleAtMillis && now < summary.nextEligibleAtMillis) throw new ApiError(409, `Your retake unlocks at ${new Date(summary.nextEligibleAtMillis).toISOString()}.`);
-    if (context.questions.length < context.drawQuestionCount) throw new ApiError(409, `This final exam needs at least ${context.drawQuestionCount} published questions.`);
   }
   if (existingSnapshot.exists) {
     const existing = existingSnapshot.data() as StoredSession;
@@ -333,7 +333,7 @@ export async function submitAssessment(studentId: string, quizId: string, rawSes
     const previous = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
     const previousAttempts = counterSnapshot.exists ? Number(counterSnapshot.data()?.count ?? 0) : previous?.attemptCount ?? 0;
     if (context.kind === "final_exam" && previous?.passed) throw new ApiError(409, "You already passed this final exam.");
-    if (context.kind === "final_exam" && remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this final exam.");
+    if (remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this quiz.");
     const attemptReference = context.db.collection("quizAttempts").doc();
     const outcome = { attemptId: attemptReference.id, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, passed, timeSpentSeconds: Math.max(0, Math.round((now - session.startedAtMillis) / 1000)), submittedAtMillis: now };
     transaction.set(attemptReference, { quizId, kind: context.kind, sessionId, studentId, courseId: context.courseId, batchId: session.batchId, attemptNumber: previousAttempts + 1, answers, ...outcome, integrityViolations: session.integrityViolations, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });
@@ -407,8 +407,9 @@ function catalogEntry(id: string, data: DocumentData, summary: StoredQuizSummary
   const nextEligibleAt = summary?.nextEligibleAtMillis ? new Date(summary.nextEligibleAtMillis).toISOString() : null;
   const finalUnlocked = completedChapters === totalChapters;
   const cooldown = Boolean(nextEligibleAt && Date.now() < new Date(nextEligibleAt).getTime());
-  const eligible = kind === "chapter_quiz" || (finalUnlocked && !summary?.passed && !cooldown && remainingAttempts(Number(data.maxRetakes ?? -1), summary?.attemptCount ?? 0) !== 0);
-  return { ...quizCatalogRecord(id, data), eligible, lockReason: eligible ? null : summary?.passed ? "Final exam already passed" : cooldown ? "Retake cooldown active" : !finalUnlocked ? `Complete all chapter quizzes (${completedChapters}/${totalChapters})` : "No attempts remain", completedChapterCount: completedChapters, totalChapterCount: totalChapters, nextEligibleAt, bestPercentage: summary?.bestPercentage ?? 0, attemptCount: summary?.attemptCount ?? 0, passed: summary?.passed ?? false };
+  const attemptsLeft = remainingAttempts(Number(data.maxRetakes ?? -1), summary?.attemptCount ?? 0);
+  const eligible = attemptsLeft !== 0 && (kind === "chapter_quiz" || (finalUnlocked && !summary?.passed && !cooldown));
+  return { ...quizCatalogRecord(id, data), remainingAttempts: attemptsLeft, eligible, lockReason: eligible ? null : attemptsLeft === 0 ? "No attempts remain" : summary?.passed ? "Final exam already passed" : cooldown ? "Retake cooldown active" : !finalUnlocked ? `Complete all chapter quizzes (${completedChapters}/${totalChapters})` : "Assessment unavailable", completedChapterCount: completedChapters, totalChapterCount: totalChapters, nextEligibleAt, bestPercentage: summary?.bestPercentage ?? 0, attemptCount: summary?.attemptCount ?? 0, passed: summary?.passed ?? false };
 }
 
 export async function listAssessmentCatalogPage(studentId: string, input: QuizCatalogRequest): Promise<QuizCatalogPage> {
@@ -421,7 +422,6 @@ export async function listAssessmentCatalogPage(studentId: string, input: QuizCa
     batches.add(scope.batchId);
     batchesByCourse.set(scope.courseId, batches);
   }
-
 // Firestore cannot express substring search. Scan projected metadata in
   // bounded chunks, then fetch only the summaries the student actually has.
   const metadata = new Map<string, DocumentData>();

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LessonStatusControl } from "@/components/lesson-status-control";
 import { useLessonProgress } from "@/components/use-lesson-progress";
-import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
+import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import { demoLessons, studentQueryKeys, type Lesson } from "@/lib/student-data";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { getPublishedLessons } from "@/lib/student-repository";
@@ -35,8 +35,8 @@ const filters: { value: LessonFilter; label: string }[] = [
 ];
 
 export default function LessonsPage() {
-  const { enrollment, enrollments, enrollmentsQuery, selectionReady, selectedKey, selectEnrollment } = useCourseBatchSelection("lessons");
-  const { statuses, updateStatus } = useLessonProgress(selectionReady ? enrollment : null);
+  const { enrollment, enrollmentsQuery, selectionReady } = useCourseBatchSelection();
+  const { statuses, updateStatus, updateStatusOnce } = useLessonProgress(selectionReady ? enrollment : null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<LessonFilter>("all");
   const [sort, setSort] = useState<LessonSort>("order");
@@ -76,17 +76,10 @@ export default function LessonsPage() {
   return (
     <section className="pb-2">
       <header className="text-center">
-        <p className="text-sm font-semibold text-teal-700">
-          Learning library{enrollment ? ` · ${enrollment.batchName}` : ""}
-        </p>
-        <h1 className="mt-1 text-4xl font-bold tracking-[-0.04em] text-slate-950">Lessons</h1>
-        <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-          Explore published lesson materials assigned to your course and batch.<br className="hidden sm:block" /> Learn at your pace and build real-world skills.
-        </p>
-        <CourseBatchSelector enrollments={enrollments} value={selectedKey} onChange={selectEnrollment} className="mt-4 justify-center" />
+        <h1 className="text-4xl font-bold tracking-[-0.04em] text-slate-950">Lessons</h1>
       </header>
 
-      {isError || enrollmentsQuery.isError ? <ErrorBanner message="Lessons could not be loaded." onRetry={() => void refetch()} /> : null}
+      {isError || enrollmentsQuery.isError ? <ErrorBanner message="Lessons could not be loaded." pending={lessonsQuery.isFetching || enrollmentsQuery.isFetching} onRetry={() => void refetch()} /> : null}
 
       <div className="mt-7 grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Lesson progress">
         <StatCard icon={BookOpen} label="Total lessons" value={lessons.length} detail="Lessons available" />
@@ -147,7 +140,7 @@ export default function LessonsPage() {
       <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {isLoading
           ? Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />)
-          : visibleLessons.map((lesson, index) => <LessonCard key={lesson.id} lesson={lesson} number={lessons.indexOf(lesson) + 1 || index + 1} disabled={!isFirebaseConfigured && !enrollment} pending={updateStatus.isPending} onChangeStatus={status => updateStatus.mutate({ lessonId: lesson.id, status })} />)}
+          : visibleLessons.map((lesson, index) => <LessonCard key={lesson.id} lesson={lesson} number={lessons.indexOf(lesson) + 1 || index + 1} disabled={!isFirebaseConfigured && !enrollment} pending={updateStatus.isPending} onChangeStatus={status => void updateStatusOnce({ lessonId: lesson.id, status })} />)}
       </div>
 
       {!isLoading && lessons.length > 0 && visibleLessons.length === 0 ? (
@@ -237,8 +230,8 @@ function durationMinutes(duration: string) {
   return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
 }
 
-function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <Card className="mt-7 border-red-500/40"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-red-700"><span>{message} Check your connection, then try again.</span><Button variant="outline" size="sm" onClick={onRetry}>Retry</Button></CardContent></Card>;
+function ErrorBanner({ message, pending, onRetry }: { message: string; pending: boolean; onRetry: () => void }) {
+  return <Card className="mt-7 border-red-500/40"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-red-700"><span>{message} Check your connection, then try again.</span><Button variant="outline" size="sm" disabled={pending} onClick={onRetry}>{pending ? "Retrying..." : "Retry"}</Button></CardContent></Card>;
 }
 
 function EmptyState({ title, description }: { title: string; description: string }) {

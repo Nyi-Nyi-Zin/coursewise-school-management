@@ -10,7 +10,14 @@ import { emptyOfflineRecords } from "../lib/offline-records";
 import type { CourseBatchScope } from "../lib/course-batch-scope";
 
 const loadAttempts = vi.fn(async (scope: CourseBatchScope) => scope.batchId === "batch-a" ? [{ id: "attempt-a", studentId: "student-a", score: 8, totalMarks: 10, quizId: "quiz-a" }] : scope.batchId === "batch-b" ? [{ id: "attempt-b", studentId: "student-b", score: 9, totalMarks: 10, quizId: "quiz-b" }] : []);
-vi.mock("../lib/firebase", () => ({ hasFirebaseConfiguration: false }));
+vi.mock("../lib/firebase", () => ({ hasFirebaseConfiguration: true }));
+vi.mock("../lib/course-batch-service", () => ({
+  loadCourses: async () => [{ id: "course-1", title: "Course 1", isActive: true, enrolledStudentIds: [] }],
+  loadAllBatches: async () => [
+    { id: "batch-a", courseId: "course-1", name: "Batch A", isActive: true, enrolledStudentIds: [] },
+    { id: "batch-b", courseId: "course-1", name: "Batch B", isActive: true, enrolledStudentIds: [] },
+  ],
+}));
 vi.mock("../lib/quiz-attempt-review-service", () => ({ loadBatchQuizAttempts: (scope: CourseBatchScope) => loadAttempts(scope) }));
 
 const records = { ...emptyOfflineRecords, attendance: [{ id: "attendance-a", title: "Student A", description: "", status: "Present", createdAt: "now", fields: { courseId: "course-1", batchId: "batch-a" } }, { id: "attendance-b", title: "Student B", description: "", status: "Absent", createdAt: "now", fields: { courseId: "course-1", batchId: "batch-b" } }] };
@@ -27,11 +34,12 @@ describe("Admin Dashboard scoped review integration", () => {
     render(<QueryClientProvider client={client}><DashboardHarness /></QueryClientProvider>);
     expect(screen.getByTestId("attendance-output").textContent).toBe("no-attendance");
     expect(screen.getByText("Select a course and batch to review only that batch’s scores.")).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText("Local course ID"), { target: { value: "course-1" } });
-    fireEvent.change(screen.getByPlaceholderText("Local batch ID"), { target: { value: "batch-a" } });
+    await screen.findByRole("option", { name: "Course 1 — Batch A" });
+    const pair = screen.getByRole("combobox", { name: "Filter by course and batch" });
+    fireEvent.change(pair, { target: { value: "batch-a" } });
     await waitFor(() => expect(screen.getByText("Student student-a · Quiz quiz-a")).toBeTruthy());
     expect(screen.getByTestId("attendance-output").textContent).toBe("attendance-a");
-    fireEvent.change(screen.getByPlaceholderText("Local batch ID"), { target: { value: "batch-b" } });
+    fireEvent.change(pair, { target: { value: "batch-b" } });
     await waitFor(() => expect(screen.getByText("Student student-b · Quiz quiz-b")).toBeTruthy());
     expect(screen.queryByText("Student student-a · Quiz quiz-a")).toBeNull();
     expect(screen.getByTestId("attendance-output").textContent).toBe("attendance-b");

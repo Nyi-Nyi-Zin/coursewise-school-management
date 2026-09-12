@@ -5,12 +5,14 @@ import { useState } from "react";
 import { Button } from "./ui/button";
 import { hasFirebaseConfiguration } from "../lib/firebase";
 import { createAdminPasswordResetLink } from "../lib/admin-password-reset-service";
+import { useSingleFlight } from "../lib/use-single-flight";
 
 export function AdminPasswordResetPanel() {
   const [email, setEmail] = useState("");
   const [link, setLink] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const runSingleFlight = useSingleFlight();
   async function createResetLink(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!hasFirebaseConfiguration) {
@@ -19,20 +21,22 @@ export function AdminPasswordResetPanel() {
       );
       return;
     }
-    setSending(true);
-    setMessage(null);
-    try {
-      const resetLink = await createAdminPasswordResetLink(email);
-      setLink(resetLink);
-      setMessage(
-        "A secure, one-time password reset link was created for this student."
-      );
-    } catch (error) {
-      const detail = error instanceof Error ? ` ${error.message}` : "";
-      setMessage(`The reset link could not be created.${detail}`);
-    } finally {
-      setSending(false);
-    }
+    await runSingleFlight("admin-create-reset-link", async () => {
+      setSending(true);
+      setMessage(null);
+      try {
+        const resetLink = await createAdminPasswordResetLink(email);
+        setLink(resetLink);
+        setMessage(
+          "A secure, one-time password reset link was created for this student."
+        );
+      } catch (error) {
+        const detail = error instanceof Error ? ` ${error.message}` : "";
+        setMessage(`The reset link could not be created.${detail}`);
+      } finally {
+        setSending(false);
+      }
+    });
   }
   return (
     <section className="mt-5 rounded-3xl border border-stone-200/80 bg-white p-6 shadow-sm">

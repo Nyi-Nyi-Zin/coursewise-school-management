@@ -44,6 +44,9 @@ pids
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
+playwright-report/
+test-results/
+artifacts/lighthouse/
 
 # nyc test coverage
 .nyc_output
@@ -113,3 +116,14 @@ temp/
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
 .project-config.json
+.vercel
+
+# Local environment files can contain service-account credentials.
+.env
+**/.env
+.env.local
+**/.env.local
+!.env.example
+!**/.env.example
+
+.vercel

@@ -7,7 +7,7 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
+    fileParallelism: false,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    environmentMatchGlobs: [["src/**/*.hook.test.ts", "jsdom"], ["src/**/*.integration.test.tsx", "jsdom"]],
   },
 });

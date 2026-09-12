@@ -36,6 +36,7 @@ import {
   uploadStudentPhoto,
 } from "@/lib/student-repository";
 import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
+import { useSingleFlight } from "@/lib/use-single-flight";
 
 export default function ProfilePage() {
   const { user, firebaseActive } = useStudentAuth();
@@ -45,6 +46,8 @@ export default function ProfilePage() {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+  const runSingleFlight = useSingleFlight();
   const profile = useQuery({
     queryKey: ["student", "profile", user?.uid],
     queryFn: () => getStudentProfile(user!.uid),
@@ -104,14 +107,32 @@ export default function ProfilePage() {
   function onPhotoSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file && !profile.data?.photoUrl && !photoUpload.isPending) photoUpload.mutate(file);
+    if (file && !profile.data?.photoUrl) void runSingleFlight("profile-photo", async () => {
+      try { await photoUpload.mutateAsync(file); } catch { /* handled by onError */ }
+    });
   }
 
   async function signOut() {
-    await logoutStudent();
-    toast.success("You have been signed out.");
-    router.replace("/login");
+    await runSingleFlight("student-sign-out", async () => {
+      setSigningOut(true);
+      try {
+        await logoutStudent();
+        toast.success("You have been signed out.");
+        router.replace("/login");
+      } finally {
+        setSigningOut(false);
+      }
+    });
   }
+
+  const updatePasswordOnce = (values: { currentPassword: string; newPassword: string }) =>
+    runSingleFlight("profile-password", async () => {
+      try { await passwordChange.mutateAsync(values); } catch { /* handled by onError */ }
+    });
+  const updateNameOnce = (name: string) =>
+    runSingleFlight("profile-name", async () => {
+      try { await nameUpdate.mutateAsync(name); } catch { /* handled by onError */ }
+    });
 
   const name = profile.data?.name || user?.displayName || "Student";
   const email = profile.data?.email || user?.email || "student@example.com";
@@ -263,9 +284,7 @@ export default function ProfilePage() {
         <ChangePasswordDialog
           pending={passwordChange.isPending}
           onClose={() => setShowChangePassword(false)}
-          onSubmit={({ currentPassword, newPassword }) =>
-            passwordChange.mutate({ currentPassword, newPassword })
-          }
+          onSubmit={values => void updatePasswordOnce(values)}
         />
       ) : null}
 
@@ -274,7 +293,7 @@ export default function ProfilePage() {
           name={editName}
           pending={nameUpdate.isPending}
           onClose={() => setShowEditProfile(false)}
-          onSubmit={(name) => nameUpdate.mutate(name)}
+          onSubmit={name => void updateNameOnce(name)}
           onNameChange={setEditName}
         />
       ) : null}
@@ -299,11 +318,12 @@ export default function ProfilePage() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
+              disabled={signingOut}
               onClick={signOut}
               className="text-red-600 hover:bg-red-50 hover:text-red-700"
             >
               <LogOut className="size-4" />
-              Sign out
+              {signingOut ? "Signing out..." : "Sign out"}
             </Button>
           </div>
         </div>

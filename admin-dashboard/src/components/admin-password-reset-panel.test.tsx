@@ -23,4 +23,19 @@ describe("AdminPasswordResetPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /create secure link/i }));
     await waitFor(() => expect(screen.getByText(/could not be created/i)).toBeTruthy());
   });
+  it("keeps the action disabled and sends only one request while pending", async () => {
+    let resolveRequest!: (value: string) => void;
+    createReset.mockReturnValue(new Promise<string>(resolve => { resolveRequest = resolve; }));
+    render(<AdminPasswordResetPanel />);
+    fireEvent.change(screen.getByPlaceholderText("student@example.com"), { target: { value: "student@example.com" } });
+    const button = screen.getByRole("button", { name: /create secure link/i });
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(createReset).toHaveBeenCalledTimes(1);
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    resolveRequest("https://reset.example/secure");
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  });
 });

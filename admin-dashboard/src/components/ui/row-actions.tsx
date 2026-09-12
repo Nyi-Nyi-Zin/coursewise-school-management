@@ -9,7 +9,7 @@ import { calculateMenuPosition, type MenuPosition } from "./row-actions-position
 export type RowAction = {
   label: string;
   icon: LucideIcon;
-  onSelect: () => void;
+  onSelect: () => void | Promise<void>;
   tone?: "default" | "warning" | "danger";
 };
 
@@ -21,10 +21,12 @@ const toneClasses = {
   danger: "text-red-600 hover:bg-red-50",
 } as const;
 
-export function RowActions({ actions, confirmDelete, menuLabel = "More actions" }: { actions: RowAction[]; confirmDelete?: { title: string; description: string; onConfirm: () => void }; menuLabel?: string }) {
+export function RowActions({ actions, confirmDelete, menuLabel = "More actions" }: { actions: RowAction[]; confirmDelete?: { title: string; description: string; onConfirm: () => void | Promise<void> }; menuLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [position, setPosition] = useState<MenuPosition | null>(null);
+  const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
   const buttonRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasConfirmDelete = Boolean(confirmDelete);
@@ -72,12 +74,26 @@ export function RowActions({ actions, confirmDelete, menuLabel = "More actions" 
   }, [open, reposition]);
 
   const toggleMenu = () => {
+    if (pendingRef.current) return;
     if (open) {
       setOpen(false);
       return;
     }
     setPosition(null);
     setOpen(true);
+  };
+
+  const runAction = async (action: RowAction) => {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPending(true);
+    setOpen(false);
+    try {
+      await action.onSelect();
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
+    }
   };
 
   return (
@@ -87,6 +103,7 @@ export function RowActions({ actions, confirmDelete, menuLabel = "More actions" 
         aria-label={menuLabel}
         aria-haspopup="menu"
         aria-expanded={open}
+        disabled={pending}
         onClick={toggleMenu}
         className="inline-flex size-9 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:bg-stone-100 hover:text-stone-700"
       >
@@ -110,10 +127,8 @@ export function RowActions({ actions, confirmDelete, menuLabel = "More actions" 
               key={action.label}
               type="button"
               role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                action.onSelect();
-              }}
+              disabled={pending}
+              onClick={() => void runAction(action)}
               className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium transition ${toneClasses[action.tone ?? "default"]}`}
             >
               <action.icon size={15} />

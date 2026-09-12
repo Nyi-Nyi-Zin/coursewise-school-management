@@ -1,0 +1,11 @@
+.env
+**/.env
+.env.local
+**/.env.local
+.vercel
+**/.vercel
+test-results
+playwright-report
+artifacts
+tmp
+*.log

@@ -23,7 +23,6 @@ import {
   LogOut,
   Menu,
   Plus,
-  Settings,
   ShieldCheck,
   Sparkles,
   Users,
@@ -33,6 +32,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAdminRecords, optimisticallySaveAdminRecord } from "@/lib/use-admin-records";
 import { adminRecordQueryKey } from "@/lib/admin-records-query";
@@ -40,6 +40,7 @@ import type { CourseBatchScope } from "@/lib/course-batch-scope";
 import { buildCourseBatchDashboardData } from "@/lib/course-batch-dashboard";
 import { CourseBatchScopeControls } from "@/components/course-batch-scope-controls";
 import { createStudentAccount } from "@/lib/admin-student-account-service";
+import { useSingleFlight } from "@/lib/use-single-flight";
 
 import { CourseBatchManager } from "@/components/course-batch-manager";
 import { AssignmentManager } from "@/components/assignment-manager";
@@ -79,7 +80,8 @@ const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "certificates", label: "Certificates", icon: Award },
   // Temporarily hidden from the admin navigation; keep the attendance page/code intact.
   // { id: "attendance", label: "Attendance", icon: CalendarDays },
-  { id: "settings", label: "Settings", icon: Settings },
+  // Temporarily hidden from the admin navigation; keep the settings page/code intact.
+  // { id: "settings", label: "Settings", icon: Settings },
 ];
 
 const sectionPaths: Record<Section, string> = {
@@ -168,6 +170,8 @@ export function AdminShell() {
   const section = sectionFromPath(pathname);
   const [isMenuOpen, setMenuOpen] = useState(false);
   const [isPanelOpen, setPanelOpen] = useState(false);
+  const [isSigningOut, setSigningOut] = useState(false);
+  const runSingleFlight = useSingleFlight();
   const [editingItem, setEditingItem] = useState<OfflineItem | null>(null);
   const [managedQuiz, setManagedQuiz] = useState<OfflineItem | null>(null);
   const [courseBatchScope, setCourseBatchScope] = useState<CourseBatchScope>({
@@ -199,8 +203,16 @@ export function AdminShell() {
     setPanelOpen(true);
   };
   const signOut = async () => {
-    await signOutAdministrator();
-    window.location.assign("/login");
+    await runSingleFlight("admin-sign-out", async () => {
+      setSigningOut(true);
+      try {
+        await signOutAdministrator();
+        router.replace("/login");
+        router.refresh();
+      } finally {
+        setSigningOut(false);
+      }
+    });
   };
   const saveItem = async (draft: Omit<OfflineItem, "id" | "createdAt">) => {
     if (!isRecordSection(section)) return;
@@ -311,16 +323,17 @@ export function AdminShell() {
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">Administrator</p>
               <p className="truncate text-xs text-emerald-100/55">
-                Firebase role: admin
+                Admin
               </p>
             </div>
           </div>
           <button
+            disabled={isSigningOut}
             onClick={() => void signOut()}
-            className="mt-3 flex items-center gap-2 text-xs text-emerald-100/70 hover:text-white"
+            className="mt-3 flex items-center gap-2 text-xs text-emerald-100/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <LogOut size={14} />
-            Sign out
+            {isSigningOut ? "Signing out..." : "Sign out"}
           </button>
         </div>
       </aside>
@@ -445,9 +458,11 @@ function Brand() {
   return (
     <div className="flex items-center gap-3">
       <span className="grid size-10 place-items-center overflow-hidden rounded-xl bg-slate-950 ring-1 ring-[#d4f59b]/30">
-        <img
+        <Image
           src="/teza-tech-lab-logo.svg"
           alt=""
+          width={40}
+          height={40}
           className="size-full object-cover"
         />
       </span>

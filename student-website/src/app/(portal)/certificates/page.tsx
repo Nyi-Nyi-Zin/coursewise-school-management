@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { CertificateTemplate } from "@/components/certificate-template";
-import { useStudentCourse } from "@/components/student-course-provider";
+import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import { getMyCertificates, type StudentCertificate } from "@/lib/student-repository";
 
 function formatDate(iso?: string, compact = false) {
@@ -21,7 +21,7 @@ function formatDate(iso?: string, compact = false) {
 
 export default function CertificatesPage() {
   const { user } = useStudentAuth();
-  const { enrollment } = useStudentCourse();
+  const { enrollment } = useCourseBatchSelection();
   const [printCertificate, setPrintCertificate] = useState<StudentCertificate | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export default function CertificatesPage() {
     enabled: Boolean(user?.uid),
   });
 
-  const items = certificates.data ?? [];
+  const items = (certificates.data ?? []).filter(item => !enrollment || (item.courseTitle === enrollment.courseTitle && item.batchName === enrollment.batchName));
   const selectedCertificate = items.find(item => item.id === selectedId) ?? items[0];
 
   function print(cert: StudentCertificate) {
@@ -54,11 +54,7 @@ export default function CertificatesPage() {
   return (
     <section className="mx-auto min-w-0 w-full max-w-[1240px] overflow-x-hidden">
       <header className="text-center">
-        <p className="text-sm font-semibold text-teal-700">Achievement record{enrollment ? ` · ${enrollment.batchName}` : ""}</p>
-        <h1 className="mt-1 text-3xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-4xl">Certificates</h1>
-        <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-          Courses you successfully complete are recognised with an official certificate bearing a unique serial and verification code.
-        </p>
+        <h1 className="text-3xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-4xl">Certificates</h1>
       </header>
 
       {certificates.isLoading ? (
@@ -82,7 +78,6 @@ export default function CertificatesPage() {
             </div>
             <aside className="min-w-0 space-y-3">
               <VerificationPanel certificate={selectedCertificate} copied={copiedCode === selectedCertificate.verificationCode} onCopy={() => share(selectedCertificate)} />
-              <ProgressPanel percentage={selectedCertificate.percentage} />
             </aside>
           </div>
         </>
@@ -177,19 +172,6 @@ function VerificationPanel({ certificate, onCopy, copied }: { certificate: Stude
         <div className="grid gap-1 min-[390px]:grid-cols-[1fr_auto] min-[390px]:items-center"><dt className="text-slate-500">Issued on</dt><dd className="font-semibold text-slate-700">{formatDate(certificate.issuedAt, true)}</dd></div>
         <div className="grid gap-2 min-[390px]:grid-cols-[1fr_auto] min-[390px]:items-center"><dt className="text-slate-500">Status</dt><dd className="inline-flex w-fit items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700"><CheckCircle2 className="size-3.5" /> Verified</dd></div>
       </dl>
-    </section>
-  );
-}
-
-function ProgressPanel({ percentage }: { percentage: number }) {
-  const bounded = Math.min(100, Math.max(0, percentage));
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_7px_24px_rgba(15,23,42,0.04)]">
-      <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900"><BarChart3 className="size-5 text-teal-600" /> Certificate performance</h2>
-      <p className="mt-4 text-xs text-slate-500">Your final assessment result for this certificate</p>
-      <div className="mt-5 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-gradient-to-r from-teal-700 to-emerald-500" style={{ width: `${bounded}%` }} /></div><span className="text-sm font-bold text-slate-800">{bounded}%</span></div>
-      <div className="mt-4 flex flex-col gap-1.5 text-[11px] text-slate-500 min-[390px]:flex-row min-[390px]:justify-between"><span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-500" /> Pass mark 70%</span><span>{Math.max(0, bounded - 70)}% above target</span></div>
-      <div className="mt-5 border-t border-slate-100 pt-4"><Link href="/quizzes" className="text-xs font-semibold text-teal-700 transition hover:text-teal-900">View assessment results →</Link></div>
     </section>
   );
 }

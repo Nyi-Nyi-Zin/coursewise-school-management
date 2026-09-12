@@ -10,7 +10,7 @@ vi.mock("@/lib/firebase", () => ({ isFirebaseConfigured: true }));
 vi.mock("@/lib/student-repository", () => ({ getStudentEnrollments: mocks.enrollments, getQuizCatalogPage: mocks.quizzes }));
 afterEach(cleanup);
 
-it("shows and remembers one selected course-batch catalog at a time", async () => {
+it("updates when the global course-batch selection changes", async () => {
   window.localStorage.clear();
   mocks.enrollments.mockResolvedValue([
     { courseId: "a", batchId: "batch-a", courseTitle: "A", batchName: "A batch" },
@@ -28,15 +28,13 @@ it("shows and remembers one selected course-batch catalog at a time", async () =
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><QuizzesPage /></QueryClientProvider>);
   expect(await screen.findByText("Quiz a")).toBeTruthy();
-  expect(mocks.quizzes).toHaveBeenLastCalledWith(expect.objectContaining({
-    enrollments: [expect.objectContaining({ courseId: "a", batchId: "batch-a" })],
-  }));
-  fireEvent.change(screen.getByRole("combobox", { name: "Course and batch" }), { target: { value: "b:batch-b" } });
+  window.localStorage.setItem("coursewise:student-scope:v1:student", "b:batch-b");
+  window.dispatchEvent(new Event("coursewise:student-scope-change"));
   expect(await screen.findByText("Quiz b")).toBeTruthy();
   expect(mocks.quizzes).toHaveBeenLastCalledWith(expect.objectContaining({
     enrollments: [expect.objectContaining({ courseId: "b", batchId: "batch-b" })], page: 0,
   }));
-  expect(window.localStorage.getItem("coursewise:student-scope:v1:student:quizzes")).toBe("b:batch-b");
+  expect(window.localStorage.getItem("coursewise:student-scope:v1:student")).toBe("b:batch-b");
   client.clear();
 });
 it("requests server pages and resets search and status filters without slicing the response", async () => {
@@ -67,5 +65,21 @@ it("requests server pages and resets search and status filters without slicing t
   await screen.findByText("Server page 1");
   fireEvent.click(screen.getByRole("button", { name: "Completed", exact: true }));
   await waitFor(() => expect(mocks.quizzes).toHaveBeenLastCalledWith(expect.objectContaining({ page: 0, filter: "completed" })));
+  client.clear();
+});
+
+it("shows the remaining retake count and removes the action when the limit is exhausted", async () => {
+  mocks.enrollments.mockResolvedValue([{ courseId: "a", batchId: "batch-a" }]);
+  mocks.quizzes.mockResolvedValue({
+    quizzes: [{ id: "limited", title: "Limited quiz", description: "", kind: "chapter_quiz", totalMarks: 10, maxRetakes: 1, remainingAttempts: 0, attemptCount: 2, bestPercentage: 70, eligible: false, lockReason: "No attempts remain" }],
+    page: 0, pageSize: 10, total: 1,
+    summary: { total: 1, completed: 1, available: 0, averageScore: 70, bestScore: 70, passed: 1 },
+    scores: [],
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><QuizzesPage /></QueryClientProvider>);
+  expect(await screen.findByText("0 retakes left")).toBeTruthy();
+  expect(screen.getByText("Quiz locked")).toBeTruthy();
+  expect(screen.queryByRole("link", { name: /Try again/ })).toBeNull();
   client.clear();
 });

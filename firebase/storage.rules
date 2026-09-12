@@ -8,9 +8,13 @@ service firebase.storage {
     }
     match /avatars/{userId}/{fileName} {
       allow read: if true;
-      allow write: if signedIn() && request.auth.uid == userId
+      // Portal uploads use a restricted Cloudinary preset. Keep the legacy
+      // Firebase path administrator-only so clients cannot bypass the one-photo
+      // profile policy by writing directly to Storage.
+      allow create, update: if isAdmin()
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if isAdmin();
     }
     match /banners/{fileName} {
       allow read: if true;

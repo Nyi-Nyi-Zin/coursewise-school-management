@@ -4,10 +4,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
 import { Toaster } from "sonner";
-import { StudentAuthProvider } from "@/components/student-auth-provider";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      {children}
+      <ServiceWorkerRegistration />
+      <Toaster richColors position="top-center" />
+    </>
+  );
+}
+
+export function PortalDataProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -20,9 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StudentAuthProvider>{children}</StudentAuthProvider>
-      <ServiceWorkerRegistration />
-      <Toaster richColors position="top-center" />
+      {children}
       {process.env.NODE_ENV === "development" ? <ReactQueryDevtools initialIsOpen={false} /> : null}
     </QueryClientProvider>
   );

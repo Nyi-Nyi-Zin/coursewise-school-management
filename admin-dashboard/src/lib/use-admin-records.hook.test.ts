@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -56,7 +57,12 @@ describe("useAdminRecords", () => {
     mocks.save.mockRejectedValueOnce(new Error("write denied"));
     const { client, wrapper } = createHarness(); const { result } = renderHook(() => useAdminRecords(), { wrapper });
     await waitFor(() => expect(result.current.recordsQuery.isSuccess).toBe(true));
-    await expect(act(async () => { await result.current.saveMutation.mutateAsync({ section: "students", item: student }); })).rejects.toThrow("write denied");
+    let failure: unknown;
+    await act(async () => {
+      try { await result.current.saveMutation.mutateAsync({ section: "students", item: student }); }
+      catch (error) { failure = error; }
+    });
+    expect(failure).toEqual(expect.objectContaining({ message: "write denied" }));
     expect(client.getQueryData<OfflineRecords>(adminRecordQueryKey)?.students).toEqual([]);
   });
 
@@ -73,7 +79,12 @@ describe("useAdminRecords", () => {
     backend.lessons = [lesson]; mocks.remove.mockRejectedValueOnce(new Error("delete denied"));
     const { client, wrapper } = createHarness(); const { result } = renderHook(() => useAdminRecords(), { wrapper });
     await waitFor(() => expect(result.current.recordsQuery.data?.lessons).toEqual([lesson]));
-    await expect(act(async () => { await result.current.deleteMutation.mutateAsync({ section: "lessons", id: lesson.id }); })).rejects.toThrow("delete denied");
+    let failure: unknown;
+    await act(async () => {
+      try { await result.current.deleteMutation.mutateAsync({ section: "lessons", id: lesson.id }); }
+      catch (error) { failure = error; }
+    });
+    expect(failure).toEqual(expect.objectContaining({ message: "delete denied" }));
     expect(client.getQueryData<OfflineRecords>(adminRecordQueryKey)?.lessons).toEqual([lesson]);
   });
 });

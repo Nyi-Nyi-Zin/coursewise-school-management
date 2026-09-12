@@ -8,7 +8,14 @@ import { buildCourseBatchDashboardData } from "../lib/course-batch-dashboard";
 import { emptyOfflineRecords } from "../lib/offline-records";
 import type { CourseBatchScope } from "../lib/course-batch-scope";
 
-vi.mock("../lib/firebase", () => ({ hasFirebaseConfiguration: false }));
+vi.mock("../lib/firebase", () => ({ hasFirebaseConfiguration: true }));
+vi.mock("../lib/course-batch-service", () => ({
+  loadCourses: async () => [{ id: "course-1", title: "Course 1", isActive: true, enrolledStudentIds: [] }],
+  loadAllBatches: async () => [
+    { id: "batch-a", courseId: "course-1", name: "Batch A", isActive: true, enrolledStudentIds: [] },
+    { id: "batch-b", courseId: "course-1", name: "Batch B", isActive: true, enrolledStudentIds: [] },
+  ],
+}));
 
 const records = { ...emptyOfflineRecords, quizzes: [{ id: "quiz-a", title: "Quiz A", description: "", status: "Published", createdAt: "now", fields: { courseId: "course-1", batchId: "batch-a" } }, { id: "quiz-b", title: "Quiz B", description: "", status: "Published", createdAt: "now", fields: { courseId: "course-1", batchId: "batch-b" } }], attendance: [{ id: "attendance-a", title: "Student A", description: "", status: "Present", createdAt: "now", fields: { courseId: "course-1", batchId: "batch-a" } }, { id: "attendance-b", title: "Student B", description: "", status: "Absent", createdAt: "now", fields: { courseId: "course-1", batchId: "batch-b" } }] };
 
@@ -19,17 +26,18 @@ function ScopeHarness() {
 }
 
 describe("CourseBatchScopeControls integration", () => {
-  it("hides records without a full scope, then updates attendance and quiz review together when the selected batch changes", () => {
+  it("hides records without a full scope, then updates attendance and quiz review together when the selected pair changes", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><ScopeHarness /></QueryClientProvider>);
     expect(screen.getByTestId("attendance").textContent).toBe("none");
     expect(screen.getByTestId("quizzes").textContent).toBe("none");
-    fireEvent.change(screen.getByPlaceholderText("Local course ID"), { target: { value: "course-1" } });
-    fireEvent.change(screen.getByPlaceholderText("Local batch ID"), { target: { value: "batch-a" } });
+    await screen.findByRole("option", { name: "Course 1 — Batch A" });
+    const pair = screen.getByRole("combobox", { name: "Filter by course and batch" });
+    fireEvent.change(pair, { target: { value: "batch-a" } });
     expect(screen.getByTestId("attendance").textContent).toBe("attendance-a");
     expect(screen.getByTestId("quizzes").textContent).toBe("quiz-a");
     expect(screen.getByTestId("review-key").textContent).toBe("admin|quiz-attempts|course-1|batch-a");
-    fireEvent.change(screen.getByPlaceholderText("Local batch ID"), { target: { value: "batch-b" } });
+    fireEvent.change(pair, { target: { value: "batch-b" } });
     expect(screen.getByTestId("attendance").textContent).toBe("attendance-b");
     expect(screen.getByTestId("quizzes").textContent).toBe("quiz-b");
     expect(screen.getByTestId("review-key").textContent).toBe("admin|quiz-attempts|course-1|batch-b");

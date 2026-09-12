@@ -37,15 +37,13 @@ function evaluateAttemptEligibility(input) {
     const windowFailure = withinWindow(input.now, input.opensAt, input.closesAt);
     if (windowFailure)
         return windowFailure;
-    if (input.kind === 'final_exam') {
-        if (input.alreadyPassed) {
-            return { ok: false, code: 'already-passed', message: 'You already passed this final exam.' };
-        }
-        if (remainingAttempts(input.maxRetakes, input.previousAttempts) === 0) {
-            return { ok: false, code: 'no-attempts-remaining', message: 'No attempts remain for this final exam.' };
-        }
+    if (input.kind === 'final_exam' && input.alreadyPassed) {
+        return { ok: false, code: 'already-passed', message: 'You already passed this final exam.' };
     }
-    const elapsedSeconds = measureElapsedTime(input.durationSeconds, input.startedAt, input.now);
+    if (remainingAttempts(input.maxRetakes, input.previousAttempts) === 0) {
+        return { ok: false, code: 'no-attempts-remaining', message: 'No attempts remain for this quiz.' };
+    }
+    const elapsedSeconds = measureElapsedTime(input.kind === 'final_exam' ? input.durationSeconds : 0, input.startedAt, input.now);
     if (elapsedSeconds === null) {
         return { ok: false, code: 'time-expired', message: 'Time is up for this assessment.' };
     }

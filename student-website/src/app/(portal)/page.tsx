@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useStudentAuth } from "@/components/student-auth-provider";
-import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
+import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import {
   demoAnnouncements,
@@ -63,7 +63,7 @@ function formatTaskDate(value?: string | null) {
 
 export default function StudentHomePage() {
   const { user } = useStudentAuth();
-  const { enrollment, enrollments, enrollmentsQuery, selectionReady, selectedKey, selectEnrollment } = useCourseBatchSelection("home");
+  const { enrollment, selectionReady } = useCourseBatchSelection();
   const [bannerIndex, setBannerIndex] = useState(0);
   const [selectedBanner, setSelectedBanner] = useState<Announcement | null>(null);
 
@@ -312,11 +312,6 @@ export default function StudentHomePage() {
           </div>
         </div>
       </section>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-        <div><p className="text-xs font-medium text-slate-500">Viewing progress for</p><p className="text-sm font-semibold text-slate-900">{enrollment ? `${enrollment.courseTitle} / ${enrollment.batchName}` : enrollmentsQuery.isLoading ? "Loading enrollments…" : "No active enrollment"}</p></div>
-        <CourseBatchSelector enrollments={enrollments} value={selectedKey} onChange={value => { selectEnrollment(value); setBannerIndex(0); setSelectedBanner(null); }} />
-      </div>
 
       <section
         className="grid grid-cols-2 gap-3 xl:grid-cols-4"

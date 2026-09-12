@@ -249,7 +249,7 @@ export async function submitQuiz(studentId: string, quizId: string, rawAnswers: 
     if (context.opensAt !== null && now < context.opensAt) throw new ApiError(409, "This assessment is not open yet.");
     if (context.closesAt !== null && now >= context.closesAt) throw new ApiError(409, "This assessment is closed.");
     if (context.kind === "final_exam" && previous?.passed) throw new ApiError(409, "You already passed this final exam.");
-    if (context.kind === "final_exam" && remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this final exam.");
+    if (remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this quiz.");
     const attemptReference = context.db.collection("quizAttempts").doc();
     const attempt: AttemptOutcome = { attemptId: attemptReference.id, attemptNumber: previousAttempts + 1, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, passed: grading.percentage >= context.passingPercent, timeSpentSeconds: elapsedSeconds(context.kind, context.durationSeconds, startedAt, now), submittedAtMillis: now };
     transaction.set(attemptReference, { quizId, kind: context.kind, studentId, courseId: context.courseId, batchId: context.batchId, attemptNumber: attempt.attemptNumber, answers, score: attempt.score, totalMarks: attempt.totalMarks, percentage: attempt.percentage, passed: attempt.passed, timeSpentSeconds: attempt.timeSpentSeconds, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });

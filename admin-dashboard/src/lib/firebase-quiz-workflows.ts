@@ -1,4 +1,4 @@
-import { collection, deleteField, doc, getDoc, getDocs, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 import { getFirebaseClient } from './firebase';
 
@@ -90,12 +90,6 @@ export async function loadQuizQuestions(quizId: string): Promise<QuizQuestionDra
 export async function publishQuiz(quizId: string, questions: QuizQuestionDraft[]) {
   const { db } = getFirebaseClient();
   const quizReference = doc(db, 'quizzes', quizId);
-  const quizSnapshot = await getDoc(quizReference);
-  const quizData = quizSnapshot.data();
-  if (quizData?.kind === 'final_exam') {
-    const drawCount = Math.max(1, Number(quizData.drawQuestionCount ?? 50));
-    if (questions.length < drawCount) throw new Error(`Add at least ${drawCount} questions before publishing this final exam.`);
-  }
   await updateDoc(quizReference, {
     isPublished: true,
     totalMarks: questions.reduce((total, question) => total + question.marks, 0),

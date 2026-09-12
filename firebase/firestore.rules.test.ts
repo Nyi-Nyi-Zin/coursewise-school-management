@@ -36,7 +36,7 @@ async function seedBatchIsolationFixture() {
 
 describeWithEmulator("Firestore course and batch isolation", () => {
   beforeAll(async () => {
-    testEnv = await initializeTestEnvironment({ projectId: "teza-tech-lab-rules", firestore: { rules: readFileSync(resolve(process.cwd(), "firebase/firestore.rules"), "utf8") } });
+    testEnv = await initializeTestEnvironment({ projectId: "demo-coursewise-audit", firestore: { rules: readFileSync(resolve(process.cwd(), "firebase/firestore.rules"), "utf8") } });
   });
   afterEach(async () => { await testEnv.clearFirestore(); });
   afterAll(async () => { await testEnv.cleanup(); });
@@ -63,7 +63,7 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     await assertSucceeds(getDoc(doc(studentA, "lessons", "lesson-a")));
     await assertFails(getDoc(doc(studentA, "lessons", "lesson-b")));
     await assertFails(getDoc(doc(studentA, "enrollments", "course-1_batch-b_student-b")));
-    await assertSucceeds(getDoc(doc(studentA, "quizzes/quiz-a/questions/question-a")));
+    await assertFails(getDoc(doc(studentA, "quizzes/quiz-a/questions/question-a")));
     await assertFails(getDoc(doc(studentA, "quizzes/quiz-a/answerKeys/question-a")));
   });
 
