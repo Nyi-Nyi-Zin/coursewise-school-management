@@ -11,7 +11,7 @@ export async function uploadImageToCloudinary(file: File, options: { folder: str
   if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
   if (file.size > MAX_IMAGE_BYTES) throw new Error("Image must be smaller than 5 MB.");
 
-  const signed = await authenticatedApiFetch("/api/uploads/cloudinary-signature", { method: "POST", body: JSON.stringify({ kind: "image", folder: options.folder }) }) as SignedUpload;
+  const signed = await authenticatedApiFetch("/api/uploads/cloudinary-signature", { method: "POST", body: JSON.stringify({ kind: "image", folder: options.folder, contentType: file.type, size: file.size }) }) as SignedUpload;
   const body = new FormData();
   body.append("file", file);
   body.append("api_key", signed.apiKey);

@@ -9,9 +9,24 @@ export const runtime = "nodejs";
 
 const RATE_LIMIT_MAX_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const RATE_LIMIT_SWEEP_LIMIT = 25;
 
 class RegistrationError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
+}
+
+async function cleanupExpiredRateLimits(now: number) {
+  const { db } = getFirebaseAdmin();
+  try {
+    const expired = await db.collection("system")
+      .where("expiresAtMillis", "<", now)
+      .orderBy("expiresAtMillis")
+      .limit(RATE_LIMIT_SWEEP_LIMIT)
+      .get();
+    await Promise.allSettled(expired.docs.map(document => document.ref.delete()));
+  } catch (error) {
+    console.error("Rate-limit expiry sweep failed", error);
+  }
 }
 
 const AUTH_ACTIONS = new Set(["student_login", "student_reset_request", "student_reset_confirm"]);
@@ -34,7 +49,9 @@ async function enforceAuthRateLimit(request: Request, action: string, email: str
   const salt = process.env.SIGNUP_RATE_LIMIT_SALT; if (!salt) throw new RegistrationError(503, "Security verification is not configured.");
   const settings: Record<string, { max: number; window: number }> = { student_login: { max: 5, window: 900_000 }, student_reset_request: { max: 3, window: 3_600_000 }, student_reset_confirm: { max: 5, window: 3_600_000 } };
   const setting = settings[action]; const key = createHmac("sha256", salt).update(`${action}:${clientIp(request)}:${email}`).digest("hex"); const reference = getFirebaseAdmin().db.doc(`system/authRateLimits_${key}`); const now = Date.now();
-  await getFirebaseAdmin().db.runTransaction(async transaction => { const snapshot = await transaction.get(reference); const started = Number(snapshot.data()?.windowStartedAtMillis ?? 0); const active = now - started < setting.window; const count = active ? Number(snapshot.data()?.count ?? 0) : 0; if (count >= setting.max) throw new RegistrationError(429, "Too many attempts. Please wait and try again."); transaction.set(reference, { action, count: count + 1, windowStartedAtMillis: active ? started : now, expiresAtMillis: (active ? started : now) + setting.window, updatedAt: FieldValue.serverTimestamp() }); });
+  let startedFreshWindow = false;
+  await getFirebaseAdmin().db.runTransaction(async transaction => { const snapshot = await transaction.get(reference); const started = Number(snapshot.data()?.windowStartedAtMillis ?? 0); const active = now - started < setting.window; const count = active ? Number(snapshot.data()?.count ?? 0) : 0; if (count >= setting.max) throw new RegistrationError(429, "Too many attempts. Please wait and try again."); startedFreshWindow = count === 0; transaction.set(reference, { action, count: count + 1, windowStartedAtMillis: active ? started : now, expiresAtMillis: (active ? started : now) + setting.window, updatedAt: FieldValue.serverTimestamp() }); });
+  if (startedFreshWindow) await cleanupExpiredRateLimits(now);
 }
 
 export async function PUT(request: Request) {
@@ -69,12 +86,14 @@ async function enforceRateLimit(request: Request) {
   const { db } = getFirebaseAdmin();
   const reference = db.doc(`system/signupRateLimits_${rateLimitKey(clientIp(request))}`);
   const now = Date.now();
+  let startedFreshWindow = false;
   await db.runTransaction(async transaction => {
     const snapshot = await transaction.get(reference);
     const current = snapshot.data();
     const windowStartedAtMillis = Number(current?.windowStartedAtMillis ?? 0);
     const inCurrentWindow = now - windowStartedAtMillis < RATE_LIMIT_WINDOW_MS;
     const count = inCurrentWindow ? Number(current?.count ?? 0) : 0;
+    startedFreshWindow = count === 0;
     if (count >= RATE_LIMIT_MAX_ATTEMPTS) throw new RegistrationError(429, "Too many registration attempts. Please try again later.");
     transaction.set(reference, {
       count: count + 1,
@@ -83,6 +102,7 @@ async function enforceRateLimit(request: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
+  if (startedFreshWindow) await cleanupExpiredRateLimits(now);
 }
 
 async function createNumberedStudentProfile(userId: string, input: { name: string; email: string }) {

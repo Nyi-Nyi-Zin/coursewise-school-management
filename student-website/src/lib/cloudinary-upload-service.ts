@@ -13,11 +13,11 @@ const ALLOWED_ASSIGNMENT_TYPES = new Set([
 
 type SignedUpload = { cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string; resourceType: "image" };
 
-async function requestSignedUpload(): Promise<SignedUpload> {
+async function requestSignedUpload(contentType: string, size: number): Promise<SignedUpload> {
   const { authenticatedApiFetch } = await import("@/lib/authenticated-api");
   return await authenticatedApiFetch("/api/uploads/cloudinary-signature", {
     method: "POST",
-    body: JSON.stringify({ kind: "avatar" }),
+    body: JSON.stringify({ kind: "avatar", contentType, size }),
   }) as SignedUpload;
 }
 
@@ -38,7 +38,7 @@ export async function uploadStudentProfilePhoto(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
   if (file.size > MAX_PHOTO_BYTES) throw new Error("Image must be smaller than 5 MB.");
   const compressed = await compressProfilePhoto(file);
-  return uploadSigned(compressed, "profile.jpg", await requestSignedUpload());
+  return uploadSigned(compressed, "profile.jpg", await requestSignedUpload((compressed.type || "image/jpeg"), compressed.size));
 }
 
 export async function uploadAssignmentFileToStorage(studentId: string, file: File): Promise<string> {

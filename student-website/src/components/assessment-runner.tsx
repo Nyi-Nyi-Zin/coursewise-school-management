@@ -36,6 +36,9 @@ import {
   type SubmittedQuizAnswer,
 } from "@/lib/student-repository";
 
+const AUTO_SUBMIT_MAX_RETRIES = 3;
+const AUTO_SUBMIT_RETRY_DELAY_MS = 5_000;
+
 type AnswerMap = Record<string, number[]>;
 type FeedbackMap = Record<string, ChapterAnswerFeedback>;
 
@@ -48,6 +51,8 @@ export function AssessmentRunner() {
   const [result, setResult] = useState<QuizSubmissionResult | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const autoSubmitRef = useRef(false);
+  const autoSubmitRetryCountRef = useRef(0);
+  const nextAutoSubmitAtRef = useRef(0);
   const submissionLockRef = useRef(false);
   const checkerLockRef = useRef(false);
   const lastViolationRef = useRef(0);
@@ -97,10 +102,19 @@ export function AssessmentRunner() {
           : "Chapter quiz saved."
       );
     },
-    onError: error =>
+    onError: error => {
+      if (
+        autoSubmitRef.current &&
+        autoSubmitRetryCountRef.current < AUTO_SUBMIT_MAX_RETRIES
+      ) {
+        autoSubmitRetryCountRef.current += 1;
+        autoSubmitRef.current = false;
+        window.setTimeout(() => setNow(Date.now()), AUTO_SUBMIT_RETRY_DELAY_MS);
+      }
       toast.error(
         getUserFacingErrorMessage(error, "Assessment could not be submitted. Please try again.")
-      ),
+      );
+    },
   });
   const submitOnce = useCallback(() => {
     if (submissionLockRef.current) return;
@@ -120,7 +134,9 @@ export function AssessmentRunner() {
       submission.isPending
     )
       return;
+    if (Date.now() < nextAutoSubmitAtRef.current) return;
     autoSubmitRef.current = true;
+    nextAutoSubmitAtRef.current = Date.now() + AUTO_SUBMIT_RETRY_DELAY_MS;
     toast.info("Time is up. Your final exam is being submitted.");
     submitOnce();
   }, [remainingSeconds, result, session.data, submission.isPending, submitOnce]);
@@ -272,6 +288,8 @@ export function AssessmentRunner() {
           setResult(null);
           setNow(Date.now());
           autoSubmitRef.current = false;
+          autoSubmitRetryCountRef.current = 0;
+          nextAutoSubmitAtRef.current = 0;
           submissionLockRef.current = false;
           checkerLockRef.current = false;
           void session.refetch();

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "pnpm --filter admin-dashboard exec next dev",
     "build": "pnpm run admin:build",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && pnpm admin:typecheck && pnpm student:typecheck",
+    "admin:typecheck": "pnpm --filter admin-dashboard run typecheck",
+    "student:typecheck": "pnpm --filter student-website run typecheck",
     "format": "prettier --write .",
     "test": "vitest run && vitest run --config student-website/vitest.config.ts && vitest run --config admin-dashboard/vitest.config.ts",
     "migrate:lesson-progress": "node --env-file=.env scripts/migrate-lesson-progress.mjs",

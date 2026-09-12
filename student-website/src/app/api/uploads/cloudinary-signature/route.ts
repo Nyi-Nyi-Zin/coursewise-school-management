@@ -6,16 +6,26 @@ import { ApiError, apiErrorResponse, requireAuthenticatedUser } from "@/lib/serv
 export const runtime = "nodejs";
 
 const folders = {
-  avatar: { folder: "coursewise/avatars", resourceType: "image" },
+  avatar: { folder: "coursewise/avatars", resourceType: "image", maxBytes: 5 * 1024 * 1024 },
 } as const;
+
+function assertImageUpload(body: Record<string, unknown>, maxBytes: number) {
+  const contentType = String(body?.contentType ?? "");
+  if (!contentType.startsWith("image/")) throw new ApiError(400, "Only image uploads are allowed here.");
+  const size = Number(body?.size);
+  if (!Number.isFinite(size) || size < 0 || size > maxBytes) {
+    throw new ApiError(400, "The uploaded image exceeds the allowed size.");
+  }
+}
 
 export async function POST(request: Request) {
   try {
     await requireAuthenticatedUser(request);
-    const body = await request.json().catch(() => ({}));
-    const kind = body?.kind as keyof typeof folders;
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const kind = body.kind as keyof typeof folders;
     const selected = folders[kind];
     if (!selected) throw new ApiError(400, "An upload type is required.");
+    assertImageUpload(body, selected.maxBytes);
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME ?? process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
