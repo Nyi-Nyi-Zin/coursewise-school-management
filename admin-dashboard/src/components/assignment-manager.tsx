@@ -15,7 +15,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, TableSkeletonRows } from "@/components/ui/data-table";
 import { Metric } from "@/components/ui/metric";
 import { BooleanStatusBadge } from "@/components/ui/status-badge";
 import { RowActions } from "@/components/ui/row-actions";
@@ -305,7 +305,7 @@ export function AssignmentManager() {
             </thead>
             <tbody>
               {assignmentsQuery.isLoading ? (
-                <LoadingRow columns={7} />
+                <TableSkeletonRows columns={7} />
               ) : visible.length ? (
                 visible.map(item => {
                   const course = courses.find(c => c.id === item.courseId);
@@ -466,18 +466,6 @@ function Td({
     >
       {children}
     </td>
-  );
-}
-function LoadingRow({ columns = 7 }: { columns?: number }) {
-  return (
-    <tr>
-      <td
-        colSpan={columns}
-        className="border-t border-stone-100 px-5 py-8 text-center text-stone-500"
-      >
-        Loading…
-      </td>
-    </tr>
   );
 }
 function EmptyRow({ columns, message }: { columns: number; message: string }) {

@@ -127,7 +127,7 @@ export function AssessmentRunner() {
 
   const violation = useMutation({
     mutationFn: (reason: string) =>
-      recordExamIntegrityViolation(quizId, reason),
+      recordExamIntegrityViolation(quizId, reason, session.data!.sessionId),
     onSuccess: outcome => {
       if (outcome.shouldSubmit && !autoSubmitRef.current) {
         autoSubmitRef.current = true;
@@ -214,7 +214,7 @@ export function AssessmentRunner() {
 
   const checker = useMutation({
     mutationFn: () =>
-      checkChapterAnswer(quizId, question.id, answers[question.id] ?? []),
+      checkChapterAnswer(quizId, question.id, answers[question.id] ?? [], session.data!.sessionId),
     onSuccess: item => {
       setFeedback(currentFeedback => ({
         ...currentFeedback,

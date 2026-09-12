@@ -21,7 +21,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { DataTable, TablePagination } from "@/components/ui/data-table";
+import { DataTable, TablePagination, TableSkeletonRows } from "@/components/ui/data-table";
 import {
   BooleanStatusBadge,
   StatusBadge,
@@ -47,30 +47,36 @@ import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 export function ModuleRecordView({
   section,
   records,
+  loading = false,
   scopeControls,
   onCreate,
   onEdit,
   onDelete,
   onToggleStatus,
+  onToggleVerification,
   onManageQuiz,
 }: {
   section: ManagementSection;
   records: OfflineItem[];
+  loading?: boolean;
   scopeControls?: ReactNode;
   onCreate: () => void;
   onEdit: (item: OfflineItem) => void;
   onDelete: (id: string) => void | Promise<void>;
   onToggleStatus: (item: OfflineItem) => void | Promise<void>;
+  onToggleVerification?: (item: OfflineItem) => void | Promise<void>;
   onManageQuiz: (item: OfflineItem) => void;
 }) {
   if (section === "students")
     return (
       <StudentTable
         records={records}
+        loading={loading}
         onCreate={onCreate}
         onEdit={onEdit}
         onDelete={onDelete}
         onToggleStatus={onToggleStatus}
+        onToggleVerification={onToggleVerification}
       />
     );
   if (
@@ -82,6 +88,7 @@ export function ModuleRecordView({
       <ContentTable
         section={section}
         records={records}
+        loading={loading}
         onCreate={onCreate}
         onEdit={onEdit}
         onDelete={onDelete}
@@ -92,6 +99,7 @@ export function ModuleRecordView({
     return (
       <QuizTable
         records={records}
+        loading={loading}
         scopeControls={scopeControls}
         onCreate={onCreate}
         onEdit={onEdit}
@@ -120,7 +128,7 @@ export function ModuleRecordView({
             </tr>
           </thead>
           <tbody>
-            {records.map(item => (
+            {loading ? <TableSkeletonRows columns={4} /> : records.map(item => (
               <tr key={item.id} className="border-t border-stone-100">
                 <td className="px-5 py-4 font-bold text-stone-800">
                   {item.title}
@@ -150,6 +158,7 @@ export function ModuleRecordView({
 
 function QuizTable({
   records,
+  loading,
   scopeControls,
   onCreate,
   onEdit,
@@ -158,6 +167,7 @@ function QuizTable({
   onManageQuiz,
 }: {
   records: OfflineItem[];
+  loading: boolean;
   scopeControls?: ReactNode;
   onCreate: () => void;
   onEdit: (item: OfflineItem) => void;
@@ -185,7 +195,9 @@ function QuizTable({
           </tr>
         </thead>
         <tbody>
-          {records.length ? (
+          {loading ? (
+            <TableSkeletonRows columns={5} />
+          ) : records.length ? (
             records.map(item => (
               <tr key={item.id} className="hover:bg-emerald-50/40">
                 <Td strong>
@@ -259,6 +271,7 @@ const CONTENT_PER_PAGE = 10;
 function ContentTable({
   section,
   records,
+  loading,
   onCreate,
   onEdit,
   onDelete,
@@ -266,6 +279,7 @@ function ContentTable({
 }: {
   section: "announcements" | "lessons" | "assignments";
   records: OfflineItem[];
+  loading: boolean;
   onCreate: () => void;
   onEdit: (item: OfflineItem) => void;
   onDelete: (id: string) => void | Promise<void>;
@@ -403,7 +417,9 @@ function ContentTable({
           </tr>
         </thead>
         <tbody>
-          {visible.length ? (
+          {loading ? (
+            <TableSkeletonRows columns={section === "lessons" ? 5 : 4} />
+          ) : visible.length ? (
             visible.map(item => (
               <tr key={item.id} className="hover:bg-emerald-50/40">
                 <Td strong>{item.title}</Td>
@@ -568,16 +584,20 @@ function ContentDetails({
 const STUDENTS_PER_PAGE = 10;
 function StudentTable({
   records,
+  loading,
   onCreate,
   onEdit,
   onDelete,
   onToggleStatus,
+  onToggleVerification,
 }: {
   records: OfflineItem[];
+  loading: boolean;
   onCreate: () => void;
   onEdit: (item: OfflineItem) => void;
   onDelete: (id: string) => void | Promise<void>;
   onToggleStatus: (item: OfflineItem) => void | Promise<void>;
+  onToggleVerification?: (item: OfflineItem) => void | Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
@@ -725,7 +745,9 @@ function StudentTable({
           </tr>
         </thead>
         <tbody>
-          {visibleStudents.length ? (
+          {loading ? (
+            <TableSkeletonRows columns={6} rowCount={6} />
+          ) : visibleStudents.length ? (
             visibleStudents.map(item => (
               <tr key={item.id} className="hover:bg-emerald-50/40">
                 <Td strong>
@@ -764,6 +786,15 @@ function StudentTable({
                         label: "Change password",
                         icon: KeyRound,
                         onSelect: () => setPasswordFor(item),
+                      },
+                      {
+                        label:
+                          item.fields?.emailVerified === "true"
+                            ? "Mark as unverified"
+                            : "Mark as verified",
+                        icon: item.fields?.emailVerified === "true" ? CircleX : CircleCheck,
+                        tone: "warning",
+                        onSelect: () => onToggleVerification?.(item),
                       },
                       {
                         label:

@@ -196,7 +196,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
                   enrollments={enrollments}
                   value={selectedKey}
                   onChange={selectEnrollment}
-                  className="mt-1 w-full [&>select]:w-full"
+                  className="mt-1 w-full"
                 />
               </div>
             ) : null}

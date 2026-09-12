@@ -60,7 +60,6 @@ export function OverviewDashboard({ records, recordsLoading = false, recordsErro
   );
   const recordsUnavailable = !hasFirebaseConfiguration || Boolean(recordsError) || recordsLoading;
   const structureUnavailable = !hasFirebaseConfiguration || Boolean(structureQuery.error) || structureQuery.isPending;
-  const performanceUnavailable = !hasFirebaseConfiguration || Boolean(performanceQuery.error) || performanceQuery.isPending;
 
   return (
     <div className="space-y-5">
@@ -119,8 +118,8 @@ export function OverviewDashboard({ records, recordsLoading = false, recordsErro
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <StudentGrowthCard data={data} unavailable={recordsUnavailable} />
-        <TopPerformersCard data={data} unavailable={recordsUnavailable || performanceUnavailable} />
+        <StudentGrowthCard data={data} loading={recordsLoading} unavailable={!hasFirebaseConfiguration || Boolean(recordsError)} />
+        <TopPerformersCard data={data} loading={recordsLoading || performanceQuery.isPending} unavailable={!hasFirebaseConfiguration || Boolean(recordsError) || Boolean(performanceQuery.error)} />
       </div>
     </div>
   );
@@ -148,7 +147,7 @@ function MetricCard({ label, value, detail, icon: Icon, tone, loading }: { label
   );
 }
 
-function StudentGrowthCard({ data, unavailable }: { data: OverviewDashboardData; unavailable: boolean }) {
+function StudentGrowthCard({ data, loading, unavailable }: { data: OverviewDashboardData; loading: boolean; unavailable: boolean }) {
   return (
     <Card className="h-full">
       <CardHeader className="p-6 pb-3">
@@ -157,7 +156,7 @@ function StudentGrowthCard({ data, unavailable }: { data: OverviewDashboardData;
         <CardDescription>New student registrations over the last six months.</CardDescription>
       </CardHeader>
       <CardContent className="px-6 pb-6 pt-0">
-        {unavailable ? <UnavailableState /> : data.studentGrowth.every(item => item.count === 0) ? <EmptyState message="No dated student activity yet." /> : (
+        {loading ? <StudentGrowthSkeleton /> : unavailable ? <UnavailableState /> : data.studentGrowth.every(item => item.count === 0) ? <EmptyState message="No dated student activity yet." /> : (
           <ChartContainer className="h-[270px]" config={{ count: { label: "New students", color: "#143d36" } }}>
             <BarChart accessibilityLayer data={data.studentGrowth} margin={{ left: 0, right: 12, top: 12, bottom: 8 }}>
               <CartesianGrid vertical={false} />
@@ -173,7 +172,7 @@ function StudentGrowthCard({ data, unavailable }: { data: OverviewDashboardData;
   );
 }
 
-function TopPerformersCard({ data, unavailable }: { data: OverviewDashboardData; unavailable: boolean }) {
+function TopPerformersCard({ data, loading, unavailable }: { data: OverviewDashboardData; loading: boolean; unavailable: boolean }) {
   return (
     <Card className="h-full">
       <CardHeader className="p-6 pb-3">
@@ -182,7 +181,7 @@ function TopPerformersCard({ data, unavailable }: { data: OverviewDashboardData;
         <CardDescription>Students ranked by their weighted quiz score.</CardDescription>
       </CardHeader>
       <CardContent className="px-6 pb-6 pt-0">
-        {unavailable ? <UnavailableState /> : data.topPerformers.length === 0 ? <EmptyState message="No quiz scores yet." /> : (
+        {loading ? <TopPerformersSkeleton /> : unavailable ? <UnavailableState /> : data.topPerformers.length === 0 ? <EmptyState message="No quiz scores yet." /> : (
           <ChartContainer className="h-[270px]" config={{ score: { label: "Quiz score", color: "#7c3aed" } }}>
             <BarChart accessibilityLayer data={data.topPerformers} layout="vertical" margin={{ left: 8, right: 12, top: 12, bottom: 8 }}>
               <CartesianGrid horizontal={false} />
@@ -195,6 +194,44 @@ function TopPerformersCard({ data, unavailable }: { data: OverviewDashboardData;
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function StudentGrowthSkeleton() {
+  const heights = [38, 52, 44, 68, 56, 78];
+
+  return (
+    <div role="status" aria-label="Loading student growth" className="relative h-[270px] overflow-hidden rounded-2xl border border-stone-100 bg-stone-50/50 p-4">
+      <div className="absolute inset-x-4 bottom-12 h-px bg-stone-200" />
+      <div className="flex h-full items-end justify-around gap-3 pb-8 pt-6">
+        {heights.map((height, index) => (
+          <div key={index} className="flex h-full flex-1 items-end justify-center">
+            <Skeleton className="w-full max-w-10 rounded-t-xl rounded-b-none bg-emerald-100" style={{ height: `${height}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-x-4 bottom-2 flex justify-around gap-3">
+        {heights.map((_, index) => <Skeleton key={index} className="h-3 w-7 rounded-md" />)}
+      </div>
+    </div>
+  );
+}
+
+function TopPerformersSkeleton() {
+  const widths = ["w-[82%]", "w-[68%]", "w-[56%]", "w-[47%]", "w-[36%]"];
+
+  return (
+    <div role="status" aria-label="Loading top performers" className="space-y-5 rounded-2xl border border-stone-100 bg-stone-50/50 px-3 py-5">
+      {widths.map((width, index) => (
+        <div key={index} className="flex items-center gap-3">
+          <Skeleton className="h-3 w-20 shrink-0 rounded-md" />
+          <Skeleton className={`h-6 rounded-r-xl rounded-l-md bg-violet-100 ${width}`} />
+        </div>
+      ))}
+      <div className="flex justify-between pl-24 pt-1">
+        {["w-6", "w-6", "w-6", "w-6", "w-6"].map((width, index) => <Skeleton key={index} className={`h-3 ${width} rounded-md`} />)}
+      </div>
+    </div>
   );
 }
 

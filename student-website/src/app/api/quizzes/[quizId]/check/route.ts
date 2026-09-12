@@ -10,7 +10,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ qui
     const { quizId } = await params;
     if (!quizId) throw new ApiError(400, "A quiz ID is required.");
     const body = await request.json().catch(() => { throw new ApiError(400, "A valid answer is required."); });
-    return NextResponse.json(await checkChapterAnswer(user.uid, quizId, body?.questionId, body?.selectedIndices));
+    return NextResponse.json(await checkChapterAnswer(user.uid, quizId, body?.questionId, body?.selectedIndices, body?.sessionId));
   } catch (error) {
     return apiErrorResponse(error, "This answer could not be checked.");
   }

@@ -829,7 +829,7 @@ function SubmissionDialog({
   const [text, setText] = useState(submission?.submissionText ?? "");
   const [url, setUrl] = useState(
     submission?.submissionUrl?.startsWith("http") &&
-      !hasCloudinaryUrl(submission.submissionUrl)
+      !submission.submissionFileName
       ? submission.submissionUrl
       : ""
   );
@@ -1022,10 +1022,6 @@ function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
-function hasCloudinaryUrl(value: string) {
-  return /cloudinary\.com\/\S+\/coursewise\/assignments\//.test(value);
-}
-
 function getStatus(
   assignment: Assignment,
   submission?: AssignmentSubmission

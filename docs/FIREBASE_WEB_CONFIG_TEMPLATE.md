@@ -12,13 +12,14 @@ Use the Firebase Web App values from **Firebase Console → Project settings →
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase client configuration | Web App configuration |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase app identification | Web App configuration |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Browser Cloudinary upload destination | Cloudinary product environment |
-| `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Browser Cloudinary unsigned upload preset | Cloudinary Upload presets |
+| `CLOUDINARY_API_KEY` | Server-side Cloudinary API key used to sign uploads | Cloudinary API access |
+| `CLOUDINARY_API_SECRET` | Server-side Cloudinary API secret; never expose to the browser | Cloudinary API access |
 
 The values are consumed by `student-website/src/lib/firebase.ts` and `admin-dashboard/src/lib/firebase.ts`. The `NEXT_PUBLIC_` prefix is required for browser-side configuration in Next.js. Do **not** place an Admin SDK private key, service-account JSON, or other privileged credential in a `NEXT_PUBLIC_*` variable. Add the complete service-account JSON separately as the server-only `FIREBASE_SERVICE_ACCOUNT_JSON` in both Vercel projects; authenticated Next.js backend routes use it for trusted quiz scoring and administrator account operations.[1]
 
-## Cloudinary uploads
+## Uploads
 
-Create one **unsigned** upload preset for this application, restrict it to the required image and PDF formats, enforce an upload-size limit, and assign the `coursewise` folder. Add the two Cloudinary variables above to both Vercel projects. The preset name is browser-visible; do not use a Cloudinary API secret in either website.
+Avatars, banners, and lesson thumbnails (UI/product images) use Cloudinary. Assignment submissions and lesson documents/large media use Firebase Storage with the rules from `firebase/storage.rules`. Do not create or expose an unsigned upload preset for those uploads; add the Cloudinary cloud name to both websites and add `CLOUDINARY_API_KEY` plus `CLOUDINARY_API_SECRET` as server-only variables to both Vercel projects. The backend signs short-lived uploads and accepts only the fixed `coursewise` folders for each upload type.
 
 ## References
 

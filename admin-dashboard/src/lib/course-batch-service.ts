@@ -1,4 +1,4 @@
-import { arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, DocumentSnapshot, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter, where } from "firebase/firestore";
+import { arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, DocumentSnapshot, getDoc, getDocs, limit, orderBy, query, QueryConstraint, runTransaction, serverTimestamp, setDoc, startAfter, where } from "firebase/firestore";
 import { getFirebaseClient } from "./firebase";
 
 export type CourseRecord = { id: string; title: string; isActive: boolean; enrolledStudentIds: string[] };
@@ -107,17 +107,85 @@ export async function saveBatch(batch: BatchRecord) {
 
 export async function saveEnrollmentStatus(enrollmentId: string, status: "active" | "inactive") {
   const { db } = getFirebaseClient();
-  await setDoc(doc(db, "enrollments", enrollmentId), { status, updatedAt: serverTimestamp() }, { merge: true });
+  const enrollmentRef = doc(db, "enrollments", enrollmentId);
+  const enrollmentSnapshot = await getDoc(enrollmentRef);
+  if (!enrollmentSnapshot.exists()) throw new Error("Enrollment not found.");
+  const current = enrollmentSnapshot.data();
+  const courseId = String(current.courseId ?? "");
+  const batchId = String(current.batchId ?? "");
+  const studentId = String(current.studentId ?? "");
+  if (!courseId || !batchId || !studentId) throw new Error("Enrollment is missing course, batch, or student information.");
+  const studentRef = doc(db, "users", studentId);
+  const courseRef = doc(db, "courses", courseId);
+  const batchRef = doc(db, "batches", batchId);
+  const activeEnrollments = await getDocs(query(
+    collection(db, "enrollments"),
+    where("studentId", "==", studentId),
+    where("status", "==", "active"),
+  ));
+  const otherActive = activeEnrollments.docs
+    .filter(item => item.id !== enrollmentId)
+    .map(item => ({ courseId: String(item.data().courseId ?? ""), batchId: String(item.data().batchId ?? "") }))
+    .filter(item => item.courseId && item.batchId);
+  await runTransaction(db, async transaction => {
+    const studentSnapshot = await transaction.get(studentRef);
+    if (!studentSnapshot.exists()) throw new Error("Student not found.");
+    const enrollmentPair = { courseId, batchId };
+    transaction.set(enrollmentRef, { status, updatedAt: serverTimestamp() }, { merge: true });
+    if (status === "active") {
+      transaction.set(courseRef, { enrolledStudentIds: arrayUnion(studentId), updatedAt: serverTimestamp() }, { merge: true });
+      transaction.set(batchRef, { enrolledStudentIds: arrayUnion(studentId), updatedAt: serverTimestamp() }, { merge: true });
+      transaction.set(doc(db, "enrollmentLocks", studentId), { studentId, courseId, batchId, active: true, updatedAt: serverTimestamp() }, { merge: true });
+      transaction.set(studentRef, { enrollments: [...otherActive, enrollmentPair], activeCourseId: courseId, activeBatchId: batchId, updatedAt: serverTimestamp() }, { merge: true });
+      return;
+    }
+    transaction.set(batchRef, { enrolledStudentIds: arrayRemove(studentId), updatedAt: serverTimestamp() }, { merge: true });
+    if (!otherActive.some(item => item.courseId === courseId)) {
+      transaction.set(courseRef, { enrolledStudentIds: arrayRemove(studentId), updatedAt: serverTimestamp() }, { merge: true });
+    }
+    const studentData = studentSnapshot.data() ?? {};
+    const fallback = otherActive[0];
+    if (fallback) {
+      transaction.set(doc(db, "enrollmentLocks", studentId), { studentId, ...fallback, active: true, updatedAt: serverTimestamp() }, { merge: true });
+    } else {
+      transaction.delete(doc(db, "enrollmentLocks", studentId));
+    }
+    transaction.set(studentRef, {
+      enrollments: otherActive,
+      ...(studentData.activeCourseId === courseId && studentData.activeBatchId === batchId
+        ? { activeCourseId: fallback?.courseId ?? deleteField(), activeBatchId: fallback?.batchId ?? deleteField() }
+        : {}),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
 }
 
 export async function deleteCourse(courseId: string) {
   const { db } = getFirebaseClient();
-  await deleteDoc(doc(db, "courses", courseId));
+  const courseRef = doc(db, "courses", courseId);
+  const [course, batches, enrollments] = await Promise.all([
+    getDoc(courseRef),
+    getDocs(query(collection(db, "batches"))),
+    getDocs(query(collection(db, "enrollments"), where("courseId", "==", courseId))),
+  ]);
+  if (!course.exists()) throw new Error("Course not found.");
+  if (batches.docs.some(batch => toBatch(batch).courseId === courseId)) {
+    throw new Error("This course still has batches. Reassign or remove its batches before deleting the course.");
+  }
+  if (!enrollments.empty) throw new Error("This course has enrollment history and cannot be deleted.");
+  await deleteDoc(courseRef);
 }
 
 export async function deleteBatch(batchId: string) {
   const { db } = getFirebaseClient();
-  await deleteDoc(doc(db, "batches", batchId));
+  const batchRef = doc(db, "batches", batchId);
+  const [batch, enrollments] = await Promise.all([
+    getDoc(batchRef),
+    getDocs(query(collection(db, "enrollments"), where("batchId", "==", batchId))),
+  ]);
+  if (!batch.exists()) throw new Error("Batch not found.");
+  if (!enrollments.empty) throw new Error("This batch has enrollment history and cannot be deleted.");
+  await deleteDoc(batchRef);
 }
 
 export async function deleteEnrollment(enrollment: EnrollmentRecord) {
@@ -165,7 +233,21 @@ export async function deleteEnrollment(enrollment: EnrollmentRecord) {
 
 export async function linkBatchToCourse(batchId: string, courseId: string) {
   const { db } = getFirebaseClient();
-  await setDoc(doc(db, "batches", batchId), { courseId, updatedAt: serverTimestamp() }, { merge: true });
+  const batchRef = doc(db, "batches", batchId);
+  const [batch, course, enrollments] = await Promise.all([
+    getDoc(batchRef),
+    getDoc(doc(db, "courses", courseId)),
+    getDocs(query(collection(db, "enrollments"), where("batchId", "==", batchId))),
+  ]);
+  if (!batch.exists()) throw new Error("Batch not found.");
+  if (!course.exists()) throw new Error("Course not found.");
+  const batchData = batch.data() ?? {};
+  const currentCourseId = String(batchData.courseId ?? (Array.isArray(batchData.courseIds) ? batchData.courseIds[0] : ""));
+  if (currentCourseId !== courseId && !enrollments.empty) {
+    throw new Error("A batch with enrollment history cannot be moved to a different course.");
+  }
+  // Keep the single-course model canonical once an unassigned batch is linked.
+  await setDoc(batchRef, { courseId, courseIds: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function enrollStudent(courseId: string, batchId: string, studentId: string) {
@@ -218,41 +300,60 @@ export async function updateEnrollmentBatch(enrollment: EnrollmentRecord, batchI
   const previousEnrollmentRef = doc(db, "enrollments", enrollment.id);
   const nextEnrollmentRef = doc(db, "enrollments", `${enrollment.courseId}_${batchId}_${enrollment.studentId}`);
   const studentRef = doc(db, "users", enrollment.studentId);
-  const previousEnrollment = { courseId: enrollment.courseId, batchId: enrollment.batchId };
-  const nextEnrollment = { courseId: enrollment.courseId, batchId };
+  const activeEnrollmentSnapshot = await getDocs(query(
+    collection(db, "enrollments"),
+    where("studentId", "==", enrollment.studentId),
+    where("status", "==", "active"),
+  ));
 
   await runTransaction(db, async transaction => {
-    const studentSnapshot = await transaction.get(studentRef);
-    const currentEnrollments = Array.isArray(studentSnapshot.data()?.enrollments)
-      ? studentSnapshot.data()!.enrollments
-      : [];
-    const nextEnrollments = [
-      ...currentEnrollments.filter((item: unknown) => {
-        if (!item || typeof item !== "object") return true;
-        const value = item as { courseId?: unknown; batchId?: unknown };
-        return !(
-          value.courseId === previousEnrollment.courseId &&
-          (value.batchId === previousEnrollment.batchId || value.batchId === nextEnrollment.batchId)
-        );
-      }),
-      nextEnrollment,
-    ];
+    const [studentSnapshot, nextBatchSnapshot, previousEnrollmentSnapshot, nextEnrollmentSnapshot] = await Promise.all([
+      transaction.get(studentRef),
+      transaction.get(nextBatchRef),
+      transaction.get(previousEnrollmentRef),
+      transaction.get(nextEnrollmentRef),
+    ]);
+    if (!studentSnapshot.exists || !previousEnrollmentSnapshot.exists) throw new Error("Enrollment or student not found.");
+    if (!nextBatchSnapshot.exists()) throw new Error("The destination batch does not exist.");
+    const nextBatchData = nextBatchSnapshot.data() ?? {};
+    const destinationCourseId = String(nextBatchData.courseId ?? (Array.isArray(nextBatchData.courseIds) ? nextBatchData.courseIds[0] : ""));
+    if (destinationCourseId !== enrollment.courseId) throw new Error("The destination batch does not belong to this course.");
+    if (nextEnrollmentSnapshot.exists() && nextEnrollmentSnapshot.data()?.status === "active") {
+      throw new Error("This student is already enrolled in the destination batch.");
+    }
+
+    const currentStatus = previousEnrollmentSnapshot.data()?.status === "active" ? "active" : "inactive";
+    const activePairs: Array<{ courseId: string; batchId: string }> = activeEnrollmentSnapshot.docs
+      .filter(item => item.id !== previousEnrollmentRef.id)
+      .map(item => ({ courseId: String(item.data().courseId ?? ""), batchId: String(item.data().batchId ?? "") }))
+      .filter(item => item.courseId && item.batchId);
+    const nextPair: { courseId: string; batchId: string } = { courseId: enrollment.courseId, batchId };
+    const nextEnrollments: Array<{ courseId: string; batchId: string }> = currentStatus === "active"
+      ? [...activePairs, nextPair]
+      : activePairs;
+    const uniqueEnrollments: Array<{ courseId: string; batchId: string }> = [...new Map(nextEnrollments.map(item => [`${item.courseId}_${item.batchId}`, item])).values()];
+    const profileData = studentSnapshot.data() ?? {};
+    const selectedCourseId = String(profileData.activeCourseId ?? "");
+    const selectedBatchId = String(profileData.activeBatchId ?? "");
+    const selected = uniqueEnrollments.find(item => item.courseId === selectedCourseId && item.batchId === selectedBatchId) ?? uniqueEnrollments[0];
+
     transaction.delete(previousEnrollmentRef);
     transaction.set(nextEnrollmentRef, {
       studentId: enrollment.studentId,
       courseId: enrollment.courseId,
       batchId,
-      status: enrollment.status,
+      status: currentStatus,
       updatedAt: serverTimestamp(),
     }, { merge: true });
-    transaction.set(doc(db, "enrollmentLocks", enrollment.studentId), { studentId: enrollment.studentId, courseId: enrollment.courseId, batchId, active: enrollment.status === "active", updatedAt: serverTimestamp() }, { merge: true });
-    transaction.update(previousBatchRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() });
-    transaction.update(nextBatchRef, { enrolledStudentIds: arrayUnion(enrollment.studentId), updatedAt: serverTimestamp() });
+    transaction.set(previousBatchRef, { enrolledStudentIds: arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() }, { merge: true });
+    transaction.set(nextBatchRef, { enrolledStudentIds: currentStatus === "active" ? arrayUnion(enrollment.studentId) : arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() }, { merge: true });
+    transaction.set(doc(db, "courses", enrollment.courseId), { enrolledStudentIds: uniqueEnrollments.some(item => item.courseId === enrollment.courseId) ? arrayUnion(enrollment.studentId) : arrayRemove(enrollment.studentId), updatedAt: serverTimestamp() }, { merge: true });
     transaction.set(studentRef, {
-      activeCourseId: enrollment.courseId,
-      activeBatchId: batchId,
-      enrollments: nextEnrollments,
+      ...(selected ? { activeCourseId: selected.courseId, activeBatchId: selected.batchId } : { activeCourseId: deleteField(), activeBatchId: deleteField() }),
+      enrollments: uniqueEnrollments,
       updatedAt: serverTimestamp(),
     }, { merge: true });
+    if (selected) transaction.set(doc(db, "enrollmentLocks", enrollment.studentId), { studentId: enrollment.studentId, courseId: selected.courseId, batchId: selected.batchId, active: true, updatedAt: serverTimestamp() }, { merge: true });
+    else transaction.delete(doc(db, "enrollmentLocks", enrollment.studentId));
   });
 }

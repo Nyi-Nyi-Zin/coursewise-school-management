@@ -3,7 +3,7 @@ import { demoAnnouncements, demoAttendance, demoLessons, getDemoLessonProgress, 
 import { firestore } from "@/lib/firebase";
 import { authenticatedApiFetch } from "@/lib/authenticated-api";
 import type { QuizCatalogPage, QuizCatalogRequest } from "@/lib/quiz-catalog";
-import { uploadStudentPhotoToCloudinary, uploadAssignmentFileToCloudinary } from "@/lib/cloudinary-upload-service";
+import { uploadAssignmentFileToStorage, uploadStudentProfilePhoto } from "@/lib/cloudinary-upload-service";
 
 export type StudentProfile = { id: string; name: string; email: string; studentId: string; photoUrl?: string; activeCourseId?: string; activeBatchId?: string };
 export type EnrollmentContext = { courseId: string; batchId: string; courseTitle: string; batchName: string };
@@ -33,7 +33,7 @@ export async function uploadStudentPhoto(userId: string, file: File): Promise<st
   if (!firestore) throw new Error("Profile photos are only available in Firebase mode.");
   const profile = await getStudentProfile(userId);
   if (profile.photoUrl) throw new Error("You have already uploaded a profile photo. Ask an administrator to reset it before uploading again.");
-  const photoUrl = await uploadStudentPhotoToCloudinary(file);
+  const photoUrl = await uploadStudentProfilePhoto(file);
   await updateDoc(doc(firestore, "users", userId), { photoUrl, updatedAt: serverTimestamp() });
   return photoUrl;
 }
@@ -277,7 +277,7 @@ export async function submitAssignment(studentId: string, assignment: Assignment
   let fileUrl = "";
   let fileName = "";
   if (input.submissionFile) {
-    fileUrl = await uploadAssignmentFileToCloudinary(input.submissionFile);
+    fileUrl = await uploadAssignmentFileToStorage(studentId, input.submissionFile);
     fileName = input.submissionFile.name;
   }
   if (!submissionText && !submissionUrl && !fileUrl) throw new Error("Add your response, a submission link, or a file before sending.");
@@ -325,15 +325,20 @@ export async function getQuizQuestions(quizId: string): Promise<QuizQuestion[]> 
 }
 
 export async function startAssessment(quizId: string): Promise<AssessmentSession> {
-  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/start`, { method: "POST" }) as Promise<AssessmentSession>;
+  const storageKey = `coursewise:assessment-session:${quizId}`;
+  let previousSessionId = "";
+  try { previousSessionId = typeof window === "undefined" ? "" : window.sessionStorage.getItem(storageKey) ?? ""; } catch { /* storage can be disabled in private browsing */ }
+  const session = await authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/start`, { method: "POST", body: JSON.stringify({ sessionId: previousSessionId || undefined }) }) as AssessmentSession;
+  try { if (typeof window !== "undefined" && session.sessionId) window.sessionStorage.setItem(storageKey, session.sessionId); } catch { /* session still works without local storage */ }
+  return session;
 }
 
-export async function checkChapterAnswer(quizId: string, questionId: string, selectedIndices: number[]): Promise<ChapterAnswerFeedback> {
-  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/check`, { method: "POST", body: JSON.stringify({ questionId, selectedIndices }) }) as Promise<ChapterAnswerFeedback>;
+export async function checkChapterAnswer(quizId: string, questionId: string, selectedIndices: number[], sessionId: string): Promise<ChapterAnswerFeedback> {
+  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/check`, { method: "POST", body: JSON.stringify({ sessionId, questionId, selectedIndices }) }) as Promise<ChapterAnswerFeedback>;
 }
 
-export async function recordExamIntegrityViolation(quizId: string, reason: string): Promise<{ violationCount: number; shouldSubmit: boolean }> {
-  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/integrity`, { method: "POST", body: JSON.stringify({ reason }) }) as Promise<{ violationCount: number; shouldSubmit: boolean }>;
+export async function recordExamIntegrityViolation(quizId: string, reason: string, sessionId: string): Promise<{ violationCount: number; shouldSubmit: boolean }> {
+  return authenticatedApiFetch(`/api/quizzes/${encodeURIComponent(quizId)}/integrity`, { method: "POST", body: JSON.stringify({ sessionId, reason }) }) as Promise<{ violationCount: number; shouldSubmit: boolean }>;
 }
 
 export async function submitQuizAttempt(quizId: string, sessionId: string, answers: SubmittedQuizAnswer[]): Promise<QuizSubmissionResult> {

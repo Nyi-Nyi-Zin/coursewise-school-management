@@ -9,7 +9,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ qui
     const user = await requireAuthenticatedUser(request);
     const { quizId } = await params;
     if (!quizId) throw new ApiError(400, "A quiz ID is required.");
-    return NextResponse.json(await startAssessment(user.uid, quizId));
+    const body = await request.json().catch(() => ({}));
+    return NextResponse.json(await startAssessment(user.uid, quizId, body?.sessionId));
   } catch (error) {
     return apiErrorResponse(error, "This assessment could not be started.");
   }

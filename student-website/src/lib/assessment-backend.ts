@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { FieldPath, FieldValue, type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import type { QuizCatalogPage, QuizCatalogRequest } from "@/lib/quiz-catalog";
 
@@ -30,7 +30,11 @@ type StoredSession = {
   quizId: string; studentId: string; courseId: string; batchId: string; kind: QuizKind;
   status: "active" | "submitted"; questionIds: string[]; optionOrders: Record<string, number[]>;
   answers: Record<string, number[]>; checkedQuestionIds: string[]; startedAtMillis: number; expiresAtMillis: number | null;
-  integrityViolations: number; submittedAttemptId?: string | null;
+  integrityViolations: number; submittedAttemptId?: string | null; attemptNumber?: number;
+  /** Opaque client-facing token. The Firestore document ID remains deterministic. */
+  sessionId?: string;
+  /** Immutable question and answer-key snapshot used for this attempt. */
+  questionSnapshot?: TrustedQuizQuestion[];
 };
 
 const FINAL_PASS_PERCENT = 70;
@@ -123,7 +127,6 @@ async function loadAssessmentContext(quizId: string) {
   const [questionSnapshot, answerKeySnapshot] = await Promise.all([
     quiz.ref.collection("questions").orderBy("sortOrder").get(), quiz.ref.collection("answerKeys").get(),
   ]);
-  if (questionSnapshot.empty) throw new ApiError(409, "This assessment has no questions yet.");
   const keys = new Map(answerKeySnapshot.docs.map(document => [document.id, document.data()]));
   const questions: TrustedQuizQuestion[] = questionSnapshot.docs.map(document => {
     const question = document.data();
@@ -196,9 +199,10 @@ function assertWindow(context: Awaited<ReturnType<typeof loadAssessmentContext>>
 }
 
 function publicSession(context: Awaited<ReturnType<typeof loadAssessmentContext>>, session: StoredSession) {
-  const byId = new Map(context.questions.map(question => [question.id, question]));
+  const sourceQuestions = session.questionSnapshot?.length ? session.questionSnapshot : context.questions;
+  const byId = new Map(sourceQuestions.map(question => [question.id, question]));
   return {
-    sessionId: `${context.quizId}_${session.studentId}`, kind: session.kind, title: context.title, chapter: context.chapter,
+    sessionId: session.sessionId ?? `${context.quizId}_${session.studentId}`, kind: session.kind, title: context.title, chapter: context.chapter,
     passingPercent: context.passingPercent, startedAtMillis: session.startedAtMillis, expiresAtMillis: session.expiresAtMillis,
     integrityViolations: session.integrityViolations, checkedQuestionIds: session.checkedQuestionIds,
     questions: session.questionIds.map(id => {
@@ -209,34 +213,76 @@ function publicSession(context: Awaited<ReturnType<typeof loadAssessmentContext>
   };
 }
 
-export async function startAssessment(studentId: string, quizId: string) {
+export async function startAssessment(studentId: string, quizId: string, rawSessionId?: unknown) {
   const context = await loadAssessmentContext(quizId);
   const enrolledBatchId = await resolveQuizBatch(studentId, context.courseId, context.batchId);
   const now = Date.now();
   assertWindow(context, now);
+  if (!context.questions.length) throw new ApiError(409, "This assessment has no questions yet.");
   const sessionReference = context.db.doc(`assessmentSessions/${quizId}_${studentId}`);
-  const [existingSnapshot, summarySnapshot] = await Promise.all([sessionReference.get(), context.db.doc(`quizSummaries/${quizId}_${studentId}`).get()]);
-  const summary = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
-  if (context.kind === "final_exam" && summary?.passed) throw new ApiError(409, "You already passed this final exam.");
-  if (remainingAttempts(context.maxRetakes, summary?.attemptCount ?? 0) === 0) throw new ApiError(409, "No attempts remain for this quiz.");
   if (context.kind === "final_exam") {
     const chapters = await chapterCompletion(studentId, context.courseId, enrolledBatchId);
     if (!chapters.eligible) throw new ApiError(409, `Complete all chapter quizzes first (${chapters.completed}/${chapters.total}).`);
-    if (summary?.nextEligibleAtMillis && now < summary.nextEligibleAtMillis) throw new ApiError(409, `Your retake unlocks at ${new Date(summary.nextEligibleAtMillis).toISOString()}.`);
   }
-  if (existingSnapshot.exists) {
-    const existing = existingSnapshot.data() as StoredSession;
-    if (existing.status === "active" && (existing.expiresAtMillis === null || now <= existing.expiresAtMillis + AUTO_SUBMIT_GRACE_MS)) return publicSession(context, existing);
-  }
-  const questionIds = context.kind === "final_exam" ? shuffle(context.questions.map(item => item.id)).slice(0, context.drawQuestionCount) : context.questions.map(item => item.id);
-  const byId = new Map(context.questions.map(item => [item.id, item]));
-  const optionOrders = Object.fromEntries(questionIds.map(id => {
-    const indices = byId.get(id)!.options.map((_, index) => index);
-    return [id, context.kind === "final_exam" ? shuffle(indices) : indices];
-  }));
-  const session: StoredSession = { quizId, studentId, courseId: context.courseId, batchId: enrolledBatchId, kind: context.kind, status: "active", questionIds, optionOrders, answers: {}, checkedQuestionIds: [], startedAtMillis: now, expiresAtMillis: context.durationSeconds > 0 ? now + context.durationSeconds * 1000 : null, integrityViolations: 0, submittedAttemptId: null };
-  await sessionReference.set({ ...session, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-  return publicSession(context, session);
+  const summaryReference = context.db.doc(`quizSummaries/${quizId}_${studentId}`);
+  const counterReference = context.db.doc(`quizAttemptCounters/${quizId}_${studentId}`);
+  const reservation = await context.db.runTransaction(async transaction => {
+    const [existingSnapshot, summarySnapshot, counterSnapshot] = await Promise.all([
+      transaction.get(sessionReference), transaction.get(summaryReference), transaction.get(counterReference),
+    ]);
+    const summary = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
+    const existing = existingSnapshot.exists ? existingSnapshot.data() as StoredSession : undefined;
+    if (context.kind === "final_exam" && summary?.passed) throw new ApiError(409, "You already passed this final exam.");
+    if (context.kind === "final_exam" && summary?.nextEligibleAtMillis && now < summary.nextEligibleAtMillis) {
+      throw new ApiError(409, `Your retake unlocks at ${new Date(summary.nextEligibleAtMillis).toISOString()}.`);
+    }
+    if (existing?.status === "active") {
+      const expiresAt = existing.expiresAtMillis;
+      if (expiresAt === null || now <= expiresAt + AUTO_SUBMIT_GRACE_MS) {
+        const existingSessionId = existing.sessionId;
+        if (existingSessionId && String(rawSessionId ?? "") !== existingSessionId) {
+          throw new ApiError(409, "This assessment is already open in another tab. Continue in the original tab.");
+        }
+        // Older sessions were created before question snapshots were stored.
+        // Freeze them on the first reuse so an instructor edit cannot change
+        // the questions or answer key in the middle of an attempt.
+        if (!existing.questionSnapshot?.length) {
+          const existingQuestions = existing.questionIds.map(id => context.questions.find(question => question.id === id));
+          if (existingQuestions.every(Boolean)) {
+            const upgraded = { ...existing, sessionId: existingSessionId ?? randomUUID(), questionSnapshot: existingQuestions as TrustedQuizQuestion[] };
+            transaction.set(sessionReference, { sessionId: upgraded.sessionId, questionSnapshot: upgraded.questionSnapshot, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+            return { session: upgraded, reused: true };
+          }
+        }
+        if (!existingSessionId) {
+          const upgraded = { ...existing, sessionId: randomUUID() };
+          transaction.set(sessionReference, { sessionId: upgraded.sessionId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          return { session: upgraded, reused: true };
+        }
+        return { session: existing, reused: true };
+      }
+      // An abandoned timed attempt is already reserved. Do not let a student
+      // replace it immediately to evade the retake limit/cooldown.
+      if (context.kind === "final_exam") {
+        const unlockAt = expiresAt + AUTO_SUBMIT_GRACE_MS + context.retakeCooldownHours * 3_600_000;
+        if (now < unlockAt) throw new ApiError(409, `Your expired attempt unlocks at ${new Date(unlockAt).toISOString()}.`);
+      }
+    }
+    const previousAttempts = Math.max(Number(counterSnapshot.data()?.count ?? 0), summary?.attemptCount ?? 0);
+    if (remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this quiz.");
+    const questionIds = context.kind === "final_exam" ? shuffle(context.questions.map(item => item.id)).slice(0, context.drawQuestionCount) : context.questions.map(item => item.id);
+    const byId = new Map(context.questions.map(item => [item.id, item]));
+    const optionOrders = Object.fromEntries(questionIds.map(id => {
+      const indices = byId.get(id)!.options.map((_, index) => index);
+      return [id, context.kind === "final_exam" ? shuffle(indices) : indices];
+    }));
+    const questionSnapshot = questionIds.map(id => byId.get(id)!);
+    const session: StoredSession = { quizId, studentId, courseId: context.courseId, batchId: enrolledBatchId, kind: context.kind, status: "active", sessionId: randomUUID(), questionIds, optionOrders, questionSnapshot, answers: {}, checkedQuestionIds: [], startedAtMillis: now, expiresAtMillis: context.durationSeconds > 0 ? now + context.durationSeconds * 1000 : null, integrityViolations: 0, submittedAttemptId: null, attemptNumber: previousAttempts + 1 };
+    transaction.set(counterReference, { quizId, studentId, count: previousAttempts + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    transaction.set(sessionReference, { ...session, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    return { session, reused: false };
+  });
+  return publicSession(context, reservation.session);
 }
 
 function displayedToOriginal(session: StoredSession, questionId: string, displayed: number[]) {
@@ -244,7 +290,7 @@ function displayedToOriginal(session: StoredSession, questionId: string, display
   return displayed.map(index => order[index]).filter(Number.isInteger).sort((a, b) => a - b);
 }
 
-export async function checkChapterAnswer(studentId: string, quizId: string, rawQuestionId: unknown, rawSelectedIndices: unknown) {
+export async function checkChapterAnswer(studentId: string, quizId: string, rawQuestionId: unknown, rawSelectedIndices: unknown, rawSessionId?: unknown) {
   const context = await loadAssessmentContext(quizId);
   if (context.kind !== "chapter_quiz") throw new ApiError(404, "Answer checking is available only for chapter quizzes.");
   await resolveQuizBatch(studentId, context.courseId, context.batchId);
@@ -252,19 +298,26 @@ export async function checkChapterAnswer(studentId: string, quizId: string, rawQ
   const displayed = Array.isArray(rawSelectedIndices) ? rawSelectedIndices.map(Number).filter(Number.isInteger) : [];
   if (!displayed.length) throw new ApiError(400, "Choose an answer before continuing.");
   const reference = context.db.doc(`assessmentSessions/${quizId}_${studentId}`);
-  const snapshot = await reference.get();
-  if (!snapshot.exists) throw new ApiError(409, "Start this quiz before answering.");
-  const session = snapshot.data() as StoredSession;
-  if (session.status !== "active") throw new ApiError(409, "This quiz session has already been submitted.");
-  const questionIndex = session.questionIds.indexOf(questionId);
-  if (questionIndex < 0) throw new ApiError(400, "This question is not in your quiz session.");
-  if (!session.checkedQuestionIds.includes(questionId) && questionIndex !== session.checkedQuestionIds.length) throw new ApiError(409, "Answer the current question before moving on.");
-  const question = context.questions.find(item => item.id === questionId)!;
-  const original = session.answers[questionId] ?? displayedToOriginal(session, questionId, displayed);
-  const correct = sameSelection(normalizeKey(question), [...original].sort((a, b) => a - b));
-  if (!session.checkedQuestionIds.includes(questionId)) await reference.set({ answers: { ...session.answers, [questionId]: original }, checkedQuestionIds: [...session.checkedQuestionIds, questionId], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  const order = session.optionOrders[questionId];
-  return { questionId, correct, marksEarned: correct ? question.marks : 0, explanation: question.explanation, correctIndices: normalizeKey(question).map(index => order.indexOf(index)), correctAnswers: normalizeKey(question).map(index => question.options[index]) };
+  const checked = await context.db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists) throw new ApiError(409, "Start this quiz before answering.");
+    const session = snapshot.data() as StoredSession;
+    if (session.status !== "active") throw new ApiError(409, "This quiz session has already been submitted.");
+    const expectedSessionId = session.sessionId ?? `${quizId}_${studentId}`;
+    if (String(rawSessionId ?? "") !== expectedSessionId) throw new ApiError(409, "Your assessment session is invalid. Start again.");
+    const questionIndex = session.questionIds.indexOf(questionId);
+    if (questionIndex < 0) throw new ApiError(400, "This question is not in your quiz session.");
+    if (!session.checkedQuestionIds.includes(questionId) && questionIndex !== session.checkedQuestionIds.length) throw new ApiError(409, "Answer the current question before moving on.");
+    const sourceQuestions = session.questionSnapshot?.length ? session.questionSnapshot : context.questions;
+    const question = sourceQuestions.find(item => item.id === questionId);
+    if (!question) throw new ApiError(409, "This question is no longer available.");
+    const alreadyChecked = session.checkedQuestionIds.includes(questionId);
+    const original = session.answers[questionId] ?? displayedToOriginal(session, questionId, displayed);
+    if (!alreadyChecked) transaction.set(reference, { answers: { ...session.answers, [questionId]: original }, checkedQuestionIds: [...session.checkedQuestionIds, questionId], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return { question, original, order: session.optionOrders[questionId] ?? question.options.map((_, index) => index) };
+  });
+  const correct = sameSelection(normalizeKey(checked.question), [...checked.original].sort((a, b) => a - b));
+  return { questionId, correct, marksEarned: correct ? checked.question.marks : 0, explanation: checked.question.explanation, correctIndices: normalizeKey(checked.question).map(index => checked.order.indexOf(index)), correctAnswers: normalizeKey(checked.question).map(index => checked.question.options[index]) };
 }
 
 function buildFullReview(questions: TrustedQuizQuestion[], answers: SubmittedQuizAnswer[], graded: ReturnType<typeof calculateScore>["gradedQuestions"]) {
@@ -281,10 +334,10 @@ function emptySummary(quizId: string, studentId: string, kind: QuizKind): Stored
   return { quizId, studentId, kind, attemptCount: 0, bestScore: 0, bestTotalMarks: 0, bestPercentage: 0, bestAttemptId: null, latestAttemptId: null, latestScore: 0, latestTotalMarks: 0, latestPercentage: 0, latestPassed: false, latestSubmittedAtMillis: null, latestTimeSpentSeconds: 0, passed: false, nextEligibleAtMillis: null, latestIntegrityViolations: 0 };
 }
 
-function mergeSummary(previous: StoredQuizSummary | undefined, outcome: { attemptId: string; score: number; totalMarks: number; percentage: number; passed: boolean; timeSpentSeconds: number; submittedAtMillis: number }, context: Awaited<ReturnType<typeof loadAssessmentContext>>, studentId: string, violations: number) {
+function mergeSummary(previous: StoredQuizSummary | undefined, outcome: { attemptId: string; attemptNumber: number; score: number; totalMarks: number; percentage: number; passed: boolean; timeSpentSeconds: number; submittedAtMillis: number }, context: Awaited<ReturnType<typeof loadAssessmentContext>>, studentId: string, violations: number) {
   const base = previous ?? emptySummary(context.quizId, studentId, context.kind);
   const beatsBest = outcome.percentage > base.bestPercentage || (outcome.percentage === base.bestPercentage && outcome.score > base.bestScore);
-  return { ...base, attemptCount: base.attemptCount + 1, bestScore: beatsBest ? outcome.score : base.bestScore, bestTotalMarks: beatsBest ? outcome.totalMarks : base.bestTotalMarks, bestPercentage: beatsBest ? outcome.percentage : base.bestPercentage, bestAttemptId: beatsBest ? outcome.attemptId : base.bestAttemptId ?? outcome.attemptId, latestAttemptId: outcome.attemptId, latestScore: outcome.score, latestTotalMarks: outcome.totalMarks, latestPercentage: outcome.percentage, latestPassed: outcome.passed, latestSubmittedAtMillis: outcome.submittedAtMillis, latestTimeSpentSeconds: outcome.timeSpentSeconds, passed: base.passed || outcome.passed, nextEligibleAtMillis: context.kind === "final_exam" && !outcome.passed ? outcome.submittedAtMillis + context.retakeCooldownHours * 3_600_000 : null, latestIntegrityViolations: violations } satisfies StoredQuizSummary;
+  return { ...base, attemptCount: Math.max(base.attemptCount, outcome.attemptNumber), bestScore: beatsBest ? outcome.score : base.bestScore, bestTotalMarks: beatsBest ? outcome.totalMarks : base.bestTotalMarks, bestPercentage: beatsBest ? outcome.percentage : base.bestPercentage, bestAttemptId: beatsBest ? outcome.attemptId : base.bestAttemptId ?? outcome.attemptId, latestAttemptId: outcome.attemptId, latestScore: outcome.score, latestTotalMarks: outcome.totalMarks, latestPercentage: outcome.percentage, latestPassed: outcome.passed, latestSubmittedAtMillis: outcome.submittedAtMillis, latestTimeSpentSeconds: outcome.timeSpentSeconds, passed: base.passed || outcome.passed, nextEligibleAtMillis: context.kind === "final_exam" && !outcome.passed ? outcome.submittedAtMillis + context.retakeCooldownHours * 3_600_000 : null, latestIntegrityViolations: violations } satisfies StoredQuizSummary;
 }
 
 async function certificateSnapshot(studentId: string, context: Awaited<ReturnType<typeof loadAssessmentContext>>, batchId: string) {
@@ -295,29 +348,32 @@ async function certificateSnapshot(studentId: string, context: Awaited<ReturnTyp
 export async function submitAssessment(studentId: string, quizId: string, rawSessionId: unknown, rawAnswers: unknown) {
   const context = await loadAssessmentContext(quizId);
   await resolveQuizBatch(studentId, context.courseId, context.batchId);
-  const sessionId = `${quizId}_${studentId}`;
-  if (String(rawSessionId ?? "") !== sessionId) throw new ApiError(409, "Your assessment session is invalid. Start again.");
-  const sessionReference = context.db.doc(`assessmentSessions/${sessionId}`);
+  const sessionDocumentId = `${quizId}_${studentId}`;
+  const sessionReference = context.db.doc(`assessmentSessions/${sessionDocumentId}`);
   const sessionSnapshot = await sessionReference.get();
   if (!sessionSnapshot.exists) throw new ApiError(409, "Start this assessment before submitting.");
   const session = sessionSnapshot.data() as StoredSession;
+  const expectedSessionId = session.sessionId ?? sessionDocumentId;
+  if (String(rawSessionId ?? "") !== expectedSessionId) throw new ApiError(409, "Your assessment session is invalid. Start again.");
   if (session.status === "submitted" && session.submittedAttemptId) {
     const existing = await context.db.doc(`quizAttempts/${session.submittedAttemptId}`).get();
     if (existing.exists) return responseFromAttempt(context, existing.data()!, session, false);
   }
   const now = Date.now();
-  if (session.expiresAtMillis !== null && now > session.expiresAtMillis + AUTO_SUBMIT_GRACE_MS) throw new ApiError(409, "Time is up for this assessment.");
+  // During the grace period the client may finish sending its last answers.
+  // After that point late payloads are ignored and unanswered questions grade
+  // as incorrect, so a delayed request cannot be used to answer after expiry.
+  const beyondGrace = session.expiresAtMillis !== null && now > session.expiresAtMillis + AUTO_SUBMIT_GRACE_MS;
   let answers: SubmittedQuizAnswer[];
   if (context.kind === "chapter_quiz") {
     if (session.checkedQuestionIds.length !== session.questionIds.length) throw new ApiError(409, "Answer every chapter question before submitting.");
     answers = session.questionIds.map(questionId => ({ questionId, selectedAnswerIndex: session.answers[questionId]?.[0] ?? -1, selectedIndices: session.answers[questionId] ?? [] }));
   } else {
-    const displayedAnswers = parseSubmittedAnswers(rawAnswers);
+    const displayedAnswers = parseSubmittedAnswers(beyondGrace ? [] : rawAnswers);
     const answerMap = new Map(displayedAnswers.map(item => [item.questionId, normalizeSelection(item)]));
-    if (session.questionIds.some(id => !answerMap.get(id)?.length)) throw new ApiError(400, "Answer every final-exam question before submitting.");
     answers = session.questionIds.map(questionId => { const original = displayedToOriginal(session, questionId, answerMap.get(questionId) ?? []); return { questionId, selectedAnswerIndex: original[0] ?? -1, selectedIndices: original }; });
   }
-  const questionMap = new Map(context.questions.map(item => [item.id, item]));
+  const questionMap = new Map((session.questionSnapshot?.length ? session.questionSnapshot : context.questions).map(item => [item.id, item]));
   const sessionQuestions = session.questionIds.map(id => questionMap.get(id)!).filter(Boolean);
   const grading = calculateScore(sessionQuestions, answers);
   const passed = grading.percentage >= context.passingPercent;
@@ -329,21 +385,23 @@ export async function submitAssessment(studentId: string, quizId: string, rawSes
   const committed = await context.db.runTransaction(async transaction => {
     const [freshSession, summarySnapshot, counterSnapshot, certificateDocument] = await Promise.all([transaction.get(sessionReference), transaction.get(summaryReference), transaction.get(counterReference), transaction.get(certificateReference)]);
     const fresh = freshSession.data() as StoredSession;
+    if (String(rawSessionId ?? "") !== (fresh.sessionId ?? sessionDocumentId)) throw new ApiError(409, "Your assessment session is invalid. Start again.");
     if (fresh.status === "submitted" && fresh.submittedAttemptId) return { attemptId: fresh.submittedAttemptId, certificateIssued: false };
     const previous = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
     const previousAttempts = counterSnapshot.exists ? Number(counterSnapshot.data()?.count ?? 0) : previous?.attemptCount ?? 0;
     if (context.kind === "final_exam" && previous?.passed) throw new ApiError(409, "You already passed this final exam.");
-    if (remainingAttempts(context.maxRetakes, previousAttempts) === 0) throw new ApiError(409, "No attempts remain for this quiz.");
+    const attemptNumber = Math.max(Number(fresh.attemptNumber ?? 0), previousAttempts || 0, 1);
+    if (!attemptNumber || (fresh.attemptNumber === undefined && remainingAttempts(context.maxRetakes, previousAttempts) === 0)) throw new ApiError(409, "No attempts remain for this quiz.");
     const attemptReference = context.db.collection("quizAttempts").doc();
-    const outcome = { attemptId: attemptReference.id, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, passed, timeSpentSeconds: Math.max(0, Math.round((now - session.startedAtMillis) / 1000)), submittedAtMillis: now };
-    transaction.set(attemptReference, { quizId, kind: context.kind, sessionId, studentId, courseId: context.courseId, batchId: session.batchId, attemptNumber: previousAttempts + 1, answers, ...outcome, integrityViolations: session.integrityViolations, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });
-    transaction.set(counterReference, { quizId, studentId, count: previousAttempts + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const outcome = { attemptId: attemptReference.id, attemptNumber, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, passed, timeSpentSeconds: Math.max(0, Math.round((now - session.startedAtMillis) / 1000)), submittedAtMillis: now };
+    transaction.set(attemptReference, { quizId, kind: context.kind, sessionId: fresh.sessionId ?? sessionDocumentId, studentId, courseId: context.courseId, batchId: session.batchId, answers, ...outcome, integrityViolations: session.integrityViolations, submittedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() });
+    transaction.set(counterReference, { quizId, studentId, count: Math.max(previousAttempts, attemptNumber), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(summaryReference, mergeSummary(previous, outcome, context, studentId, session.integrityViolations), { merge: true });
     if (review) transaction.set(context.db.doc(`quizAttemptReviews/${attemptReference.id}`), { quizId, studentId, review, createdAt: FieldValue.serverTimestamp() });
     transaction.set(sessionReference, { status: "submitted", submittedAttemptId: attemptReference.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     let certificateIssued = false;
     if (certificateData && !certificateDocument.exists) {
-      transaction.set(certificateReference, { certificateId: `CT-${new Date(now).getFullYear()}-${randomCode(6)}`, verificationCode: randomCode(10), studentId, ...certificateData, courseId: context.courseId, batchId: session.batchId, quizId, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, attemptNumber: previousAttempts + 1, issuedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp(), templateKey: "classic" });
+      transaction.set(certificateReference, { certificateId: `CT-${new Date(now).getFullYear()}-${randomCode(6)}`, verificationCode: randomCode(10), studentId, ...certificateData, courseId: context.courseId, batchId: session.batchId, quizId, score: grading.score, totalMarks: grading.totalMarks, percentage: grading.percentage, attemptNumber, issuedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp(), templateKey: "classic" });
       certificateIssued = true;
     }
     return { attemptId: attemptReference.id, certificateIssued };
@@ -360,15 +418,18 @@ function responseFromAttempt(context: Awaited<ReturnType<typeof loadAssessmentCo
   return { id: String(attempt.attemptId ?? session.submittedAttemptId ?? ""), kind: context.kind, score: Number(attempt.score ?? 0), totalMarks: Number(attempt.totalMarks ?? 0), percentage: Number(attempt.percentage ?? 0), passed: attempt.passed === true, attemptNumber: attemptCount, attemptCount, remainingAttempts: remainingAttempts(context.maxRetakes, attemptCount), timeSpentSeconds: Number(attempt.timeSpentSeconds ?? 0), integrityViolations: Number(attempt.integrityViolations ?? session.integrityViolations ?? 0), certificateIssued, nextEligibleAt: nextEligibleAtMillis ? new Date(nextEligibleAtMillis).toISOString() : null };
 }
 
-export async function recordIntegrityViolation(studentId: string, quizId: string, reason: unknown) {
+export async function recordIntegrityViolation(studentId: string, quizId: string, reason: unknown, rawSessionId?: unknown) {
   const context = await loadAssessmentContext(quizId);
   if (context.kind !== "final_exam") throw new ApiError(400, "Integrity tracking applies only to final exams.");
   await resolveQuizBatch(studentId, context.courseId, context.batchId);
-  const reference = context.db.doc(`assessmentSessions/${quizId}_${studentId}`);
+  const sessionDocumentId = `${quizId}_${studentId}`;
+  const reference = context.db.doc(`assessmentSessions/${sessionDocumentId}`);
   const count = await context.db.runTransaction(async transaction => {
     const snapshot = await transaction.get(reference);
     if (!snapshot.exists || snapshot.data()?.status !== "active") throw new ApiError(409, "No active final-exam session was found.");
-    const next = Number(snapshot.data()?.integrityViolations ?? 0) + 1;
+    const session = snapshot.data() as StoredSession;
+    if (String(rawSessionId ?? "") !== (session.sessionId ?? sessionDocumentId)) throw new ApiError(409, "Your assessment session is invalid. Start again.");
+    const next = Number(session.integrityViolations ?? 0) + 1;
     transaction.set(reference, { integrityViolations: next, violationLog: FieldValue.arrayUnion({ reason: String(reason ?? "unknown").slice(0, 80), atMillis: Date.now() }), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return next;
   });
@@ -378,14 +439,18 @@ export async function recordIntegrityViolation(studentId: string, quizId: string
 export async function loadAssessmentResults(studentId: string, quizId: string) {
   const context = await loadAssessmentContext(quizId);
   await resolveQuizBatch(studentId, context.courseId, context.batchId);
-  const summarySnapshot = await context.db.doc(`quizSummaries/${quizId}_${studentId}`).get();
+  const [summarySnapshot, counterSnapshot] = await Promise.all([
+    context.db.doc(`quizSummaries/${quizId}_${studentId}`).get(),
+    context.db.doc(`quizAttemptCounters/${quizId}_${studentId}`).get(),
+  ]);
   const summary = summarySnapshot.exists ? summarySnapshot.data() as StoredQuizSummary : undefined;
+  const attemptCount = Math.max(Number(summary?.attemptCount ?? 0), Number(counterSnapshot.data()?.count ?? 0));
   let review: unknown[] | undefined;
   if (context.kind === "chapter_quiz" && summary?.latestAttemptId) {
     const snapshot = await context.db.doc(`quizAttemptReviews/${summary.latestAttemptId}`).get();
     review = snapshot.exists && Array.isArray(snapshot.data()?.review) ? snapshot.data()!.review : undefined;
   }
-  return { quizId, kind: context.kind, title: context.title, chapter: context.chapter, passingPercent: context.passingPercent, attemptCount: summary?.attemptCount ?? 0, remainingAttempts: remainingAttempts(context.maxRetakes, summary?.attemptCount ?? 0), bestPercentage: summary?.bestPercentage ?? 0, passed: summary?.passed ?? false, nextEligibleAt: summary?.nextEligibleAtMillis ? new Date(summary.nextEligibleAtMillis).toISOString() : null, latest: summary ? { score: summary.latestScore, totalMarks: summary.latestTotalMarks, percentage: summary.latestPercentage, passed: summary.latestPassed, timeSpentSeconds: summary.latestTimeSpentSeconds, submittedAtMillis: summary.latestSubmittedAtMillis, integrityViolations: summary.latestIntegrityViolations ?? 0 } : null, ...(review ? { review } : {}) };
+  return { quizId, kind: context.kind, title: context.title, chapter: context.chapter, passingPercent: context.passingPercent, attemptCount, remainingAttempts: remainingAttempts(context.maxRetakes, attemptCount), bestPercentage: summary?.bestPercentage ?? 0, passed: summary?.passed ?? false, nextEligibleAt: summary?.nextEligibleAtMillis ? new Date(summary.nextEligibleAtMillis).toISOString() : null, latest: summary ? { score: summary.latestScore, totalMarks: summary.latestTotalMarks, percentage: summary.latestPercentage, passed: summary.latestPassed, timeSpentSeconds: summary.latestTimeSpentSeconds, submittedAtMillis: summary.latestSubmittedAtMillis, integrityViolations: summary.latestIntegrityViolations ?? 0 } : null, ...(review ? { review } : {}) };
 }
 
 export async function listAssessmentCatalog(studentId: string, courseId: string, batchId: string) {
@@ -393,13 +458,24 @@ export async function listAssessmentCatalog(studentId: string, courseId: string,
   const db = getFirebaseAdmin().db;
   const quizzes = await loadPublishedQuizzes(courseId, batchId);
   const chapterIds = quizzes.filter(item => item.data().kind !== "final_exam").map(item => item.id);
-  const summaries = quizzes.length ? await db.getAll(...quizzes.map(item => db.doc(`quizSummaries/${item.id}_${studentId}`))) : [];
+  const [summaries, counters] = quizzes.length ? await Promise.all([
+    db.getAll(...quizzes.map(item => db.doc(`quizSummaries/${item.id}_${studentId}`))),
+    db.getAll(...quizzes.map(item => db.doc(`quizAttemptCounters/${item.id}_${studentId}`))),
+  ]) : [[], []];
   const summaryByQuiz = new Map(summaries.filter(item => item.exists).map(item => [String(item.data()?.quizId ?? ""), item.data() as StoredQuizSummary]));
+  const counterByQuiz = new Map(counters.filter(item => item.exists).map(item => [item.id.replace(`_${studentId}`, ""), Number(item.data()?.count ?? 0)]));
   const completedChapters = chapterIds.filter(id => Number(summaryByQuiz.get(id)?.attemptCount ?? 0) > 0).length;
   return quizzes.map(document => {
     const data = document.data();
-    return catalogEntry(document.id, data, summaryByQuiz.get(document.id), completedChapters, chapterIds.length);
+    const kind = data.kind === "final_exam" ? "final_exam" : "chapter_quiz";
+    return catalogEntry(document.id, data, mergeReservedAttemptCount(summaryByQuiz.get(document.id), counterByQuiz.get(document.id) ?? 0, document.id, studentId, kind), completedChapters, chapterIds.length);
   });
+}
+
+function mergeReservedAttemptCount(summary: StoredQuizSummary | undefined, reservedCount: number, quizId: string, studentId: string, kind: QuizKind) {
+  const attemptCount = Math.max(Number(summary?.attemptCount ?? 0), Number.isFinite(reservedCount) ? reservedCount : 0);
+  if (!summary && attemptCount === 0) return undefined;
+  return summary ? { ...summary, attemptCount } : { ...emptySummary(quizId, studentId, kind), attemptCount };
 }
 
 function catalogEntry(id: string, data: DocumentData, summary: StoredQuizSummary | undefined, completedChapters: number, totalChapters: number) {
@@ -455,6 +531,19 @@ export async function listAssessmentCatalogPage(studentId: string, input: QuizCa
     if (snapshot.size < 200) break;
     summaryCursor = snapshot.docs[snapshot.docs.length - 1];
   }
+  const reservedAttempts = new Map<string, number>();
+  const counterQuery = db.collection("quizAttemptCounters").where("studentId", "==", studentId)
+    .orderBy(FieldPath.documentId()).limit(200);
+  let counterCursor: QueryDocumentSnapshot | undefined;
+  while (true) {
+    const snapshot = await (counterCursor ? counterQuery.startAfter(counterCursor) : counterQuery).get();
+    for (const document of snapshot.docs) {
+      const quizId = String(document.data()?.quizId ?? document.id.slice(0, -(studentId.length + 1)));
+      if (idSet.has(quizId)) reservedAttempts.set(quizId, Number(document.data()?.count ?? 0));
+    }
+    if (snapshot.size < 200) break;
+    counterCursor = snapshot.docs[snapshot.docs.length - 1];
+  }
   const now = Date.now();
   const records = ids.map(id => {
     const data = metadata.get(id)!;
@@ -476,7 +565,8 @@ export async function listAssessmentCatalogPage(studentId: string, input: QuizCa
     const data = metadata.get(record.id)!;
     const chapters = records.filter(recordItem => recordItem.data.courseId === data.courseId && recordItem.data.kind !== "final_exam"
       && (!recordItem.data.batchId || recordItem.data.batchId === data.batchId || (!data.batchId && recordItem.data.batchId === scopes.find(scope => scope.courseId === data.courseId)?.batchId)));
-    return catalogEntry(record.id, data, summaries.get(record.id), chapters.filter(recordItem => recordItem.status === "completed").length, chapters.length);
+    const kind = data.kind === "final_exam" ? "final_exam" : "chapter_quiz";
+    return catalogEntry(record.id, data, mergeReservedAttemptCount(summaries.get(record.id), reservedAttempts.get(record.id) ?? 0, record.id, studentId, kind), chapters.filter(recordItem => recordItem.status === "completed").length, chapters.length);
   });
   return { quizzes, page, pageSize, total: matching.length,
     summary: { total: records.length, completed: completed.length, available: records.filter(record => record.status === "available").length,

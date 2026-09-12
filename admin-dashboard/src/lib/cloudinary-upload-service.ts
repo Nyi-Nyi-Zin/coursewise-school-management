@@ -1,42 +1,51 @@
+import { authenticatedApiFetch } from "@/lib/authenticated-api";
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
+import { getFirebaseClient } from "@/lib/firebase";
+
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_LESSON_FILE_BYTES = 100 * 1024 * 1024;
 
-function cloudinaryConfig() {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Cloudinary is not configured. Add the public cloud name and unsigned upload preset.");
-  }
-  return { cloudName, uploadPreset };
-}
+type SignedUpload = { cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string; resourceType: "image" };
 
-export async function uploadToCloudinary(file: File, options: { kind: "image" | "file"; folder: string }): Promise<string> {
-  const isImage = file.type.startsWith("image/");
-  if (options.kind === "image" && !isImage) throw new Error("Please choose an image file.");
-  if (file.size > (isImage ? MAX_IMAGE_BYTES : MAX_FILE_BYTES)) {
-    throw new Error(isImage ? "Image must be smaller than 5 MB." : "File must be smaller than 10 MB.");
-  }
+export async function uploadImageToCloudinary(file: File, options: { folder: string }): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
+  if (file.size > MAX_IMAGE_BYTES) throw new Error("Image must be smaller than 5 MB.");
 
-  const { cloudName, uploadPreset } = cloudinaryConfig();
+  const signed = await authenticatedApiFetch("/api/uploads/cloudinary-signature", { method: "POST", body: JSON.stringify({ kind: "image", folder: options.folder }) }) as SignedUpload;
   const body = new FormData();
   body.append("file", file);
-  body.append("upload_preset", uploadPreset);
-  body.append("folder", options.folder);
-
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body });
+  body.append("api_key", signed.apiKey);
+  body.append("timestamp", String(signed.timestamp));
+  body.append("signature", signed.signature);
+  body.append("folder", signed.folder);
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`, { method: "POST", body });
   const payload = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
-  if (!response.ok || !payload?.secure_url) throw new Error("Cloudinary could not upload this file.");
+  if (!response.ok || !payload?.secure_url) throw new Error(`Cloudinary could not upload this image.${payload?.error?.message ? ` ${payload.error.message}` : ""}`);
   return payload.secure_url;
 }
 
 export function uploadBannerImage(file: File) {
-  return uploadToCloudinary(file, { kind: "image", folder: "coursewise/banners" });
+  return uploadImageToCloudinary(file, { folder: "coursewise/banners" });
+}
+
+export function uploadLessonThumbnail(file: File) {
+  return uploadImageToCloudinary(file, { folder: "coursewise/lesson-thumbnails" });
 }
 
 export function uploadStudentProfilePhoto(file: File) {
-  return uploadToCloudinary(file, { kind: "image", folder: "coursewise/student-profiles" });
+  return uploadImageToCloudinary(file, { folder: "coursewise/student-profiles" });
 }
 
-export function uploadLessonFile(file: File) {
-  return uploadToCloudinary(file, { kind: "file", folder: "coursewise/lessons" });
+export async function uploadLessonFile(file: File): Promise<string> {
+  if (file.size > MAX_LESSON_FILE_BYTES) throw new Error("File must be smaller than 100 MB.");
+  const { app } = getFirebaseClient();
+  const storage = getStorage(app);
+  const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") ?? "bin";
+  const objectReference = ref(storage, `lessons/${crypto.randomUUID()}.${extension}`);
+  try {
+    const snapshot = await uploadBytes(objectReference, file, { contentType: file.type });
+    return await getDownloadURL(snapshot.ref);
+  } catch {
+    throw new Error("Lesson file could not be uploaded. Check Firebase Storage configuration and try again.");
+  }
 }

@@ -25,7 +25,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { DocumentSnapshot } from "firebase/firestore";
 import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 import { Button } from "@/components/ui/button";
-import { DataTable, TablePagination } from "@/components/ui/data-table";
+import { DataTable, TablePagination, TableSkeletonRows } from "@/components/ui/data-table";
 import { Metric } from "@/components/ui/metric";
 import { BooleanStatusBadge } from "@/components/ui/status-badge";
 import { RowActions } from "@/components/ui/row-actions";
@@ -853,7 +853,7 @@ export function CourseBatchManager() {
               </thead>
               <tbody>
                 {coursesQuery.isLoading ? (
-                  <LoadingRow />
+                  <TableSkeletonRows columns={4} />
                 ) : (
                   visibleCourses.map(item => (
                     <tr key={item.id} className="hover:bg-emerald-50/40">
@@ -917,7 +917,7 @@ export function CourseBatchManager() {
               </thead>
               <tbody>
                 {batchesQuery.isLoading ? (
-                  <LoadingRow />
+                  <TableSkeletonRows columns={5} />
                 ) : (
                   visibleBatches.map(item => (
                     <tr key={item.id} className="hover:bg-emerald-50/40">
@@ -1046,7 +1046,9 @@ export function CourseBatchManager() {
                 </tr>
               </thead>
               <tbody>
-                {enrollmentBatches.length ? (
+                {allBatchesQuery.isLoading ? (
+                  <TableSkeletonRows columns={4} />
+                ) : enrollmentBatches.length ? (
                   enrollmentBatches.map(batch => (
                     <tr key={batch.id} className="hover:bg-emerald-50/40">
                       <Td strong>{batch.name}</Td>
@@ -1078,7 +1080,7 @@ export function CourseBatchManager() {
           </div>
         ) : (
           <div className="mt-5">
-            {!allBatches.length ? (
+            {!allBatches.length && !allBatchesQuery.isLoading ? (
               <div className="rounded-2xl border border-dashed border-stone-300 p-6 text-sm text-stone-500">
                 Add a batch first, then enrol students here.
               </div>
@@ -1101,8 +1103,8 @@ export function CourseBatchManager() {
                     </tr>
                   </thead>
                   <tbody>
-                    {enrollmentsQuery.isLoading ? (
-                      <LoadingRow columns={5} />
+                    {allBatchesQuery.isLoading || enrollmentsQuery.isLoading ? (
+                      <TableSkeletonRows columns={5} />
                     ) : enrollmentsQuery.isError ? (
                       <EmptyRow
                         columns={5}
@@ -1344,7 +1346,10 @@ function EnrollmentBatchModal({
 }) {
   const [batchId, setBatchId] = useState(enrollment.batchId);
   const student = students.find(item => item.id === enrollment.studentId);
-  const linkedBatches = batches.filter(item => Boolean(item.courseId));
+  // An enrollment can only move between batches of its own course.
+  // Server-side validation enforces this as well; filtering here prevents an
+  // administrator from ever selecting an invalid destination.
+  const linkedBatches = batches.filter(item => item.courseId === enrollment.courseId);
   return (
     <div
       role="dialog"
@@ -1597,18 +1602,6 @@ function Td({
     >
       {children}
     </td>
-  );
-}
-function LoadingRow({ columns = 5 }: { columns?: number }) {
-  return (
-    <tr>
-      <td
-        colSpan={columns}
-        className="border-t border-stone-100 px-5 py-8 text-center text-stone-500"
-      >
-        Loading…
-      </td>
-    </tr>
   );
 }
 function EmptyRow({ columns, message }: { columns: number; message: string }) {

@@ -19,8 +19,12 @@ export async function requireAuthenticatedUser(request: Request) {
     const { auth, db } = getFirebaseAdmin();
     const token = await auth.verifyIdToken(match[1], true);
     const profile = await db.doc(`users/${token.uid}`).get();
-    if (!profile.exists || profile.data()?.role !== "student" || profile.data()?.isActive === false) {
+    const profileData = profile.data();
+    if (!profile.exists || profileData?.role !== "student" || profileData?.isActive === false) {
       throw new ApiError(401, "Your student account is inactive or no longer available. Please sign in with an active account.");
+    }
+    if (token.email_verified !== true) {
+      throw new ApiError(403, "Verify your email before using the student portal.");
     }
     return token;
   } catch (error) {

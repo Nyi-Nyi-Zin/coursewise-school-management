@@ -9,6 +9,7 @@ import {
   emptyOfflineRecords,
   type ManagementSection,
   type OfflineItem,
+  type OfflineRecords,
 } from "@/lib/offline-records";
 import {
   Bell,
@@ -41,6 +42,7 @@ import type { CourseBatchScope } from "@/lib/course-batch-scope";
 import { buildCourseBatchDashboardData } from "@/lib/course-batch-dashboard";
 import { CourseBatchScopeControls } from "@/components/course-batch-scope-controls";
 import { createStudentAccount } from "@/lib/admin-student-account-service";
+import { setStudentEmailVerification } from "@/lib/admin-student-verification-service";
 import { useSingleFlight } from "@/lib/use-single-flight";
 
 import { CourseBatchManager } from "@/components/course-batch-manager";
@@ -280,6 +282,23 @@ export function AdminShell() {
       toast.error(formatRecordError(error, "The status could not be updated."));
     }
   };
+  const toggleVerification = async (item: OfflineItem) => {
+    const emailVerified = item.fields?.emailVerified !== "true";
+    try {
+      await setStudentEmailVerification(item.id, emailVerified);
+      queryClient.setQueryData<OfflineRecords>(adminRecordQueryKey, current => current ? {
+        ...current,
+        students: current.students.map(student => student.id === item.id ? {
+          ...student,
+          fields: { ...student.fields, emailVerified: String(emailVerified) },
+        } : student),
+      } : current);
+      toast.success(emailVerified ? "Student marked as verified." : "Student marked as unverified.");
+      void queryClient.invalidateQueries({ queryKey: adminRecordQueryKey });
+    } catch (error) {
+      toast.error(getUserFacingErrorMessage(error, "The student verification status could not be updated."));
+    }
+  };
   return (
     <div className="min-h-screen bg-[#f8f8f6] text-stone-900">
       <aside
@@ -404,6 +423,7 @@ export function AdminShell() {
                 }}
                 onDelete={deleteItem}
                 onToggleStatus={toggleStatus}
+                onToggleVerification={toggleVerification}
                 onManageQuiz={setManagedQuiz}
               />
             </>

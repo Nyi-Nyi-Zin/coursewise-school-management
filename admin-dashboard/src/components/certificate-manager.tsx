@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { CertificateTemplate } from "@/components/certificate-template";
 import { CourseBatchPairSelect } from "@/components/course-batch-pair-select";
+import { TableSkeletonRows } from "@/components/ui/data-table";
 
 import {
   issueCertificate,
@@ -369,9 +370,7 @@ export function CertificateManager() {
           </span>
         </div>
         {certificates.isLoading ? (
-          <div className="flex h-32 items-center justify-center gap-2 text-sm text-stone-400">
-            <Loader2 className="size-4 animate-spin" /> Loading certificates…
-          </div>
+          <CertificateLoadingTable />
         ) : certificates.isError ? (
           <p className="m-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
             Issued certificates could not be loaded.
@@ -434,6 +433,28 @@ export function CertificateManager() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function CertificateLoadingTable() {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-left text-sm">
+        <thead className="bg-stone-50 text-[10px] uppercase tracking-wider text-stone-400">
+          <tr>
+            <th className="px-6 py-3">Student</th>
+            <th className="px-4 py-3">Course</th>
+            <th className="px-4 py-3">Batch</th>
+            <th className="px-4 py-3">Completed</th>
+            <th className="px-4 py-3">Serial ID</th>
+            <th className="px-6 py-3 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-stone-100">
+          <TableSkeletonRows columns={6} rowCount={4} />
+        </tbody>
+      </table>
     </div>
   );
 }

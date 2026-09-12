@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { ReactNode } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type DataTableProps = {
   title: string;
@@ -20,6 +21,24 @@ export function DataTable({ title, subtitle, searchValue, onSearchChange, search
     </div>
     <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm">{children}</table></div>
   </div>;
+}
+
+export function TableSkeletonRows({ columns, rowCount = 5 }: { columns: number; rowCount?: number }) {
+  const widths = ["w-36", "w-24", "w-40", "w-20", "w-28", "w-16", "w-24"];
+
+  return (
+    <>
+      {Array.from({ length: rowCount }, (_, rowIndex) => (
+        <tr key={`table-skeleton-${rowIndex}`} aria-hidden="true">
+          {Array.from({ length: columns }, (_, columnIndex) => (
+            <td key={`table-skeleton-${rowIndex}-${columnIndex}`} className="border-t border-stone-100 px-5 py-4">
+              <Skeleton className={`h-4 ${widths[columnIndex % widths.length]}`} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
 }
 
 export function TablePagination({ page, canGoNext, onPrevious, onNext }: { page: number; canGoNext: boolean; onPrevious: () => void; onNext: () => void }) {

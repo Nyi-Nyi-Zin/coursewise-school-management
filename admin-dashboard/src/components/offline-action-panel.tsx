@@ -6,8 +6,8 @@ import { useState } from "react";
 
 import {
   uploadBannerImage,
+  uploadLessonThumbnail,
   uploadStudentProfilePhoto,
-  uploadToCloudinary,
 } from "@/lib/cloudinary-upload-service";
 import {
   loadAllBatches,
@@ -527,10 +527,7 @@ function ImageField({
       try {
         onUploaded(
           label === "Lesson thumbnail"
-            ? await uploadToCloudinary(file, {
-                kind: "image",
-                folder: "coursewise/lesson-thumbnails",
-              })
+            ? await uploadLessonThumbnail(file)
             : label === "Profile photo"
               ? await uploadStudentProfilePhoto(file)
               : await uploadBannerImage(file)

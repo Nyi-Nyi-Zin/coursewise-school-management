@@ -1,43 +1,61 @@
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
+
+import { firebaseApp } from "@/lib/firebase";
+
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const MAX_ASSIGNMENT_FILE_BYTES = 20 * 1024 * 1024;
+const ALLOWED_ASSIGNMENT_TYPES = new Set([
+  "application/pdf", "application/zip", "application/x-zip-compressed",
+  "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+]);
 
-export async function uploadStudentPhotoToCloudinary(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
-  if (file.size > MAX_PHOTO_BYTES) throw new Error("Image must be smaller than 5 MB.");
+type SignedUpload = { cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string; resourceType: "image" };
 
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Cloudinary is not configured. Add the public cloud name and unsigned upload preset.");
-  }
+async function requestSignedUpload(): Promise<SignedUpload> {
+  const { authenticatedApiFetch } = await import("@/lib/authenticated-api");
+  return await authenticatedApiFetch("/api/uploads/cloudinary-signature", {
+    method: "POST",
+    body: JSON.stringify({ kind: "avatar" }),
+  }) as SignedUpload;
+}
 
+async function uploadSigned(file: Blob, fileName: string, signed: SignedUpload) {
   const body = new FormData();
-  body.append("file", await compressProfilePhoto(file), "profile.jpg");
-  body.append("upload_preset", uploadPreset);
-  body.append("folder", "coursewise/avatars");
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body });
+  body.append("file", file, fileName);
+  body.append("api_key", signed.apiKey);
+  body.append("timestamp", String(signed.timestamp));
+  body.append("signature", signed.signature);
+  body.append("folder", signed.folder);
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/${signed.resourceType}/upload`, { method: "POST", body });
   const payload = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
-  if (!response.ok || !payload?.secure_url) throw new Error("Cloudinary could not upload this image.");
+  if (!response.ok || !payload?.secure_url) throw new Error(`Cloudinary could not upload this file.${payload?.error?.message ? ` ${payload.error.message}` : ""}`);
   return payload.secure_url;
 }
 
-export async function uploadAssignmentFileToCloudinary(file: File): Promise<string> {
+export async function uploadStudentProfilePhoto(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
+  if (file.size > MAX_PHOTO_BYTES) throw new Error("Image must be smaller than 5 MB.");
+  const compressed = await compressProfilePhoto(file);
+  return uploadSigned(compressed, "profile.jpg", await requestSignedUpload());
+}
+
+export async function uploadAssignmentFileToStorage(studentId: string, file: File): Promise<string> {
   if (file.size > MAX_ASSIGNMENT_FILE_BYTES) throw new Error("File must be smaller than 20 MB.");
-
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Cloudinary is not configured. Add the public cloud name and unsigned upload preset.");
+  if (!ALLOWED_ASSIGNMENT_TYPES.has(file.type) && !file.type.startsWith("image/")) throw new Error("This file type is not supported.");
+  if (!firebaseApp) throw new Error("File uploads are only available in Firebase mode.");
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  try {
+    const snapshot = await uploadBytes(
+      ref(getStorage(firebaseApp), `assignments/${studentId}/${Date.now()}-${safeName}`),
+      file,
+      { contentType: file.type },
+    );
+    return await getDownloadURL(snapshot.ref);
+  } catch {
+    throw new Error("Your file could not be uploaded. Please try again.");
   }
-
-  const body = new FormData();
-  body.append("file", file);
-  body.append("upload_preset", uploadPreset);
-  body.append("folder", "coursewise/assignments");
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body });
-  const payload = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
-  if (!response.ok || !payload?.secure_url) throw new Error("The file could not be uploaded.");
-  return payload.secure_url;
 }
 
 export async function compressProfilePhoto(file: File): Promise<Blob> {

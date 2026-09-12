@@ -47,31 +47,40 @@ export async function GET(request: Request) {
     const profileSnapshot = await db.doc(`users/${studentId}`).get();
     if (!profileSnapshot.exists || profileSnapshot.data()?.role !== "student") throw new ApiError(404, "Student not found.");
     const profile = profileSnapshot.data()!;
-    let courseId = String(profile.activeCourseId ?? "");
-    let batchId = String(profile.activeBatchId ?? "");
-    if (!courseId || !batchId) {
-      const active = await db.collection("enrollments").where("studentId", "==", studentId).where("status", "==", "active").limit(1).get();
-      courseId = String(active.docs[0]?.data().courseId ?? "");
-      batchId = String(active.docs[0]?.data().batchId ?? "");
-    }
-    const [course, batch, lessons, lessonProgress, quizzes, summaries, certificates] = await Promise.all([
+    const activeEnrollments = await db.collection("enrollments").where("studentId", "==", studentId).where("status", "==", "active").get();
+    const enrollmentRows = activeEnrollments.docs.map(item => ({ courseId: String(item.data().courseId ?? ""), batchId: String(item.data().batchId ?? "") })).filter(item => item.courseId && item.batchId);
+    const preferredCourseId = String(profile.activeCourseId ?? "");
+    const preferredBatchId = String(profile.activeBatchId ?? "");
+    const selectedEnrollment = enrollmentRows.find(item => item.courseId === preferredCourseId && item.batchId === preferredBatchId) ?? enrollmentRows[0];
+    const courseId = selectedEnrollment?.courseId ?? "";
+    const batchId = selectedEnrollment?.batchId ?? "";
+    const [course, batch, lessons, lessonProgress, quizzes, summaries, certificates, counters] = await Promise.all([
       courseId ? db.doc(`courses/${courseId}`).get() : null, batchId ? db.doc(`batches/${batchId}`).get() : null,
       courseId ? db.collection("lessons").where("courseId", "==", courseId).where("isPublished", "==", true).get() : null,
       courseId ? db.collection("lessonProgress").where("studentId", "==", studentId).where("courseId", "==", courseId).get() : null,
       courseId && batchId ? db.collection("quizzes").where("courseId", "==", courseId).where("isPublished", "==", true).get() : null,
       db.collection("quizSummaries").where("studentId", "==", studentId).get(), db.collection("certificates").where("studentId", "==", studentId).get(),
+      db.collection("quizAttemptCounters").where("studentId", "==", studentId).get(),
     ]);
-    const completedLessonIds = new Set(lessonProgress?.docs.filter(item => item.data().status === "complete").map(item => String(item.data().lessonId ?? "")) ?? []);
+    const scopedLessons = lessons?.docs.filter(item => String(item.data().batchId ?? "") === batchId) ?? [];
+    const scopedLessonProgress = lessonProgress?.docs.filter(item => String(item.data().batchId ?? "") === batchId) ?? [];
+    const completedLessonIds = new Set(scopedLessonProgress.filter(item => item.data().status === "complete").map(item => String(item.data().lessonId ?? "")));
     const summaryByQuiz = new Map(summaries.docs.map(item => [String(item.data().quizId ?? ""), item.data()]));
+    const counterByQuiz = new Map(counters.docs.map(item => [String(item.data().quizId ?? item.id.replace(`_${studentId}`, "")), Number(item.data().count ?? 0)]));
+    const scopedCertificates = certificates.docs.filter(item =>
+      String(item.data().courseId ?? "") === courseId && String(item.data().batchId ?? "") === batchId,
+    );
     const results = (quizzes?.docs ?? []).filter(document => { const quizBatchId = String(document.data().batchId ?? ""); return !quizBatchId || quizBatchId === batchId; }).map(document => {
-      const quiz = document.data(); const summary = summaryByQuiz.get(document.id);
-      return { quizId: document.id, quizTitle: String(quiz.title ?? "Assessment"), chapter: String(quiz.chapter ?? ""), kind: quiz.kind === "final_exam" ? "final_exam" : "chapter_quiz", attemptCount: Number(summary?.attemptCount ?? 0), bestScore: Number(summary?.bestScore ?? 0), bestTotalMarks: Number(summary?.bestTotalMarks ?? 0), bestPercentage: Number(summary?.bestPercentage ?? 0), latestPercentage: Number(summary?.latestPercentage ?? 0), latestPassed: summary?.latestPassed === true, passed: summary?.passed === true, submittedAtMillis: millis(summary?.latestSubmittedAtMillis), timeSpentSeconds: Number(summary?.latestTimeSpentSeconds ?? 0), integrityViolations: Number(summary?.latestIntegrityViolations ?? 0), nextEligibleAtMillis: millis(summary?.nextEligibleAtMillis) };
+      const quiz = document.data(); const summary = summaryByQuiz.get(document.id); const attemptCount = Math.max(Number(summary?.attemptCount ?? 0), Number(counterByQuiz.get(document.id) ?? 0));
+      return { quizId: document.id, quizTitle: String(quiz.title ?? "Assessment"), chapter: String(quiz.chapter ?? ""), kind: quiz.kind === "final_exam" ? "final_exam" : "chapter_quiz", attemptCount, bestScore: Number(summary?.bestScore ?? 0), bestTotalMarks: Number(summary?.bestTotalMarks ?? 0), bestPercentage: Number(summary?.bestPercentage ?? 0), latestPercentage: Number(summary?.latestPercentage ?? 0), latestPassed: summary?.latestPassed === true, passed: summary?.passed === true, submittedAtMillis: millis(summary?.latestSubmittedAtMillis), timeSpentSeconds: Number(summary?.latestTimeSpentSeconds ?? 0), integrityViolations: Number(summary?.latestIntegrityViolations ?? 0), nextEligibleAtMillis: millis(summary?.nextEligibleAtMillis) };
     });
-    const completedLessons = lessons?.docs.filter(item => completedLessonIds.has(item.id)).length ?? 0;
+    const completedLessons = scopedLessons.filter(item => completedLessonIds.has(item.id)).length;
     const chapterRows = results.filter(item => item.kind === "chapter_quiz"); const finalRows = results.filter(item => item.kind === "final_exam");
-    const completedChapters = chapterRows.filter(item => item.attemptCount > 0).length; const passedFinals = finalRows.filter(item => item.passed).length;
-    const totalItems = (lessons?.size ?? 0) + chapterRows.length + finalRows.length; const completedItems = completedLessons + completedChapters + passedFinals;
-    return NextResponse.json({ profile: { id: studentId, name: String(profile.name ?? "Student"), email: String(profile.email ?? ""), studentCode: String(profile.studentId ?? ""), photoUrl: String(profile.photoUrl ?? ""), isActive: profile.isActive !== false }, enrollment: courseId && batchId ? { courseId, batchId, courseTitle: String(course?.data()?.title ?? "Course"), batchName: String(batch?.data()?.name ?? "Batch") } : null, progress: { overallPercentage: totalItems ? Math.round(completedItems / totalItems * 100) : 0, completedItems, totalItems, completedLessons, totalLessons: lessons?.size ?? 0, completedChapters, totalChapters: chapterRows.length, passedFinals, totalFinals: finalRows.length }, results, certificate: { status: certificates.empty ? passedFinals ? "eligible_pending" : "not_eligible" : "issued", count: certificates.size } });
+    // A counter is reserved when an assessment starts, while completion is
+    // recorded only after the grading summary is written.
+    const completedChapters = chapterRows.filter(item => Number(summaryByQuiz.get(item.quizId)?.attemptCount ?? 0) > 0).length; const passedFinals = finalRows.filter(item => item.passed).length;
+    const totalItems = scopedLessons.length + chapterRows.length + finalRows.length; const completedItems = completedLessons + completedChapters + passedFinals;
+    return NextResponse.json({ profile: { id: studentId, name: String(profile.name ?? "Student"), email: String(profile.email ?? ""), studentCode: String(profile.studentId ?? ""), photoUrl: String(profile.photoUrl ?? ""), isActive: profile.isActive !== false }, enrollment: courseId && batchId ? { courseId, batchId, courseTitle: String(course?.data()?.title ?? "Course"), batchName: String(batch?.data()?.name ?? "Batch") } : null, progress: { overallPercentage: totalItems ? Math.round(completedItems / totalItems * 100) : 0, completedItems, totalItems, completedLessons, totalLessons: scopedLessons.length, completedChapters, totalChapters: chapterRows.length, passedFinals, totalFinals: finalRows.length }, results, certificate: { status: scopedCertificates.length ? "issued" : passedFinals ? "eligible_pending" : "not_eligible", count: scopedCertificates.length } });
   } catch (error) {
     return apiErrorResponse(error, "Student progress could not be loaded.");
   }
@@ -93,7 +102,7 @@ async function createNumberedStudentProfile(userId: string, input: { name: strin
     const nextNumber = Number.isSafeInteger(lastIssued) && lastIssued >= 0 ? lastIssued + 1 : 1;
     const studentId = String(nextNumber);
     transaction.set(counterReference, { lastIssued: nextNumber, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    transaction.set(db.doc(`users/${userId}`), { name: input.name, email: input.email, role: "student", studentId, isActive: input.isActive, ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    transaction.set(db.doc(`users/${userId}`), { name: input.name, email: input.email, role: "student", requiresEmailVerification: true, studentId, isActive: input.isActive, ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     return studentId;
   });
 }
@@ -133,6 +142,16 @@ export async function PATCH(request: Request) {
     await requireAdministrator(request);
     const body = await request.json().catch(() => { throw new ApiError(400, "A valid student account update is required."); });
     const studentId = String(body?.studentId ?? "").trim();
+    const emailVerified = body?.emailVerified;
+    if (typeof emailVerified === "boolean") {
+      if (!studentId) throw new ApiError(400, "A student ID is required.");
+      const { auth, db } = getFirebaseAdmin();
+      const profile = await db.doc(`users/${studentId}`).get();
+      if (!profile.exists || profile.data()?.role !== "student") throw new ApiError(404, "Student not found.");
+      await auth.updateUser(studentId, { emailVerified });
+      if (!emailVerified) await auth.revokeRefreshTokens(studentId);
+      return NextResponse.json({ ok: true, emailVerified });
+    }
     const name = String(body?.name ?? "").trim();
     const email = String(body?.email ?? "").trim().toLowerCase();
     const photoUrl = typeof body?.photoUrl === "string" ? body.photoUrl.trim() : "";

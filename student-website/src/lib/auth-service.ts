@@ -44,7 +44,7 @@ export async function loginStudent({ email, password }: { email: string; passwor
     await signOut(firebaseAuth);
     throw new Error("This student account is inactive or no longer available. Contact an administrator.");
   }
-  if (profile?.data()?.requiresEmailVerification === true && !credential.user.emailVerified) {
+  if (!credential.user.emailVerified) {
     await sendEmailVerification(credential.user, { url: `${window.location.origin}/login` }).catch(() => undefined);
     await signOut(firebaseAuth);
     throw new Error("Verify your email before signing in. A new verification email was sent.");

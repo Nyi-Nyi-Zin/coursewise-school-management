@@ -27,7 +27,7 @@ afterEach(() => {
 
 it("conceals final-exam questions and records PrintScreen attempts", async () => {
   mocks.startAssessment.mockResolvedValue({
-    sessionId: "final-1_student-1",
+    sessionId: "session-token-1",
     kind: "final_exam",
     title: "Final exam",
     chapter: "",
@@ -50,6 +50,6 @@ it("conceals final-exam questions and records PrintScreen attempts", async () =>
 
   expect(printScreen.defaultPrevented).toBe(true);
   expect(examScreen?.getAttribute("data-exam-concealed")).toBe("true");
-  await waitFor(() => expect(mocks.recordViolation).toHaveBeenCalledWith("final-1", "blocked-key-printscreen"));
+  await waitFor(() => expect(mocks.recordViolation).toHaveBeenCalledWith("final-1", "blocked-key-printscreen", "session-token-1"));
   client.clear();
 });

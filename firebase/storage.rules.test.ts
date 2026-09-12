@@ -34,7 +34,7 @@ describeWithEmulators("Storage avatar isolation", () => {
   });
   afterAll(async () => testEnv.cleanup());
 
-  it("blocks direct student writes and permits only administrator-managed avatars", async () => {
+  it("limits student avatars to one own profile object and permits administrator management", async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       await setDoc(doc(context.firestore(), "users", "admin-1"), { role: "admin" });
     });
@@ -44,7 +44,9 @@ describeWithEmulators("Storage avatar isolation", () => {
     const path = "avatars/student-a/profile.png";
     const image = new Uint8Array([137, 80, 78, 71]);
 
-    await assertFails(uploadBytes(ref(owner, path), image, { contentType: "image/png" }));
+    await assertSucceeds(uploadBytes(ref(owner, path.replace("profile.png", "profile.jpg")), image, { contentType: "image/png" }));
+    await assertFails(uploadBytes(ref(owner, "avatars/student-a/other.png"), image, { contentType: "image/png" }));
+    await assertFails(uploadBytes(ref(owner, path.replace("profile.png", "profile.jpg")), image, { contentType: "image/png" }));
     await assertFails(deleteObject(ref(owner, path)));
     await assertFails(uploadBytes(ref(other, "avatars/student-a/other.png"), image, { contentType: "image/png" }));
     await assertSucceeds(uploadBytes(ref(admin, path), image, { contentType: "image/png" }));
@@ -66,5 +68,30 @@ describeWithEmulators("Storage avatar isolation", () => {
         contentType: "image/png",
       })
     );
+  });
+
+  it("allows students to create their own assignment files and admins to manage lesson media", async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), "users", "admin-1"), { role: "admin" });
+    });
+    const owner = testEnv.authenticatedContext("student-a").storage();
+    const other = testEnv.authenticatedContext("student-b").storage();
+    const admin = testEnv.authenticatedContext("admin-1").storage();
+    const pdf = new Uint8Array([37, 80, 68, 70]);
+
+    await assertSucceeds(
+      uploadBytes(ref(owner, "assignments/student-a/1234-report.pdf"), pdf, { contentType: "application/pdf" })
+    );
+    await assertFails(
+      uploadBytes(ref(owner, "assignments/student-b/1234-report.pdf"), pdf, { contentType: "application/pdf" })
+    );
+    await assertFails(
+      uploadBytes(ref(owner, "assignments/student-a/oversized.pdf"), new Uint8Array(20 * 1024 * 1024), { contentType: "application/pdf" })
+    );
+    await assertSucceeds(
+      uploadBytes(ref(admin, "lessons/intro.mp4"), new Uint8Array([1, 2, 3]), { contentType: "video/mp4" })
+    );
+    await assertFails(deleteObject(ref(owner, "lessons/intro.mp4")));
+    await assertSucceeds(deleteObject(ref(admin, "lessons/intro.mp4")));
   });
 });

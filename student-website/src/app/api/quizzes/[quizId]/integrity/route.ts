@@ -10,7 +10,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ qui
     const { quizId } = await params;
     if (!quizId) throw new ApiError(400, "A quiz ID is required.");
     const body = await request.json().catch(() => ({}));
-    return NextResponse.json(await recordIntegrityViolation(user.uid, quizId, body?.reason));
+    return NextResponse.json(await recordIntegrityViolation(user.uid, quizId, body?.reason, body?.sessionId));
   } catch (error) {
     return apiErrorResponse(error, "The integrity event could not be recorded.");
   }

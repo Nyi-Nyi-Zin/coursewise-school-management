@@ -8,7 +8,8 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
     function isActiveStudent() {
       return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        userDoc().data.role == 'student' && userDoc().data.get('isActive', true) != false;
+        userDoc().data.role == 'student' && userDoc().data.get('isActive', true) != false &&
+        request.auth.token.email_verified == true;
     }
     function isPublished() { return resource.data.isPublished == true; }
     function hasBatchFields(data) { return data.courseId is string && data.batchId is string; }
@@ -44,12 +45,15 @@ service cloud.firestore {
       allow read: if isAdmin() || isOwner(userId);
       allow create: if isAdmin() || (
         isOwner(userId) &&
+        request.auth.token.email_verified == true &&
         request.resource.data.role == 'student' &&
+        request.resource.data.email == request.auth.token.email &&
         request.resource.data.keys().hasOnly(['name', 'email', 'role', 'studentId', 'createdAt', 'updatedAt'])
       );
       allow delete: if isAdmin();
       allow update: if isAdmin() || (
         isOwner(userId) &&
+        isActiveStudent() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photoUrl', 'phone', 'updatedAt']) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['photoUrl']) || (
           resource.data.get('photoUrl', null) in [null, ''] &&
@@ -178,10 +182,17 @@ service cloud.firestore {
       allow read: if isAdmin() || canReadOwnBatchRecord();
       allow create: if signedIn() && request.resource.data.studentId == request.auth.uid &&
         isActiveStudent() &&
+        request.resource.data.keys().hasOnly(['assignmentId', 'studentId', 'courseId', 'batchId', 'submissionText', 'submissionUrl', 'submissionFileName', 'submittedAt', 'updatedAt']) &&
         hasBatchFields(request.resource.data) && request.resource.data.assignmentId is string &&
-        assignmentIsReadable(request.resource.data.assignmentId, request.resource.data.courseId, request.resource.data.batchId);
+        assignmentIsReadable(request.resource.data.assignmentId, request.resource.data.courseId, request.resource.data.batchId) &&
+        request.resource.data.submittedAt == request.time &&
+        request.resource.data.updatedAt == request.time &&
+        (request.resource.data.get('submissionText', null) == null || (request.resource.data.submissionText is string && request.resource.data.submissionText.size() <= 10000)) &&
+        (request.resource.data.get('submissionUrl', null) == null || (request.resource.data.submissionUrl is string && request.resource.data.submissionUrl.size() <= 2048)) &&
+        (request.resource.data.get('submissionFileName', null) == null || (request.resource.data.submissionFileName is string && request.resource.data.submissionFileName.size() <= 255));
       allow update: if isAdmin();
-      allow delete: if isAdmin() || (isActiveStudent() && resource.data.studentId == request.auth.uid);
+      allow delete: if isAdmin() || (isActiveStudent() && resource.data.studentId == request.auth.uid &&
+        resource.data.get('score', null) == null && resource.data.get('feedback', null) == null);
     }
   }
 }
