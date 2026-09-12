@@ -6,16 +6,20 @@ import { Button } from "./ui/button";
 import { hasFirebaseConfiguration } from "../lib/firebase";
 import { createAdminPasswordResetLink } from "../lib/admin-password-reset-service";
 import { useSingleFlight } from "../lib/use-single-flight";
+import { toast } from "sonner";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 export function AdminPasswordResetPanel() {
   const [email, setEmail] = useState("");
   const [link, setLink] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [messageIsError, setMessageIsError] = useState(false);
   const [sending, setSending] = useState(false);
   const runSingleFlight = useSingleFlight();
   async function createResetLink(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!hasFirebaseConfiguration) {
+      setMessageIsError(true);
       setMessage(
         "Connect Firebase before using administrator password recovery."
       );
@@ -24,15 +28,20 @@ export function AdminPasswordResetPanel() {
     await runSingleFlight("admin-create-reset-link", async () => {
       setSending(true);
       setMessage(null);
+      setMessageIsError(false);
       try {
         const resetLink = await createAdminPasswordResetLink(email);
         setLink(resetLink);
+        setMessageIsError(false);
         setMessage(
           "A secure, one-time password reset link was created for this student."
         );
+        toast.success("Password reset link was created successfully.");
       } catch (error) {
-        const detail = error instanceof Error ? ` ${error.message}` : "";
-        setMessage(`The reset link could not be created.${detail}`);
+        const message = getUserFacingErrorMessage(error, "The reset link could not be created. Please try again.");
+        setMessageIsError(true);
+        setMessage(message);
+        toast.error(message);
       } finally {
         setSending(false);
       }
@@ -82,7 +91,7 @@ export function AdminPasswordResetPanel() {
         </Button>
       </form>
       {message ? (
-        <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
+        <p className={`mt-4 rounded-xl px-3 py-2 text-sm font-semibold ${messageIsError ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-900"}`}>
           {message}
         </p>
       ) : null}

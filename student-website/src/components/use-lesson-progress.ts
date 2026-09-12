@@ -6,6 +6,7 @@ import { useStudentAuth } from "@/components/student-auth-provider";
 import { getDemoLessonProgress, studentQueryKeys, type Lesson } from "@/lib/student-data";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { getLessonProgress, updateLessonProgress, type EnrollmentContext } from "@/lib/student-repository";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 import { useSingleFlight } from "@/lib/use-single-flight";
 
 export function useLessonProgress(enrollment: EnrollmentContext | null) {
@@ -27,7 +28,7 @@ export function useLessonProgress(enrollment: EnrollmentContext | null) {
       queryClient.invalidateQueries({ queryKey: studentQueryKeys.lessonProgress });
       toast.success(status === "complete" ? "Lesson marked as completed." : status === "continue" ? "Lesson marked as in progress." : "Lesson reset to new.");
     },
-    onError: error => toast.error(error instanceof Error ? error.message : "Could not update lesson progress."),
+    onError: error => toast.error(getUserFacingErrorMessage(error, "Could not update lesson progress. Please try again.")),
   });
   const updateStatusOnce = (input: { lessonId: string; status: Lesson["status"] }) =>
     runSingleFlight("lesson-status", async () => {

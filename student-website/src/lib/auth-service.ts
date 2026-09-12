@@ -4,6 +4,7 @@ import { firebaseAuth, isFirebaseConfigured } from "./firebase";
 import { firestore } from "./firebase";
 import { executeRecaptcha, verifyStudentAuthSecurity } from "./recaptcha";
 import { isEnglishName, isStrongPassword, isValidEmail, normalizeEmail, STRONG_PASSWORD_MESSAGE } from "../../../shared/auth-validation";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 export type PortalRole = "admin" | "student" | null;
 
@@ -20,7 +21,12 @@ export async function registerStudent({ name, email, password }: { name: string;
     body: JSON.stringify({ name: name.trim(), email: normalizedEmail, password, recaptchaToken }),
   });
   const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
-  if (!response.ok) throw new Error(payload?.message || payload?.error || "Unable to register your account.");
+  if (!response.ok) {
+    throw new Error(getUserFacingErrorMessage(
+      new Error(payload?.message || payload?.error || ""),
+      "Unable to register your account. Please try again.",
+    ));
+  }
   const credential = await signInWithEmailAndPassword(firebaseAuth, normalizedEmail, password);
   await sendEmailVerification(credential.user, { url: `${window.location.origin}/login` });
   await signOut(firebaseAuth);

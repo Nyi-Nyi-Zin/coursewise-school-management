@@ -38,6 +38,7 @@ import { studentQueryKeys } from "@/lib/student-data";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import { useSingleFlight } from "@/lib/use-single-flight";
+import { getUserFacingErrorMessage } from "../../../../../shared/user-facing-errors";
 
 type AssignmentFilter =
   | "all"
@@ -210,9 +211,7 @@ export default function AssignmentsPage() {
     },
     onError: error =>
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not submit your assignment."
+        getUserFacingErrorMessage(error, "Could not submit your assignment. Please try again.")
       ),
   });
   const submitOnce = (input: {

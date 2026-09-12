@@ -33,6 +33,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAdminRecords, optimisticallySaveAdminRecord } from "@/lib/use-admin-records";
 import { adminRecordQueryKey } from "@/lib/admin-records-query";
@@ -185,12 +186,8 @@ export function AdminShell() {
     section === "quizzes" || section === "attendance"
       ? buildCourseBatchDashboardData(records, courseBatchScope).visibleRecords
       : records;
-  const loadError =
-    recordsQuery.error instanceof Error
-      ? recordsQuery.error.message
-      : "Firebase records could not be loaded.";
   const persistenceError = recordsQuery.isError
-    ? `Could not load Firebase records: ${loadError}`
+    ? "Could not load records right now. Check your connection and refresh the page."
     : null;
   const content = headings[section];
   const navigate = (next: Section | ((current: Section) => Section)) => {
@@ -230,7 +227,7 @@ export function AdminShell() {
         await optimisticallySaveAdminRecord(queryClient, "students", item);
         toast.success(`Student account was created. Assigned Student ID: ${account.studentId}.`);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message.replace("Firebase: ", "") : "The student account could not be created.");
+        toast.error(getUserFacingErrorMessage(error, "The student account could not be created."));
       } finally {
         setPanelOpen(false);
         setEditingItem(null);
@@ -255,16 +252,18 @@ export function AdminShell() {
       await saveMutation.mutateAsync({ section, item });
       setPanelOpen(false);
       setEditingItem(null);
+      toast.success(`${recordLabel(section)} was ${editingItem ? "updated" : "created"}.`);
     } catch (error) {
-      toast.error(formatRecordSaveError(error));
+      toast.error(formatRecordError(error, "The record could not be saved. Your workspace was restored to its previous state."));
     }
   };
   const deleteItem = async (id: string) => {
     if (!isRecordSection(section)) return;
     try {
       await deleteMutation.mutateAsync({ section, id });
+      toast.success(`${recordLabel(section)} was deleted.`);
     } catch (error) {
-      toast.error(formatRecordSaveError(error) || "The record could not be deleted. Your workspace was restored to its previous state.");
+      toast.error(formatRecordError(error, "The record could not be deleted. Your workspace was restored to its previous state."));
     }
   };
   const toggleStatus = async (item: OfflineItem) => {
@@ -278,7 +277,7 @@ export function AdminShell() {
       await saveMutation.mutateAsync({ section, item: { ...item, status: nextStatus } });
       toast.success(`Status updated to ${nextStatus}.`);
     } catch (error) {
-      toast.error(formatRecordSaveError(error) || "The status could not be updated.");
+      toast.error(formatRecordError(error, "The status could not be updated."));
     }
   };
   return (
@@ -394,15 +393,11 @@ export function AdminShell() {
               <OfflineWorkspace
                 section={section as WorkspaceSection}
                 records={visibleRecords}
+                recordsLoading={hasFirebaseConfiguration && recordsQuery.isPending}
+                recordsError={recordsQuery.isError ? "Could not load records right now. Refresh the page and try again." : null}
                 scopeControls={(section === "quizzes" || section === "attendance") ? <CourseBatchScopeControls value={courseBatchScope} onChange={setCourseBatchScope} /> : null}
                 onAction={openCreate}
-                onNavigate={next =>
-                  navigate(current =>
-                    typeof next === "function"
-                      ? next(current as WorkspaceSection)
-                      : next
-                  )
-                }
+                onNavigate={next => navigate(next)}
                 onEdit={item => {
                   setEditingItem(item);
                   setPanelOpen(true);
@@ -437,21 +432,19 @@ export function AdminShell() {
   );
 }
 
-function formatRecordSaveError(error: unknown) {
-  const code = typeof error === "object" && error !== null && "code" in error
-    ? String(error.code)
-    : "";
-  if (code === "permission-denied") {
-    return "Firebase denied this save. Sign in with an administrator account, confirm users/{your-user-id} has role: admin, and deploy the current Firestore rules.";
-  }
-  if (code === "unauthenticated") {
-    return "Your Firebase session has expired. Sign in again, then save the assignment.";
-  }
-  if (code === "unavailable") {
-    return "Firebase is temporarily unavailable. Check your connection and try saving again.";
-  }
-  const message = error instanceof Error ? error.message.replace(/^Firebase:\s*/, "") : "";
-  return message ? `The record could not be saved: ${message}` : "The record could not be saved. Your workspace was restored to its previous state.";
+function formatRecordError(error: unknown, fallback: string) {
+  return getUserFacingErrorMessage(error, fallback);
+}
+
+function recordLabel(section: ManagementSection) {
+  return {
+    students: "Student",
+    announcements: "Announcement",
+    lessons: "Lesson",
+    assignments: "Assignment",
+    quizzes: "Quiz",
+    attendance: "Attendance record",
+  }[section];
 }
 
 function Brand() {

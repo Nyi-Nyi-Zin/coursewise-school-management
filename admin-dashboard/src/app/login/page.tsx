@@ -7,6 +7,7 @@ import { ArrowRight, Eye, EyeOff, KeyRound, Mail } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { hasFirebaseConfiguration } from "@/lib/firebase-config";
 import { useSingleFlight } from "@/lib/use-single-flight";
+import { getUserFacingErrorMessage } from "../../../../shared/user-facing-errors";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -36,11 +37,7 @@ export default function AdminLoginPage() {
         router.replace("/");
       } catch (error) {
         setError(true);
-        setMessage(
-          error instanceof Error
-            ? error.message.replace("Firebase: ", "")
-            : "Unable to sign in as an administrator."
-        );
+        setMessage(getUserFacingErrorMessage(error, "Unable to sign in as an administrator. Please check your details and try again."));
       } finally {
         setSubmitting(false);
       }
@@ -67,11 +64,7 @@ export default function AdminLoginPage() {
         );
       } catch (error) {
         setError(true);
-        setMessage(
-          error instanceof Error
-            ? error.message.replace("Firebase: ", "")
-            : "Unable to request a password reset."
-        );
+        setMessage(getUserFacingErrorMessage(error, "Unable to request a password reset. Please check the email and try again."));
       } finally {
         setSubmitting(false);
       }

@@ -42,6 +42,7 @@ import {
   enrollmentMatchesScope,
   groupActiveEnrollmentsByStudent,
 } from "@/lib/student-enrollment-scope";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 export function ModuleRecordView({
   section,
@@ -1061,9 +1062,7 @@ function ChangePasswordModal({
         onClose();
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "The password could not be changed. This student may not have a Firebase Auth account."
+          getUserFacingErrorMessage(error, "The password could not be changed. This student may not have a Firebase Auth account.")
         );
       } finally {
         setPending(false);

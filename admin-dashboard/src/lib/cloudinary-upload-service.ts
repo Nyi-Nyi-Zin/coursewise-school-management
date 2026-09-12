@@ -25,7 +25,7 @@ export async function uploadToCloudinary(file: File, options: { kind: "image" | 
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body });
   const payload = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
-  if (!response.ok || !payload?.secure_url) throw new Error(payload?.error?.message ?? "Cloudinary could not upload this file.");
+  if (!response.ok || !payload?.secure_url) throw new Error("Cloudinary could not upload this file.");
   return payload.secure_url;
 }
 

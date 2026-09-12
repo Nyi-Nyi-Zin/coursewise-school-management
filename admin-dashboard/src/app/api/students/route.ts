@@ -37,6 +37,7 @@ export async function GET(request: Request) {
             studentId: String(data.studentId ?? ""),
             photoUrl: String(data.photoUrl ?? ""),
             isActive: data.isActive !== false,
+            createdAt: millis(data.createdAt),
             // null means the Firestore profile has no matching Auth account.
             emailVerified: verificationByUid.has(profile.id) ? verificationByUid.get(profile.id)! : null,
           };

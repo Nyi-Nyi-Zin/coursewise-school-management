@@ -1,4 +1,5 @@
 import { STRONG_PASSWORD_MESSAGE } from "../../../shared/auth-validation";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 export function getStudentAuthenticationErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message.replace("Firebase: ", "") : "";
@@ -25,7 +26,7 @@ export function getStudentAuthenticationErrorMessage(error: unknown): string {
     return "This email already has an account. Please sign in instead.";
   }
   if (/security verification.*\(Google:/i.test(message)) {
-    return message;
+    return "Security verification failed. Please try again.";
   }
   if (/security verification/i.test(message)) {
     return "Security verification failed. Please try again.";
@@ -33,5 +34,8 @@ export function getStudentAuthenticationErrorMessage(error: unknown): string {
   if (/too many registration attempts/i.test(message)) {
     return "Too many registration attempts. Please wait an hour and try again.";
   }
-  return message || "Unable to complete authentication. Please try again.";
+  return getUserFacingErrorMessage(
+    error,
+    "Unable to complete authentication. Please try again.",
+  );
 }

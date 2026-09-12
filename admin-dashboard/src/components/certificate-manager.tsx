@@ -21,6 +21,7 @@ import {
   loadStudentProfiles,
 } from "@/lib/course-batch-service";
 import { useSingleFlight } from "@/lib/use-single-flight";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 type CertificateDraft = IssueCertificateInput;
 
@@ -102,9 +103,7 @@ export function CertificateManager() {
     },
     onError: error =>
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Certificate could not be issued."
+        getUserFacingErrorMessage(error, "Certificate could not be issued.")
       ),
   });
 

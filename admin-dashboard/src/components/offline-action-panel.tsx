@@ -17,6 +17,7 @@ import {
 import { hasFirebaseConfiguration } from "@/lib/firebase";
 import type { OfflineItem } from "@/lib/offline-records";
 import { useSingleFlight } from "@/lib/use-single-flight";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 type Section =
   | "overview"
@@ -535,9 +536,7 @@ function ImageField({
               : await uploadBannerImage(file)
         );
       } catch (uploadError) {
-        setError(
-          uploadError instanceof Error ? uploadError.message : "Upload failed."
-        );
+        setError(getUserFacingErrorMessage(uploadError, "Upload failed. Please try again."));
       } finally {
         setUploading(false);
       }

@@ -19,6 +19,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -98,9 +99,7 @@ export function AssessmentRunner() {
     },
     onError: error =>
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Assessment could not be submitted."
+        getUserFacingErrorMessage(error, "Assessment could not be submitted. Please try again.")
       ),
   });
   const submitOnce = useCallback(() => {
@@ -139,6 +138,7 @@ export function AssessmentRunner() {
       } else
         toast.warning(`Exam integrity warning ${outcome.violationCount}/3`);
     },
+    onError: error => toast.error(getUserFacingErrorMessage(error, "Exam integrity status could not be saved. Please continue or try again.")),
   });
   useEffect(() => {
     if (!isExam || result || !session.data) return;
@@ -215,14 +215,16 @@ export function AssessmentRunner() {
   const checker = useMutation({
     mutationFn: () =>
       checkChapterAnswer(quizId, question.id, answers[question.id] ?? []),
-    onSuccess: item =>
+    onSuccess: item => {
       setFeedback(currentFeedback => ({
         ...currentFeedback,
         [item.questionId]: item,
-      })),
+      }));
+      toast.success("Answer checked successfully.");
+    },
     onError: error =>
       toast.error(
-        error instanceof Error ? error.message : "Answer could not be checked."
+        getUserFacingErrorMessage(error, "Answer could not be checked. Please try again.")
       ),
   });
   const checkOnce = () => {
@@ -254,9 +256,7 @@ export function AssessmentRunner() {
       <Message
         title="Assessment locked"
         body={
-          session.error instanceof Error
-            ? session.error.message
-            : "This assessment is not available."
+          getUserFacingErrorMessage(session.error, "This assessment is not available. Please return to the quiz list and try again.")
         }
         locked
       />

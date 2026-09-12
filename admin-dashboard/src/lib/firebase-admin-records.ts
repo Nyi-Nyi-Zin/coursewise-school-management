@@ -29,13 +29,13 @@ export async function deleteFirebaseAdminRecord(section: ManagementSection, id: 
 
 export async function loadFirebaseAdminRecords(section: ManagementSection): Promise<OfflineItem[]> {
   if (section === 'students') {
-    const payload = await authenticatedApiFetch('/api/students') as { students: Array<{ id: string; name: string; email: string; studentId: string; photoUrl: string; isActive: boolean; emailVerified: boolean | null }> };
+    const payload = await authenticatedApiFetch('/api/students') as { students: Array<{ id: string; name: string; email: string; studentId: string; photoUrl: string; isActive: boolean; createdAt: number | null; emailVerified: boolean | null }> };
     return payload.students.map(student => ({
       id: student.id,
       title: student.name,
       description: '',
       status: student.isActive ? 'Active' : 'Inactive',
-      createdAt: 'Firebase',
+      createdAt: student.createdAt ? new Date(student.createdAt).toISOString() : 'Firebase',
       fields: {
         studentId: student.studentId,
         email: student.email,

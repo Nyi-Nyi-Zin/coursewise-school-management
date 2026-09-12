@@ -38,6 +38,7 @@ import {
   type StudentProfile,
 } from "@/lib/course-batch-service";
 import { useSingleFlight } from "@/lib/use-single-flight";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 const assignmentsKey = ["admin", "assignments"] as const;
 const coursesKey = ["admin", "courses"] as const;
@@ -174,10 +175,8 @@ export function AssignmentManager() {
       toast.success(
         `${assignment.title} was ${editing ? "updated" : "created"}.`
       );
-    } catch {
-      toast.error(
-        "The assignment could not be saved. Check Firebase permissions."
-      );
+    } catch (error) {
+      toast.error(getUserFacingErrorMessage(error, "The assignment could not be saved. Check your connection and permissions."));
     }
   }
 
@@ -189,8 +188,8 @@ export function AssignmentManager() {
         setLocalAssignments(items => items.filter(i => i.id !== item.id));
       }
       toast.success(`"${item.title}" was deleted.`);
-    } catch {
-      toast.error("The assignment could not be deleted.");
+    } catch (error) {
+      toast.error(getUserFacingErrorMessage(error, "The assignment could not be deleted."));
     }
   }
   async function toggleStatus(item: AssignmentRecord) {
@@ -204,8 +203,8 @@ export function AssignmentManager() {
       toast.success(
         `"${next.title}" is now ${next.isPublished ? "published" : "a draft"}.`
       );
-    } catch {
-      toast.error("The assignment status could not be updated.");
+    } catch (error) {
+      toast.error(getUserFacingErrorMessage(error, "The assignment status could not be updated."));
     }
   }
 

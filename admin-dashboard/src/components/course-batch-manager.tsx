@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { DocumentSnapshot } from "firebase/firestore";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 import { Button } from "@/components/ui/button";
 import { DataTable, TablePagination } from "@/components/ui/data-table";
 import { Metric } from "@/components/ui/metric";
@@ -88,33 +89,8 @@ function optimisticallyReplaceListRecord<T extends { id: string }>(
   return () => client.setQueryData(queryKey, previous);
 }
 
-function writeErrorCode(error: unknown) {
-  return typeof error === "object" && error && "code" in error
-    ? String(error.code)
-    : "";
-}
-
-function writeErrorHint(code: string) {
-  if (code === "permission-denied") {
-    return "Firebase denied this write. Confirm this account's users/{uid} document has role: admin, then redeploy the Firestore rules from firebase/firestore.rules.";
-  }
-  if (code === "unauthenticated") {
-    return "Your Firebase sign-in has expired. Sign out, sign in again, and retry.";
-  }
-  if (code === "unavailable") {
-    return "Firebase is temporarily unavailable. Check your connection and retry.";
-  }
-  return "";
-}
-
 function failureNotice(error: unknown, label: string) {
-  const hint = writeErrorHint(writeErrorCode(error));
-  if (hint) toast.error(`${label}. ${hint}`);
-  else {
-    const message =
-      error instanceof Error ? error.message.replace(/^Firebase:\s*/i, "") : "";
-    toast.error(message ? `${label}: ${message}` : `${label}. Please retry.`);
-  }
+  toast.error(getUserFacingErrorMessage(error, `${label}. Please retry.`));
 }
 
 export function CourseBatchManager() {

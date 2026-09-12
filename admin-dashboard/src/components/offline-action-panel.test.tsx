@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { OfflineActionPanel } from "./offline-action-panel";
 
@@ -17,6 +17,7 @@ vi.mock("@/lib/course-batch-service", () => ({
 }));
 
 beforeEach(() => save.mockClear());
+afterEach(() => cleanup());
 
 it("creates a quiz from one linked course-batch selection", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -41,6 +42,7 @@ it("creates a lesson from one linked course-batch selection", async () => {
   const pair = await screen.findByRole("combobox", { name: "Course and batch" });
   expect(screen.queryByText("Select course")).toBeNull();
   expect(screen.queryByText("Select batch")).toBeNull();
+  await screen.findByRole("option", { name: /Python.*Batch 2/ });
   fireEvent.change(pair, { target: { value: "batch-linked" } });
   fireEvent.click(screen.getByRole("button", { name: "Save Lesson" }));
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({

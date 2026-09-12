@@ -6,20 +6,30 @@ import { Button } from "./ui/button";
 import { hasFirebaseConfiguration } from "../lib/firebase";
 import { createStudentAccount } from "../lib/admin-student-account-service";
 import { useSingleFlight } from "../lib/use-single-flight";
+import { toast } from "sonner";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 export function AdminStudentAccountPanel() {
   const [name, setName] = useState(""); const [email, setEmail] = useState("");
   const [resetLink, setResetLink] = useState(""); const [message, setMessage] = useState<string | null>(null); const [creating, setCreating] = useState(false);
+  const [messageIsError, setMessageIsError] = useState(false);
   const runSingleFlight = useSingleFlight();
   async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!hasFirebaseConfiguration) { setMessage("Connect Firebase before creating student accounts."); return; }
+    event.preventDefault(); if (!hasFirebaseConfiguration) { const message = "Connect Firebase before creating student accounts."; setMessageIsError(true); setMessage(message); toast.error(message); return; }
     await runSingleFlight("admin-create-student", async () => {
-      setCreating(true); setMessage(null); setResetLink("");
+      setCreating(true); setMessage(null); setMessageIsError(false); setResetLink("");
       try {
         const account = await createStudentAccount({ name, email });
         setResetLink(account.resetLink); setName(""); setEmail("");
+        setMessageIsError(false);
         setMessage(`Student ID ${account.studentId} was assigned. Share the password-setup link below with the student.`);
-      } catch (error) { setMessage(error instanceof Error ? error.message : "The account could not be created. Confirm you are signed in as an administrator."); }
+        toast.success("Student account was created successfully.");
+      } catch (error) {
+        const message = getUserFacingErrorMessage(error, "The account could not be created. Confirm you are signed in as an administrator.");
+        setMessageIsError(true);
+        setMessage(message);
+        toast.error(message);
+      }
       finally { setCreating(false); }
     });
   }
@@ -29,7 +39,7 @@ export function AdminStudentAccountPanel() {
       <input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="student@example.com" required className="h-11 rounded-xl border border-stone-200 px-3 text-sm outline-none focus:border-emerald-600" />
       <Button type="submit" disabled={creating}>{creating ? "Creating…" : "Create"}</Button>
     </form>
-    {message ? <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">{message}</p> : null}
+    {message ? <p className={`mt-4 rounded-xl px-3 py-2 text-sm font-semibold ${messageIsError ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-900"}`}>{message}</p> : null}
     {resetLink ? <div className="mt-4 rounded-xl bg-stone-50 p-3"><p className="text-xs font-bold text-stone-600">One-time password setup link.</p><textarea readOnly value={resetLink} className="mt-2 min-h-20 w-full rounded-lg border border-stone-200 bg-white p-2 text-xs text-stone-600" /></div> : null}
   </section>;
 }

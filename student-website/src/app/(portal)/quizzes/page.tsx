@@ -35,6 +35,7 @@ import { isFirebaseConfigured } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
 import type { QuizFilter } from "@/lib/quiz-catalog";
+import { getUserFacingErrorMessage } from "../../../../../shared/user-facing-errors";
 
 const quizFilters: { value: QuizFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -96,7 +97,7 @@ export default function QuizzesPage() {
 
       {quizzes.isError || enrollmentsQuery.isError ? (
         <PortalPanel className="mt-4 flex flex-wrap items-center justify-between gap-3 border-red-200 p-5 text-sm text-red-700">
-          <span>{(quizzes.error ?? enrollmentsQuery.error)?.message ?? "Quizzes could not be loaded. Check your connection, then try again."}</span>
+          <span>{getUserFacingErrorMessage(quizzes.error ?? enrollmentsQuery.error, "Quizzes could not be loaded. Check your connection, then try again.")}</span>
           <Button variant="outline" size="sm" disabled={enrollmentsQuery.isFetching || quizzes.isFetching} onClick={() => void (enrollmentsQuery.isError ? enrollmentsQuery.refetch() : quizzes.refetch())}>{enrollmentsQuery.isFetching || quizzes.isFetching ? "Retrying..." : "Retry"}</Button>
         </PortalPanel>
       ) : (

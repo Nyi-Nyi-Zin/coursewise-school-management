@@ -37,6 +37,7 @@ import {
 } from "@/lib/student-repository";
 import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
 import { useSingleFlight } from "@/lib/use-single-flight";
+import { getUserFacingErrorMessage } from "../../../../../shared/user-facing-errors";
 
 export default function ProfilePage() {
   const { user, firebaseActive } = useStudentAuth();
@@ -69,7 +70,7 @@ export default function ProfilePage() {
     },
     onError: error =>
       toast.error(
-        error instanceof Error ? error.message : "Could not update photo."
+        getUserFacingErrorMessage(error, "Could not update photo. Please try again.")
       ),
   });
   const nameUpdate = useMutation({
@@ -83,7 +84,7 @@ export default function ProfilePage() {
     },
     onError: error =>
       toast.error(
-        error instanceof Error ? error.message : "Could not update name."
+        getUserFacingErrorMessage(error, "Could not update name. Please try again.")
       ),
   });
   const passwordChange = useMutation({
@@ -100,7 +101,7 @@ export default function ProfilePage() {
     },
     onError: error =>
       toast.error(
-        error instanceof Error ? error.message : "Could not change your password."
+        getUserFacingErrorMessage(error, "Could not change your password. Please try again.")
       ),
   });
 

@@ -14,6 +14,8 @@ import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSingleFlight } from "@/lib/use-single-flight";
+import { toast } from "sonner";
+import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 type QuestionType = "multiple_choice" | "multiple_select" | "true_false";
 const questionTypeLabels: Record<QuestionType, string> = {
@@ -51,9 +53,7 @@ export function QuizQuestionPanel({
       .then(loadedQuestions => setQuestions(loadedQuestions))
       .catch(cause =>
         setError(
-          cause instanceof Error
-            ? `Could not load saved questions: ${cause.message}`
-            : "Could not load saved questions."
+          getUserFacingErrorMessage(cause, "Could not load saved questions. Please refresh and try again.")
         )
       );
     void loadQuizAttempts(quizId)
@@ -115,11 +115,10 @@ export function QuizQuestionPanel({
         try {
           if (hasFirebaseConfiguration) await saveQuizQuestion(quizId, item);
           setQuestions(current => [...current, item]);
+          toast.success("Quiz question was added successfully.");
         } catch (cause) {
           setError(
-            cause instanceof Error
-              ? `Could not save question: ${cause.message}`
-              : "Could not save question. Please try again."
+            getUserFacingErrorMessage(cause, "Could not save question. Please try again.")
           );
           return null;
         } finally {
@@ -151,12 +150,11 @@ export function QuizQuestionPanel({
           return;
         }
         if (hasFirebaseConfiguration) await publishQuiz(quizId, savedQuestions);
+        toast.success("Quiz was published successfully.");
         onClose();
       } catch (cause) {
         setError(
-          cause instanceof Error
-            ? `Could not submit quiz: ${cause.message}`
-            : "Could not submit quiz. Please try again."
+          getUserFacingErrorMessage(cause, "Could not submit quiz. Please try again.")
         );
       } finally {
         setSubmitting(false);
@@ -215,8 +213,9 @@ export function QuizQuestionPanel({
                             setQuestions(current =>
                               current.filter(item => item.id !== question.id)
                             );
+                            toast.success("Quiz question was deleted successfully.");
                           } catch (cause) {
-                            setError(cause instanceof Error ? cause.message : "Could not delete question.");
+                            setError(getUserFacingErrorMessage(cause, "Could not delete question. Please try again."));
                           }
                         }}
                       />
@@ -425,10 +424,9 @@ function SavedExplanation({
         if (hasFirebaseConfiguration) await saveQuizQuestion(quizId, updated);
         onSaved(updated);
         setValue(updated.explanation);
+        toast.success("Answer explanation was updated successfully.");
       } catch (cause) {
-        setError(
-          cause instanceof Error ? cause.message : "Could not save explanation."
-        );
+        setError(getUserFacingErrorMessage(cause, "Could not save explanation. Please try again."));
       } finally {
         setPending(false);
       }
