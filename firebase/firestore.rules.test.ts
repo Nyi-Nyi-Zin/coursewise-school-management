@@ -152,6 +152,24 @@ describeWithEmulator("Firestore course and batch isolation", () => {
     };
     await assertFails(setDoc(doc(studentA, "assignmentSubmissions", "submission-forged"), { ...base, score: 100, feedback: "Perfect" }));
     await assertSucceeds(setDoc(doc(studentA, "assignmentSubmissions", "submission-valid"), base));
+    await assertSucceeds(setDoc(doc(studentA, "assignmentSubmissions", "submission-file"), {
+      ...base,
+      submissionFileName: "report.pdf",
+      assetPublicId: "coursewise/assignments/student-a/assignment-a/550e8400-e29b-41d4-a716-446655440000",
+      assetResourceType: "raw",
+      assetDeliveryType: "authenticated",
+      assetFormat: "pdf",
+      assetVersion: 1,
+    }));
+    await assertFails(setDoc(doc(studentA, "assignmentSubmissions", "submission-foreign-file"), {
+      ...base,
+      submissionFileName: "stolen.pdf",
+      assetPublicId: "coursewise/assignments/student-b/assignment-a/550e8400-e29b-41d4-a716-446655440000",
+      assetResourceType: "raw",
+      assetDeliveryType: "authenticated",
+      assetFormat: "pdf",
+      assetVersion: 1,
+    }));
     await assertSucceeds(updateDoc(doc(admin, "assignmentSubmissions", "submission-valid"), { score: 100, feedback: "Reviewed" }));
     await assertFails(deleteDoc(doc(studentA, "assignmentSubmissions", "submission-valid")));
     await assertSucceeds(deleteDoc(doc(admin, "assignmentSubmissions", "submission-valid")));

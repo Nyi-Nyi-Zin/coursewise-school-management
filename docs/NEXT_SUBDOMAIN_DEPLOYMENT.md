@@ -9,4 +9,4 @@ Teza Tech Lab no longer uses Firebase Hosting for the Student Website or Admin W
 
 Follow [Vercel Deployment](./VERCEL_DEPLOYMENT.md) for the complete project setup, Firebase environment variables, and custom-domain mapping procedure.
 
-The repository `firebase.json` remains active only for Firebase Firestore Rules, indexes, and Storage Rules deployment. The legacy `functions/` source is retained as migration history and is not part of production deployment. Website and backend Route Handler deployments run on Vercel.
+The repository `firebase.json` remains active only for Firebase Firestore Rules and indexes deployment. Files and images use Cloudinary. The legacy `functions/` source is retained as migration history and is not part of production deployment. Website and backend Route Handler deployments run on Vercel.

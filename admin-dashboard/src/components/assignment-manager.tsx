@@ -23,6 +23,7 @@ import { CourseBatchPairSelect } from "@/components/course-batch-pair-select";
 import { hasFirebaseConfiguration } from "@/lib/firebase";
 import {
   deleteAssignment,
+  getAssignmentFileDownloadUrl,
   loadAssignments,
   loadAssignmentSubmissions,
   saveAssignment,
@@ -45,6 +46,19 @@ const coursesKey = ["admin", "courses"] as const;
 const batchesKey = ["admin", "batches", "all"] as const;
 const studentsKey = ["admin", "student-profiles"] as const;
 const submissionsKey = ["admin", "assignment-submissions"] as const;
+
+async function openAssignmentFile(submissionId: string) {
+  const popup = window.open("", "_blank");
+  if (popup) popup.opener = null;
+  try {
+    const url = await getAssignmentFileDownloadUrl(submissionId);
+    if (popup) popup.location.href = url;
+    else window.location.href = url;
+  } catch (error) {
+    popup?.close();
+    toast.error(getUserFacingErrorMessage(error, "Could not open the assignment file."));
+  }
+}
 
 const toLocalInput = (iso: string) => {
   if (!iso) return "";
@@ -864,6 +878,15 @@ function SubmissionsModal({
                       {item.submissionUrl}
                     </a>
                   </p>
+                ) : null}
+                {item.assetPublicId ? (
+                  <button
+                    type="button"
+                    onClick={() => void openAssignmentFile(item.id)}
+                    className="mt-2 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                  >
+                    Download {item.submissionFileName || "assignment file"}
+                  </button>
                 ) : null}
                 {typeof item.score === "number" && (
                   <p className="mt-2 text-xs font-semibold text-stone-500">

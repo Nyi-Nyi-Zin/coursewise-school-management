@@ -19,10 +19,10 @@ describe("buildCourseBatchDashboardData", () => {
     expect(batchB.quizAttemptKey).toEqual(["admin", "quiz-attempts", "course-1", "batch-b"]);
   });
 
-  it("keeps attendance and quizzes hidden until both course and batch are selected", () => {
+  it("shows all attendance and quizzes when all course-batch pairs are selected", () => {
     const unselected = buildCourseBatchDashboardData(records, { courseId: "", batchId: "" });
-    expect(unselected.visibleRecords.attendance).toEqual([]);
-    expect(unselected.visibleRecords.quizzes).toEqual([]);
+    expect(unselected.visibleRecords.attendance.map(item => item.id)).toEqual(["attendance-a", "attendance-b"]);
+    expect(unselected.visibleRecords.quizzes.map(item => item.id)).toEqual(["quiz-a", "quiz-b"]);
     expect(unselected.quizAttemptKey).toEqual(["admin", "quiz-attempts", "", ""]);
   });
 });

@@ -8,7 +8,7 @@ The Student Website in `student-website/` and Admin Website in `admin-dashboard/
 |---|---|---|
 | Browser | Login, password-reset email, Firestore reads allowed by Rules | Admin login and Firestore management allowed by Rules |
 | Next.js backend | Registration, batch-authorized quiz catalog, trusted scoring, private quiz results | Student account creation and protected password-reset links |
-| Firebase | Authentication, Firestore, Storage, Rules and indexes | Same shared project |
+| Firebase | Authentication, Firestore, Rules and indexes | Same shared project |
 
 Every authenticated backend request contains a Firebase ID token in the `Authorization: Bearer <token>` header. The server verifies the token before using the Admin SDK. Quiz routes additionally check active enrollment; administrator routes load the caller's Firestore profile and require `role: "admin"`.
 
@@ -20,7 +20,6 @@ Add the same public Firebase Web App values to both Vercel projects:
 - `NEXT_PUBLIC_FIREBASE_API_KEY`
 - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
 - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 

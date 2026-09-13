@@ -50,6 +50,6 @@ it("conceals final-exam questions and records PrintScreen attempts", async () =>
 
   expect(printScreen.defaultPrevented).toBe(true);
   expect(examScreen?.getAttribute("data-exam-concealed")).toBe("true");
-  await waitFor(() => expect(mocks.recordViolation).toHaveBeenCalledWith("final-1", "blocked-key-printscreen", "session-token-1"));
+  await waitFor(() => expect(mocks.recordViolation).toHaveBeenCalledWith("final-1", "screenshot-shortcut", "session-token-1"));
   client.clear();
 });

@@ -3,7 +3,7 @@ import { demoAnnouncements, demoAttendance, demoLessons, getDemoLessonProgress, 
 import { firestore } from "@/lib/firebase";
 import { authenticatedApiFetch } from "@/lib/authenticated-api";
 import type { QuizCatalogPage, QuizCatalogRequest } from "@/lib/quiz-catalog";
-import { uploadAssignmentFileToStorage, uploadStudentProfilePhoto } from "@/lib/cloudinary-upload-service";
+import { uploadAssignmentFileToCloudinary, uploadStudentProfilePhoto, type UploadedPrivateAsset } from "@/lib/cloudinary-upload-service";
 
 export type StudentProfile = { id: string; name: string; email: string; studentId: string; photoUrl?: string; activeCourseId?: string; activeBatchId?: string };
 export type EnrollmentContext = { courseId: string; batchId: string; courseTitle: string; batchName: string };
@@ -19,7 +19,7 @@ export type QuizResultsSummary = { quizId: string; kind: QuizKind; title: string
 export type AssessmentSession = { sessionId: string; kind: QuizKind; title: string; chapter: string; passingPercent: number; startedAtMillis: number; expiresAtMillis: number | null; integrityViolations: number; checkedQuestionIds: string[]; questions: QuizQuestion[] };
 export type ChapterAnswerFeedback = { questionId: string; correct: boolean; marksEarned: number; explanation: string; correctIndices: number[]; correctAnswers: string[] };
 export type Assignment = { id: string; title: string; description: string; courseId: string; batchId: string; dueAt?: string; resourceUrl?: string; submissionInstructions?: string };
-export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; submissionFileName?: string; feedback?: string; score?: number | null };
+export type AssignmentSubmission = { id: string; assignmentId: string; submittedAt?: string; submissionText?: string; submissionUrl?: string; submissionFileName?: string; assetPublicId?: string; assetResourceType?: "raw"; assetDeliveryType?: "authenticated"; assetFormat?: string; assetVersion?: number; feedback?: string; score?: number | null };
 export type StudentCertificate = { id: string; certificateId: string; verificationCode: string; studentName: string; studentCode: string; courseTitle: string; batchName: string; courseDescription: string; quizTitle: string; score: number; totalMarks: number; percentage: number; issuedAt?: string; templateKey: "classic" | "modern" };
 
 export async function getStudentProfile(userId: string): Promise<StudentProfile> {
@@ -266,7 +266,7 @@ export async function getStudentAssignmentSubmissions(studentId: string, courseI
   const snapshot = await getDocs(query(collection(firestore, "assignmentSubmissions"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId), orderBy("submittedAt", "desc")));
   return snapshot.docs.map((item) => {
     const data = item.data();
-    return { id: item.id, assignmentId: String(data.assignmentId ?? ""), submittedAt: asDateString(data.submittedAt), submissionText: stringOrUndefined(data.submissionText), submissionUrl: stringOrUndefined(data.submissionUrl), submissionFileName: stringOrUndefined(data.submissionFileName), feedback: stringOrUndefined(data.feedback), score: typeof data.score === "number" ? data.score : null };
+    return { id: item.id, assignmentId: String(data.assignmentId ?? ""), submittedAt: asDateString(data.submittedAt), submissionText: stringOrUndefined(data.submissionText), submissionUrl: stringOrUndefined(data.submissionUrl), submissionFileName: stringOrUndefined(data.submissionFileName), assetPublicId: stringOrUndefined(data.assetPublicId), assetResourceType: data.assetResourceType === "raw" ? "raw" : undefined, assetDeliveryType: data.assetDeliveryType === "authenticated" ? "authenticated" : undefined, assetFormat: stringOrUndefined(data.assetFormat), assetVersion: typeof data.assetVersion === "number" ? data.assetVersion : undefined, feedback: stringOrUndefined(data.feedback), score: typeof data.score === "number" ? data.score : null };
   });
 }
 
@@ -274,14 +274,27 @@ export async function submitAssignment(studentId: string, assignment: Assignment
   if (!firestore) throw new Error("Assignment submission is only available in Firebase mode.");
   const submissionText = input.submissionText?.trim() ?? "";
   const submissionUrl = input.submissionUrl?.trim() ?? "";
-  let fileUrl = "";
+  let asset: UploadedPrivateAsset | null = null;
   let fileName = "";
   if (input.submissionFile) {
-    fileUrl = await uploadAssignmentFileToStorage(studentId, input.submissionFile);
+    asset = await uploadAssignmentFileToCloudinary(input.submissionFile, { assignmentId: assignment.id, courseId: assignment.courseId, batchId: assignment.batchId });
     fileName = input.submissionFile.name;
   }
-  if (!submissionText && !submissionUrl && !fileUrl) throw new Error("Add your response, a submission link, or a file before sending.");
-  await addDoc(collection(firestore, "assignmentSubmissions"), { assignmentId: assignment.id, studentId, courseId: assignment.courseId, batchId: assignment.batchId, submissionText: submissionText || null, submissionUrl: submissionUrl || fileUrl || null, submissionFileName: fileName || null, submittedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  if (!submissionText && !submissionUrl && !asset) throw new Error("Add your response, a submission link, or a file before sending.");
+  try {
+    await addDoc(collection(firestore, "assignmentSubmissions"), { assignmentId: assignment.id, studentId, courseId: assignment.courseId, batchId: assignment.batchId, submissionText: submissionText || null, submissionUrl: submissionUrl || null, submissionFileName: fileName || null, assetPublicId: asset?.assetPublicId ?? null, assetResourceType: asset?.assetResourceType ?? null, assetDeliveryType: asset?.assetDeliveryType ?? null, assetFormat: asset?.assetFormat ?? null, assetVersion: asset?.assetVersion ?? null, submittedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  } catch (error) {
+    if (asset) {
+      await authenticatedApiFetch("/api/uploads/cloudinary-signature", { method: "DELETE", body: JSON.stringify({ publicId: asset.assetPublicId }) }).catch(() => undefined);
+    }
+    throw error;
+  }
+}
+
+export async function getAssignmentFileDownloadUrl(submissionId: string): Promise<string> {
+  const payload = await authenticatedApiFetch(`/api/assignment-files/${encodeURIComponent(submissionId)}`) as { url?: string };
+  if (!payload.url) throw new Error("The assignment file is unavailable.");
+  return payload.url;
 }
 
 export async function getStudentQuizAttempts(studentId: string, courseId?: string, batchId?: string): Promise<PrivateQuizAttempt[]> {

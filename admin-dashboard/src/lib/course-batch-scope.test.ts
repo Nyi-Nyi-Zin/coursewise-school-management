@@ -9,4 +9,9 @@ describe("filterScopedAdminRecords", () => {
     expect(scoped.quizzes.map(item => item.id)).toEqual(["qa"]);
     expect(scoped.attendance.map(item => item.id)).toEqual(["aa"]);
   });
+
+  it("keeps every quiz and attendance record for the all-pairs scope", () => {
+    const records = { ...emptyOfflineRecords, quizzes: [{ id: "qa", title: "Quiz A", description: "", status: "Published", createdAt: "now" }], attendance: [{ id: "aa", title: "student-a", description: "", status: "Present", createdAt: "now" }] };
+    expect(filterScopedAdminRecords(records, { courseId: "", batchId: "" })).toBe(records);
+  });
 });

@@ -21,6 +21,8 @@ export type AssignmentSubmissionRecord = {
   batchId: string;
   submissionText: string;
   submissionUrl: string;
+  submissionFileName: string;
+  assetPublicId: string;
   feedback: string;
   score: number | null;
   submittedAt: string;
@@ -93,10 +95,19 @@ export async function loadAssignmentSubmissions(): Promise<AssignmentSubmissionR
         batchId: toString(data.batchId),
         submissionText: toString(data.submissionText),
         submissionUrl: toString(data.submissionUrl),
+        submissionFileName: toString(data.submissionFileName),
+        assetPublicId: toString(data.assetPublicId),
         feedback: toString(data.feedback),
         score: typeof data.score === "number" ? data.score : null,
         submittedAt: toDateString(data.submittedAt),
       };
     })
     .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+}
+
+export async function getAssignmentFileDownloadUrl(submissionId: string): Promise<string> {
+  const { authenticatedApiFetch } = await import("@/lib/authenticated-api");
+  const payload = await authenticatedApiFetch(`/api/assignment-files/${encodeURIComponent(submissionId)}`) as { url?: string };
+  if (!payload.url) throw new Error("The assignment file is unavailable.");
+  return payload.url;
 }

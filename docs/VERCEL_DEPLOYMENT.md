@@ -19,7 +19,6 @@ Add the following values to **both** Vercel projects in **Settings → Environme
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase Web API key |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth domain |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Complete Firebase service-account JSON; server-only, never `NEXT_PUBLIC_*` |
@@ -27,7 +26,7 @@ Add the following values to **both** Vercel projects in **Settings → Environme
 | `CLOUDINARY_API_KEY` | Cloudinary API key; server-only |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret; server-only, never `NEXT_PUBLIC_*` |
 
-Enable **Email/Password** in Firebase Authentication before the Student Website goes live. Every student API request and Firestore student read/write requires Firebase's `email_verified == true` claim. Deploy the repository Firestore and Storage Rules before entering production data; the rules enforce `auth.uid`, course, and `batchId` isolation for student records. Privileged operations run in the two Vercel Next.js backends and require `FIREBASE_SERVICE_ACCOUNT_JSON` in both projects. Banner, lesson thumbnail, and lesson file uploads use short-lived Cloudinary server signatures with folder allow-lists; student profile photos use the Firebase Storage avatar path, where students can create one fixed-name photo and administrators can replace or remove it. Do not configure or expose an unsigned Cloudinary upload preset.
+Enable **Email/Password** in Firebase Authentication before the Student Website goes live. Every student API request and Firestore student read/write requires Firebase's `email_verified == true` claim. Deploy the repository Firestore Rules before entering production data; the rules enforce `auth.uid`, course, and `batchId` isolation for student records. Privileged operations run in the two Vercel Next.js backends and require `FIREBASE_SERVICE_ACCOUNT_JSON` in both projects. Banner, lesson thumbnail, profile-photo, and student assignment-file uploads use short-lived Cloudinary server signatures with folder allow-lists. Assignment files use authenticated delivery and role-checked download URLs. Do not configure or expose an unsigned Cloudinary upload preset.
 
 The independent Vercel projects have already been deployed in demo-safe mode. Their live Firebase activation procedure, including backend credentials and authorized-domain requirements, is maintained in [FIREBASE_HANDOFF.md](./FIREBASE_HANDOFF.md).
 

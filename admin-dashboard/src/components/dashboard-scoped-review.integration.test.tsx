@@ -9,7 +9,7 @@ import { buildCourseBatchDashboardData } from "../lib/course-batch-dashboard";
 import { emptyOfflineRecords } from "../lib/offline-records";
 import type { CourseBatchScope } from "../lib/course-batch-scope";
 
-const loadAttempts = vi.fn(async (scope: CourseBatchScope) => scope.batchId === "batch-a" ? [{ id: "attempt-a", studentId: "student-a", score: 8, totalMarks: 10, quizId: "quiz-a" }] : scope.batchId === "batch-b" ? [{ id: "attempt-b", studentId: "student-b", score: 9, totalMarks: 10, quizId: "quiz-b" }] : []);
+const loadAttempts = vi.fn(async (scope: CourseBatchScope) => scope.batchId === "batch-a" ? [{ id: "attempt-a", studentId: "student-a", score: 8, totalMarks: 10, quizId: "quiz-a" }] : scope.batchId === "batch-b" ? [{ id: "attempt-b", studentId: "student-b", score: 9, totalMarks: 10, quizId: "quiz-b" }] : [{ id: "attempt-all", studentId: "student-all", score: 10, totalMarks: 10, quizId: "quiz-all" }]);
 vi.mock("../lib/firebase", () => ({ hasFirebaseConfiguration: true }));
 vi.mock("../lib/course-batch-service", () => ({
   loadCourses: async () => [{ id: "course-1", title: "Course 1", isActive: true, enrolledStudentIds: [] }],
@@ -29,11 +29,11 @@ function DashboardHarness() {
 }
 
 describe("Admin Dashboard scoped review integration", () => {
-  it("shows no private attendance or attempts until scoped, then updates both modules when the batch changes", async () => {
+  it("shows all private attendance and attempts by default, then updates both modules when the batch changes", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><DashboardHarness /></QueryClientProvider>);
-    expect(screen.getByTestId("attendance-output").textContent).toBe("no-attendance");
-    expect(screen.getByText("Select a course and batch to review only that batch’s scores.")).toBeTruthy();
+    expect(screen.getByTestId("attendance-output").textContent).toBe("attendance-a,attendance-b");
+    await waitFor(() => expect(screen.getByText("Student student-al · Quiz quiz-all")).toBeTruthy());
     await screen.findByRole("option", { name: "Course 1 — Batch A" });
     const pair = screen.getByRole("combobox", { name: "Filter by course and batch" });
     fireEvent.change(pair, { target: { value: "batch-a" } });

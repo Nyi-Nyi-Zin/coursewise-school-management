@@ -38,6 +38,7 @@ import {
 
 const AUTO_SUBMIT_MAX_RETRIES = 3;
 const AUTO_SUBMIT_RETRY_DELAY_MS = 5_000;
+const SCREENSHOT_CONCEAL_MS = 1_500;
 
 type AnswerMap = Record<string, number[]>;
 type FeedbackMap = Record<string, ChapterAnswerFeedback>;
@@ -171,6 +172,13 @@ export function AssessmentRunner() {
         revealTimerRef.current = null;
       }, 350);
     };
+    const clearScreenshotClipboard = () => {
+      // PrintScreen is handled by the operating system before browser
+      // JavaScript on some platforms. Overwriting the clipboard is therefore
+      // only a best-effort fallback, but it prevents the common paste flow
+      // where Clipboard API access is available.
+      void navigator.clipboard?.writeText("").catch(() => undefined);
+    };
     const report = (reason: string) => {
       const timestamp = Date.now();
       if (timestamp - lastViolationRef.current < 1200 || violation.isPending)
@@ -189,16 +197,41 @@ export function AssessmentRunner() {
       report("window-blur");
     };
     const keydown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const screenshotKey =
+        event.key === "PrintScreen" ||
+        event.key === "Snapshot" ||
+        event.keyCode === 44 ||
+        ((event.metaKey || event.ctrlKey) && event.shiftKey && key === "s");
+      const blockedContentKey =
+        (event.ctrlKey || event.metaKey) && ["c", "x", "p", "s"].includes(key);
+      if (screenshotKey || blockedContentKey) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        concealExam();
+        report(screenshotKey ? "screenshot-shortcut" : `blocked-key-${key}`);
+        if (screenshotKey) {
+          clearScreenshotClipboard();
+          window.setTimeout(clearScreenshotClipboard, 150);
+          window.setTimeout(revealExam, SCREENSHOT_CONCEAL_MS);
+        } else revealExam();
+      }
+    };
+    const keyup = (event: KeyboardEvent) => {
       if (
         event.key === "PrintScreen" ||
-        ((event.ctrlKey || event.metaKey) &&
-          ["c", "x", "p", "s"].includes(event.key.toLowerCase()))
+        event.key === "Snapshot" ||
+        event.keyCode === 44
       ) {
         event.preventDefault();
         concealExam();
-        report(`blocked-key-${event.key.toLowerCase()}`);
-        revealExam();
+        clearScreenshotClipboard();
+        window.setTimeout(revealExam, SCREENSHOT_CONCEAL_MS);
       }
+    };
+    const blockContentEvent = (event: Event) => {
+      event.preventDefault();
+      report(`blocked-${event.type}`);
     };
     const contextmenu = (event: MouseEvent) => {
       event.preventDefault();
@@ -211,20 +244,32 @@ export function AssessmentRunner() {
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("blur", blur);
     window.addEventListener("focus", revealExam);
+    window.addEventListener("pagehide", concealExam);
     window.addEventListener("beforeprint", beforePrint);
     window.addEventListener("afterprint", revealExam);
     document.addEventListener("keydown", keydown, true);
+    document.addEventListener("keyup", keyup, true);
     document.addEventListener("contextmenu", contextmenu);
+    document.addEventListener("copy", blockContentEvent, true);
+    document.addEventListener("cut", blockContentEvent, true);
+    document.addEventListener("dragstart", blockContentEvent, true);
+    document.addEventListener("selectstart", blockContentEvent, true);
     return () => {
       if (revealTimerRef.current !== null)
         window.clearTimeout(revealTimerRef.current);
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("blur", blur);
       window.removeEventListener("focus", revealExam);
+      window.removeEventListener("pagehide", concealExam);
       window.removeEventListener("beforeprint", beforePrint);
       window.removeEventListener("afterprint", revealExam);
       document.removeEventListener("keydown", keydown, true);
+      document.removeEventListener("keyup", keyup, true);
       document.removeEventListener("contextmenu", contextmenu);
+      document.removeEventListener("copy", blockContentEvent, true);
+      document.removeEventListener("cut", blockContentEvent, true);
+      document.removeEventListener("dragstart", blockContentEvent, true);
+      document.removeEventListener("selectstart", blockContentEvent, true);
     };
   }, [isExam, result, session.data, violation]);
 
@@ -557,8 +602,8 @@ export function AssessmentRunner() {
         <p className="mt-5 flex items-start gap-2 rounded-xl bg-amber-50 p-4 text-xs leading-5 text-amber-800">
           <ShieldAlert className="mt-0.5 size-4 shrink-0" />
           Screenshot shortcuts, leaving the tab, losing window focus, copying,
-          printing, or opening the context menu hides the questions and records
-          a warning. The third warning submits the exam.
+          printing, or opening the context menu hides the exam and records a
+          warning. The third warning submits the exam.
         </p>
       ) : null}
     </section>

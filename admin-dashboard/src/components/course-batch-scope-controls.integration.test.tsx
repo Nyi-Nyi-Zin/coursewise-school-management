@@ -26,11 +26,11 @@ function ScopeHarness() {
 }
 
 describe("CourseBatchScopeControls integration", () => {
-  it("hides records without a full scope, then updates attendance and quiz review together when the selected pair changes", async () => {
+  it("shows every record for all pairs, then filters both modules when the selected pair changes", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><ScopeHarness /></QueryClientProvider>);
-    expect(screen.getByTestId("attendance").textContent).toBe("none");
-    expect(screen.getByTestId("quizzes").textContent).toBe("none");
+    expect(screen.getByTestId("attendance").textContent).toBe("attendance-a,attendance-b");
+    expect(screen.getByTestId("quizzes").textContent).toBe("quiz-a,quiz-b");
     await screen.findByRole("option", { name: "Course 1 — Batch A" });
     const pair = screen.getByRole("combobox", { name: "Filter by course and batch" });
     fireEvent.change(pair, { target: { value: "batch-a" } });

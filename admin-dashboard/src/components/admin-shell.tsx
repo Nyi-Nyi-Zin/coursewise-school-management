@@ -48,6 +48,7 @@ import { useSingleFlight } from "@/lib/use-single-flight";
 import { CourseBatchManager } from "@/components/course-batch-manager";
 import { AssignmentManager } from "@/components/assignment-manager";
 import { CertificateManager } from "@/components/certificate-manager";
+import { CloudinaryMediaManager } from "@/components/cloudinary-media-manager";
 
 type Section =
   | "overview"
@@ -59,8 +60,9 @@ type Section =
   | "quizzes"
   | "attendance"
   | "certificates"
+  | "media"
   | "settings";
-type WorkspaceSection = Exclude<Section, "courses" | "certificates">;
+type WorkspaceSection = Exclude<Section, "courses" | "certificates" | "media">;
 function isRecordSection(section: Section): section is ManagementSection {
   return [
     "students",
@@ -81,6 +83,7 @@ const navigation: Array<{ id: Section; label: string; icon: LucideIcon }> = [
   { id: "assignments", label: "Assignments", icon: ClipboardCheck },
   { id: "quizzes", label: "Quizzes", icon: ClipboardCheck },
   { id: "certificates", label: "Certificates", icon: Award },
+  { id: "media", label: "Media library", icon: CloudCog },
   // Temporarily hidden from the admin navigation; keep the attendance page/code intact.
   // { id: "attendance", label: "Attendance", icon: CalendarDays },
   // Temporarily hidden from the admin navigation; keep the settings page/code intact.
@@ -97,6 +100,7 @@ const sectionPaths: Record<Section, string> = {
   quizzes: "/quizzes",
   attendance: "/attendance",
   certificates: "/certificates",
+  media: "/media",
   settings: "/settings",
 };
 
@@ -158,6 +162,11 @@ const headings: Record<
     title: "Certificate studio",
     description:
       "Issue completion certificates from one reusable design with student, course, batch, date, and serial details.",
+  },
+  media: {
+    eyebrow: "Cloudinary assets",
+    title: "Media library",
+    description: "Review every Cloudinary image, video, and file before permanently removing it.",
   },
   settings: {
     eyebrow: "Configuration",
@@ -407,6 +416,8 @@ export function AdminShell() {
             <CourseBatchManager />
           ) : section === "assignments" ? (
             <AssignmentManager />
+          ) : section === "media" ? (
+            <CloudinaryMediaManager />
           ) : (
             <>
               <OfflineWorkspace
@@ -430,7 +441,7 @@ export function AdminShell() {
           )}
         </div>
       </main>
-      {isPanelOpen && section !== "courses" && section !== "assignments" && section !== "certificates" && (
+      {isPanelOpen && section !== "courses" && section !== "assignments" && section !== "certificates" && section !== "media" && (
         <OfflineActionPanel
           section={section as WorkspaceSection}
           initial={editingItem}

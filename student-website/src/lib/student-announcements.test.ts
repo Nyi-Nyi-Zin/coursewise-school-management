@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ getDocs: vi.fn(), getDoc: vi.fn() }));
 vi.mock("@/lib/firebase", () => ({ firestore: {} }));
 vi.mock("@/lib/student-data", () => ({ demoAnnouncements: [], demoAttendance: [], demoLessons: [] }));
 vi.mock("@/lib/authenticated-api", () => ({ authenticatedApiFetch: vi.fn() }));
-vi.mock("@/lib/cloudinary-upload-service", () => ({ uploadStudentProfilePhoto: vi.fn(), uploadAssignmentFileToStorage: vi.fn() }));
+vi.mock("@/lib/cloudinary-upload-service", () => ({ uploadStudentProfilePhoto: vi.fn(), uploadAssignmentFileToCloudinary: vi.fn() }));
 vi.mock("firebase/firestore", () => ({
   ...mocks,
   collection: (_db: unknown, name: string) => name,

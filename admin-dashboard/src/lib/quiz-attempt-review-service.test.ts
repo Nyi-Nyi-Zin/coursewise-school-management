@@ -20,4 +20,13 @@ describe("loadBatchQuizAttempts", () => {
     await expect(loadBatchQuizAttempts({ courseId: "course-a", batchId: "" })).resolves.toEqual([]);
     expect(firestore.getDocs).not.toHaveBeenCalled();
   });
+
+  it("queries recent attempts without pair filters for the all-pairs scope", async () => {
+    const { loadBatchQuizAttempts } = await import("./quiz-attempt-review-service");
+    const attempts = await loadBatchQuizAttempts({ courseId: "", batchId: "" });
+    expect(firestore.where).not.toHaveBeenCalled();
+    expect(firestore.orderBy).toHaveBeenCalledWith("submittedAt", "desc");
+    expect(firestore.getDocs).toHaveBeenCalledOnce();
+    expect(attempts).toHaveLength(1);
+  });
 });

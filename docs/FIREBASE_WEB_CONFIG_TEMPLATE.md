@@ -8,7 +8,6 @@ Use the Firebase Web App values from **Firebase Console → Project settings →
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Browser Firebase initialization | Web App configuration |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Authentication client | Web App configuration |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firestore client | Web App configuration |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase client configuration | Web App configuration |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase client configuration | Web App configuration |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase app identification | Web App configuration |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Browser Cloudinary upload destination | Cloudinary product environment |
@@ -19,7 +18,7 @@ The values are consumed by `student-website/src/lib/firebase.ts` and `admin-dash
 
 ## Uploads
 
-Avatars, banners, and lesson thumbnails (UI/product images) use Cloudinary. Assignment submissions and lesson documents/large media use Firebase Storage with the rules from `firebase/storage.rules`. Do not create or expose an unsigned upload preset for those uploads; add the Cloudinary cloud name to both websites and add `CLOUDINARY_API_KEY` plus `CLOUDINARY_API_SECRET` as server-only variables to both Vercel projects. The backend signs short-lived uploads and accepts only the fixed `coursewise` folders for each upload type.
+Avatars, banners, lesson thumbnails, and student assignment attachments use Cloudinary. Firebase remains responsible for Authentication and Firestore only; Cloud Storage for Firebase is not required. Add the Cloudinary cloud name to both websites and add `CLOUDINARY_API_KEY` plus `CLOUDINARY_API_SECRET` as server-only variables to both Vercel projects. The backend signs uploads and accepts only the fixed `coursewise` folders for each upload type. Assignment attachments use authenticated delivery and are opened through role-checked, short-lived download URLs.
 
 ## References
 

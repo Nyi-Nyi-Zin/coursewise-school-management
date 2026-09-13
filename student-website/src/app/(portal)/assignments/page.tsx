@@ -29,6 +29,7 @@ import { useStudentAuth } from "@/components/student-auth-provider";
 import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import {
   getPublishedAssignments,
+  getAssignmentFileDownloadUrl,
   getStudentAssignmentSubmissions,
   submitAssignment,
   type Assignment,
@@ -39,6 +40,19 @@ import { isFirebaseConfigured } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import { useSingleFlight } from "@/lib/use-single-flight";
 import { getUserFacingErrorMessage } from "../../../../../shared/user-facing-errors";
+
+async function openAssignmentFile(submissionId: string) {
+  const popup = window.open("", "_blank");
+  if (popup) popup.opener = null;
+  try {
+    const url = await getAssignmentFileDownloadUrl(submissionId);
+    if (popup) popup.location.href = url;
+    else window.location.href = url;
+  } catch (error) {
+    popup?.close();
+    toast.error(getUserFacingErrorMessage(error, "Could not open the assignment file."));
+  }
+}
 
 type AssignmentFilter =
   | "all"
@@ -593,21 +607,18 @@ function AssignmentRow({
                 No attachment
               </span>
             )}
-            {submission?.submissionUrl ? (
-              <a
-                href={submission.submissionUrl}
-                target="_blank"
-                rel="noreferrer"
+            {submission?.assetPublicId ? (
+              <button
+                type="button"
+                onClick={() => void openAssignmentFile(submission.id)}
                 className="inline-flex items-center gap-1.5 transition hover:text-teal-700"
               >
-                {submission.submissionFileName ? (
-                  <FileText className="size-3.5" />
-                ) : (
-                  <Link2 className="size-3.5" />
-                )}
-                {submission.submissionFileName
-                  ? `Submission file · ${submission.submissionFileName}`
-                  : "Submission link"}
+                <FileText className="size-3.5" />
+                {`Submission file · ${submission.submissionFileName ?? "Download"}`}
+              </button>
+            ) : submission?.submissionUrl ? (
+              <a href={submission.submissionUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 transition hover:text-teal-700">
+                <Link2 className="size-3.5" /> Submission link
               </a>
             ) : null}
           </div>
@@ -899,23 +910,26 @@ function SubmissionDialog({
               </p>
             </div>
           ) : null}
-          {submission?.submissionFileName && !reviewed ? (
+          {submission?.assetPublicId && submission.submissionFileName && !reviewed ? (
             <div className="mt-5 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-teal-600">
                 <FileText className="size-4" />
               </span>
-              <a
-                href={submission.submissionUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => void openAssignmentFile(submission.id)}
                 className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 transition hover:text-teal-700"
               >
                 {submission.submissionFileName}
-              </a>
+              </button>
               <span className="shrink-0 text-xs font-medium text-slate-400">
                 Uploaded
               </span>
             </div>
+          ) : submission?.submissionFileName && submission.submissionUrl && !reviewed ? (
+            <a href={submission.submissionUrl} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-teal-700">
+              <FileText className="size-4" /> {submission.submissionFileName}
+            </a>
           ) : null}
           <label className="mt-5 block text-sm font-medium text-slate-700">
             Response or notes
@@ -971,7 +985,7 @@ function SubmissionDialog({
                   Choose a file to upload
                 </span>
                 <span className="text-xs text-slate-500">
-                  PDF, ZIP, documents, or images · up to 20 MB
+                  PDF, Word, PowerPoint, text, or images · up to 10 MB
                 </span>
                 <input
                   type="file"

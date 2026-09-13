@@ -34,9 +34,10 @@ export async function POST(request: Request) {
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
     if (!cloudName || !apiKey || !apiSecret) throw new ApiError(503, "Cloudinary signed uploads are not configured.");
     const timestamp = Math.floor(Date.now() / 1000);
-    const parameters = `folder=${folder}&timestamp=${timestamp}`;
+    const uploadPreset = "coursewise_images";
+    const parameters = `folder=${folder}&timestamp=${timestamp}&upload_preset=${uploadPreset}`;
     const signature = createHash("sha1").update(`${parameters}${apiSecret}`).digest("hex");
-    return NextResponse.json({ cloudName, apiKey, timestamp, signature, folder, resourceType: "image" });
+    return NextResponse.json({ cloudName, apiKey, timestamp, signature, folder, resourceType: "image", upload_preset: uploadPreset });
   } catch (error) {
     return apiErrorResponse(error, "A secure upload could not be prepared.");
   }

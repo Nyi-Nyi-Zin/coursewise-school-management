@@ -19,8 +19,8 @@
     "student:web:build": "pnpm --filter student-website run build",
     "audit:deps": "pnpm audit --audit-level high",
     "audit:secrets": "node scripts/check-secret-hygiene.mjs",
-    "test:rules": "vitest run firebase/firestore.rules.test.ts firebase/storage.rules.test.ts --no-file-parallelism",
-    "audit:rules": "firebase emulators:exec --project demo-coursewise-audit --only firestore,storage \"pnpm test:rules\"",
+    "test:rules": "vitest run firebase/firestore.rules.test.ts --no-file-parallelism",
+    "audit:rules": "firebase emulators:exec --project demo-coursewise-audit --only firestore \"pnpm test:rules\"",
     "test:e2e": "playwright test",
     "audit:lighthouse": "node scripts/run-lighthouse-audit.mjs",
     "quality:gate": "pnpm audit:secrets && pnpm audit:deps && pnpm admin:lint && pnpm --filter student-website run lint && pnpm test && pnpm audit:rules && pnpm admin:build && pnpm student:web:build && pnpm test:e2e && pnpm audit:lighthouse"

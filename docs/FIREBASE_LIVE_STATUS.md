@@ -19,4 +19,4 @@ Trusted workflows no longer wait for Firebase Cloud Functions or a Blaze billing
 
 Before releasing this migration, add `FIREBASE_SERVICE_ACCOUNT_JSON` to both Vercel projects and `SIGNUP_RATE_LIMIT_SALT` to the Student Website, then redeploy both projects. Validate the acceptance checklist in `FIREBASE_HANDOFF.md`.
 
-Firebase deployment is now limited to Firestore Rules, indexes, and Storage Rules. The legacy Cloud Functions source is not part of the active deployment configuration.
+Firebase deployment is now limited to Firestore Rules and indexes. Images and files use Cloudinary, so the Spark-plan project does not require Cloud Storage for Firebase. The legacy Cloud Functions source is not part of the active deployment configuration.
