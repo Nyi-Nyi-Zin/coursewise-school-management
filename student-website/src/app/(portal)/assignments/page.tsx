@@ -8,7 +8,6 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
-  ChevronDown,
   Clock3,
   ExternalLink,
   FileCheck2,
@@ -25,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { useCourseBatchSelection } from "@/components/course-batch-selector";
 import {
@@ -77,6 +77,12 @@ const filters: { value: AssignmentFilter; label: string }[] = [
   { value: "submitted", label: "Submitted" },
   { value: "reviewed", label: "Reviewed" },
   { value: "upcoming", label: "Upcoming" },
+];
+
+const assignmentSortOptions: { value: AssignmentSort; label: string }[] = [
+  { value: "due-asc", label: "Due date (soonest)" },
+  { value: "due-desc", label: "Due date (latest)" },
+  { value: "title", label: "Title" },
 ];
 
 const demoAssignments: Assignment[] = [
@@ -407,21 +413,16 @@ export default function AssignmentsPage() {
                 </button>
               ))}
             </div>
-            <label className="relative flex items-center gap-2 text-sm font-medium text-slate-700 lg:col-span-2 xl:col-span-1">
+            <div className="flex items-center gap-2 text-[13px] font-medium text-slate-700 lg:col-span-2 xl:col-span-1 sm:text-sm">
               <span className="shrink-0">Sort by</span>
-              <select
+              <MobileSelect
                 value={sort}
-                onChange={event =>
-                  setSort(event.target.value as AssignmentSort)
-                }
-                className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm text-slate-700 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 xl:w-44"
-              >
-                <option value="due-asc">Due date (soonest)</option>
-                <option value="due-desc">Due date (latest)</option>
-                <option value="title">Title</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 size-4 text-slate-400" />
-            </label>
+                options={assignmentSortOptions}
+                onValueChange={setSort}
+                ariaLabel="Sort assignments"
+                className="w-full xl:w-44"
+              />
+            </div>
           </div>
 
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_7px_22px_rgba(15,23,42,0.035)]">

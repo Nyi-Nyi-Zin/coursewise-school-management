@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   Award, BadgeCheck, BarChart3, CalendarDays, Check, CheckCircle2,
   Download, Eye, FileBadge2, Loader2, Medal, Share2, ShieldCheck, UserRound,
@@ -20,7 +21,8 @@ function formatDate(iso?: string, compact = false) {
 
 export default function CertificatesPage() {
   const { user } = useStudentAuth();
-  const [printCertificate, setPrintCertificate] = useState<StudentCertificate | null>(null);
+  const [downloadCertificate, setDownloadCertificate] = useState<StudentCertificate | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const certificates = useQuery({
@@ -32,10 +34,64 @@ export default function CertificatesPage() {
   const items = certificates.data ?? [];
   const selectedCertificate = items.find(item => item.id === selectedId) ?? items[0];
 
-  function print(cert: StudentCertificate) {
-    setPrintCertificate(cert);
-    window.setTimeout(() => window.print(), 0);
+  function downloadPdf(cert: StudentCertificate) {
+    if (downloadingId) return;
+    setDownloadingId(cert.id);
+    setDownloadCertificate(cert);
   }
+
+  useEffect(() => {
+    if (!downloadCertificate) return;
+    const activeCertificate = downloadCertificate;
+    let cancelled = false;
+
+    async function createPdf() {
+      try {
+        const certificate = document.getElementById("certificate-pdf-source");
+        if (!certificate) throw new Error("Certificate preview is not ready.");
+
+        await document.fonts.ready;
+        await Promise.all(
+          Array.from(certificate.querySelectorAll("img")).map(image =>
+            image.complete ? image.decode().catch(() => undefined) : new Promise<void>(resolve => {
+              image.addEventListener("load", () => resolve(), { once: true });
+              image.addEventListener("error", () => resolve(), { once: true });
+            })
+          )
+        );
+        if (cancelled) return;
+
+        const [{ toPng }, { jsPDF }] = await Promise.all([
+          import("html-to-image"),
+          import("jspdf"),
+        ]);
+        const image = await toPng(certificate, {
+          backgroundColor: "#fbfcfe",
+          cacheBust: true,
+          pixelRatio: 2,
+          width: 1123,
+          height: 794,
+        });
+        if (cancelled) return;
+
+        const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
+        pdf.addImage(image, "PNG", 0, 0, 297, 210, undefined, "FAST");
+        const safeId = activeCertificate.certificateId.replace(/[^a-z0-9_-]+/gi, "-");
+        pdf.save((safeId || "certificate") + ".pdf");
+      } catch (error) {
+        console.error("Could not generate certificate PDF", error);
+        toast.error("Certificate PDF could not be downloaded. Please try again.");
+      } finally {
+        if (!cancelled) {
+          setDownloadingId(null);
+          setDownloadCertificate(null);
+        }
+      }
+    }
+
+    void createPdf();
+    return () => { cancelled = true; };
+  }, [downloadCertificate]);
 
   async function share(cert: StudentCertificate) {
     const text = `${cert.courseTitle} certificate — verification code: ${cert.verificationCode}`;
@@ -71,8 +127,8 @@ export default function CertificatesPage() {
 
           <div className="mt-3 grid items-start gap-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(290px,.78fr)]">
             <div className="min-w-0 space-y-3">
-              <FeaturedCertificate certificate={selectedCertificate} onPrint={() => print(selectedCertificate)} onShare={() => share(selectedCertificate)} copied={copiedCode === selectedCertificate.verificationCode} />
-              <CertificateHistory items={items} selectedId={selectedCertificate.id} onSelect={setSelectedId} onPrint={print} onShare={share} copiedCode={copiedCode} />
+              <FeaturedCertificate certificate={selectedCertificate} onDownload={() => downloadPdf(selectedCertificate)} onShare={() => share(selectedCertificate)} copied={copiedCode === selectedCertificate.verificationCode} downloading={downloadingId === selectedCertificate.id} />
+              <CertificateHistory items={items} selectedId={selectedCertificate.id} onSelect={setSelectedId} onDownload={downloadPdf} onShare={share} copiedCode={copiedCode} downloadingId={downloadingId} />
             </div>
             <aside className="min-w-0 space-y-3">
               <VerificationPanel certificate={selectedCertificate} copied={copiedCode === selectedCertificate.verificationCode} onCopy={() => share(selectedCertificate)} />
@@ -81,16 +137,11 @@ export default function CertificatesPage() {
         </>
       ) : null}
 
-      {printCertificate ? <div id="print-certificate" className="hidden"><PrintCertificate certificate={printCertificate} /></div> : null}
-      <style>{`
-        @media print {
-          @page { size: A4 landscape; margin: 0; }
-          body * { visibility: hidden !important; }
-          #print-certificate, #print-certificate * { visibility: visible !important; }
-          #print-certificate { position: fixed; inset: 0; z-index: 99999; display: grid !important; place-items: center; background: white; }
-          #print-certificate .certificate-template { width: 297mm !important; height: 210mm !important; box-shadow: none !important; }
-        }
-      `}</style>
+      {downloadCertificate ? (
+        <div aria-hidden="true" className="pointer-events-none fixed left-[-10000px] top-0 h-[794px] w-[1123px] overflow-hidden">
+          <PdfCertificate certificate={downloadCertificate} />
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -119,7 +170,7 @@ function MetricCard({ icon: Icon, label, value, detail, progress }: { icon: type
   );
 }
 
-function FeaturedCertificate({ certificate, onPrint, onShare, copied }: { certificate: StudentCertificate; onPrint: () => void; onShare: () => void; copied: boolean }) {
+function FeaturedCertificate({ certificate, onDownload, onShare, copied, downloading }: { certificate: StudentCertificate; onDownload: () => void; onShare: () => void; copied: boolean; downloading: boolean }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_28px_rgba(15,23,42,0.05)] sm:p-5">
       <div className="grid gap-5 md:grid-cols-[minmax(245px,.92fr)_minmax(0,1.42fr)]">
@@ -133,8 +184,8 @@ function FeaturedCertificate({ certificate, onPrint, onShare, copied }: { certif
             <CertificateDetail icon={BadgeCheck} label="Final score" value={`${certificate.percentage}% · Passed`} />
           </dl>
           <div className="mt-auto grid gap-2 pt-5 sm:grid-cols-3">
-            <button onClick={onPrint} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-800 to-teal-600 px-3 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-105"><Eye className="size-4" /> View certificate</button>
-            <button onClick={onPrint} className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-600 bg-white px-3 py-2.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50"><Download className="size-4" /> Download PDF</button>
+            <button onClick={onDownload} disabled={downloading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-800 to-teal-600 px-3 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-wait disabled:opacity-70">{downloading ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />} {downloading ? "Preparing PDF..." : "View certificate"}</button>
+            <button onClick={onDownload} disabled={downloading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-600 bg-white px-3 py-2.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 disabled:cursor-wait disabled:opacity-70">{downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} {downloading ? "Preparing PDF..." : "Download PDF"}</button>
             <button onClick={onShare} className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-600 bg-white px-3 py-2.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50">{copied ? <Check className="size-4" /> : <Share2 className="size-4" />} {copied ? "Shared" : "Share"}</button>
           </div>
         </div>
@@ -174,7 +225,7 @@ function VerificationPanel({ certificate, onCopy, copied }: { certificate: Stude
   );
 }
 
-function CertificateHistory({ items, selectedId, onSelect, onPrint, onShare, copiedCode }: { items: StudentCertificate[]; selectedId: string; onSelect: (id: string) => void; onPrint: (cert: StudentCertificate) => void; onShare: (cert: StudentCertificate) => void; copiedCode: string | null }) {
+function CertificateHistory({ items, selectedId, onSelect, onDownload, onShare, copiedCode, downloadingId }: { items: StudentCertificate[]; selectedId: string; onSelect: (id: string) => void; onDownload: (cert: StudentCertificate) => void; onShare: (cert: StudentCertificate) => void; copiedCode: string | null; downloadingId: string | null }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_7px_24px_rgba(15,23,42,0.04)]">
       <h2 className="px-5 pb-3 pt-4 text-sm font-bold text-slate-900">Certificate history</h2>
@@ -186,7 +237,7 @@ function CertificateHistory({ items, selectedId, onSelect, onPrint, onShare, cop
               <span className="min-w-0 flex-1"><span className="block truncate font-semibold text-slate-800">{cert.courseTitle} Certificate</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">ID: {cert.certificateId} · {formatDate(cert.issuedAt, true)}</span></span>
               <span className="col-start-2 w-fit rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 min-[390px]:col-start-3 min-[390px]:row-start-1">Verified</span>
             </button>
-            <div className="mt-3 flex justify-end gap-1 border-t border-slate-100 pt-2"><ActionButton label="View certificate" onClick={() => onSelect(cert.id)}><Eye className="size-4" /></ActionButton><ActionButton label="Download PDF" onClick={() => onPrint(cert)}><Download className="size-4" /></ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div>
+            <div className="mt-3 flex justify-end gap-1 border-t border-slate-100 pt-2"><ActionButton label="View certificate" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}>{downloadingId === cert.id ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}</ActionButton><ActionButton label="Download PDF" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}><Download className="size-4" /></ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div>
           </article>
         ))}
       </div>
@@ -197,7 +248,7 @@ function CertificateHistory({ items, selectedId, onSelect, onPrint, onShare, cop
             <tr key={cert.id} className={selectedId === cert.id ? "bg-teal-50/35" : ""}>
               <td className="px-3 py-2.5"><button onClick={() => onSelect(cert.id)} className="flex max-w-sm items-center gap-3 text-left"><span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#0b2132] text-[#e8c66c]"><FileBadge2 className="size-5" /></span><span className="min-w-0"><span className="block truncate font-semibold text-slate-800">{cert.courseTitle} Certificate</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">ID: {cert.certificateId}</span></span></button></td>
               <td className="px-3 py-2.5 text-slate-500">{formatDate(cert.issuedAt, true)}</td><td className="px-3 py-2.5"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">Verified</span></td>
-              <td className="px-3 py-2.5"><div className="flex justify-end gap-1"><ActionButton label="View certificate" onClick={() => onSelect(cert.id)}><Eye className="size-4" /></ActionButton><ActionButton label="Download PDF" onClick={() => onPrint(cert)}><Download className="size-4" /></ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div></td>
+              <td className="px-3 py-2.5"><div className="flex justify-end gap-1"><ActionButton label="View certificate" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}>{downloadingId === cert.id ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}</ActionButton><ActionButton label="Download PDF" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}><Download className="size-4" /></ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div></td>
             </tr>
           ))}</tbody>
         </table>
@@ -207,13 +258,15 @@ function CertificateHistory({ items, selectedId, onSelect, onPrint, onShare, cop
   );
 }
 
-function ActionButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return <button onClick={onClick} aria-label={label} title={label} className="grid size-8 place-items-center rounded-lg text-slate-500 transition hover:bg-teal-50 hover:text-teal-700">{children}</button>;
+function ActionButton({ label, onClick, children, disabled = false }: { label: string; onClick: () => void; children: React.ReactNode; disabled?: boolean }) {
+  return <button onClick={onClick} disabled={disabled} aria-label={label} title={label} className="grid size-8 place-items-center rounded-lg text-slate-500 transition hover:bg-teal-50 hover:text-teal-700 disabled:cursor-wait disabled:opacity-50">{children}</button>;
 }
 
-function PrintCertificate({ certificate }: { certificate: StudentCertificate }) {
+function PdfCertificate({ certificate }: { certificate: StudentCertificate }) {
   return (
     <CertificateTemplate
+      id="certificate-pdf-source"
+      className="h-[794px] w-[1123px] shadow-none"
       studentName={certificate.studentName}
       courseTitle={certificate.courseTitle}
       batchName={certificate.batchName}

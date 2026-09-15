@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { LessonStatusControl } from "@/components/lesson-status-control";
 import { useLessonProgress } from "@/components/use-lesson-progress";
 import { useCourseBatchSelection } from "@/components/course-batch-selector";
@@ -32,6 +33,11 @@ const filters: { value: LessonFilter; label: string }[] = [
   { value: "continue", label: "In progress" },
   { value: "complete", label: "Completed" },
   { value: "new", label: "New" },
+];
+const lessonSortOptions: { value: LessonSort; label: string }[] = [
+  { value: "order", label: "Lesson order" },
+  { value: "title", label: "Title" },
+  { value: "duration", label: "Duration" },
 ];
 
 export default function LessonsPage() {
@@ -122,18 +128,16 @@ export default function LessonsPage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <span>Sort by</span>
-            <select
+          <div className="flex items-center gap-2 text-[13px] font-medium text-slate-700 sm:text-sm">
+            <span className="shrink-0">Sort by</span>
+            <MobileSelect
               value={sort}
-              onChange={event => setSort(event.target.value as LessonSort)}
-              className="h-11 min-w-36 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
-            >
-              <option value="order">Lesson order</option>
-              <option value="title">Title</option>
-              <option value="duration">Duration</option>
-            </select>
-          </label>
+              options={lessonSortOptions}
+              onValueChange={setSort}
+              ariaLabel="Sort lessons"
+              className="min-w-40"
+            />
+          </div>
         </div>
       </div>
 

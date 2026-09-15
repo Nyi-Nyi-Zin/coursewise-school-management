@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
 import { type Lesson } from "@/lib/student-data";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { cn } from "@/lib/utils";
 
 const statusControlStyles: Record<Lesson["status"], string> = {
@@ -10,26 +10,37 @@ const statusControlStyles: Record<Lesson["status"], string> = {
   complete: "border-teal-200 bg-teal-50 text-teal-700",
 };
 
-export function LessonStatusControl({ lessonTitle, status, disabled, pending, onChange }: { lessonTitle: string; status: Lesson["status"]; disabled: boolean; pending: boolean; onChange: (status: Lesson["status"]) => void }) {
+const statusOptions: { value: Lesson["status"]; label: string }[] = [
+  { value: "new", label: "New" },
+  { value: "continue", label: "In progress" },
+  { value: "complete", label: "Completed" },
+];
+
+export function LessonStatusControl({
+  lessonTitle,
+  status,
+  disabled,
+  pending,
+  onChange,
+}: {
+  lessonTitle: string;
+  status: Lesson["status"];
+  disabled: boolean;
+  pending: boolean;
+  onChange: (status: Lesson["status"]) => void;
+}) {
   return (
-    <label className={cn(
-      "flex items-center gap-0.5 rounded-full border py-1 pl-3 pr-1.5 text-[10px] font-semibold transition",
-      statusControlStyles[status],
-      disabled || pending ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:brightness-95",
-    )}>
-      <span className="sr-only">Lesson status</span>
-      <select
-        value={status}
-        disabled={disabled || pending}
-        onChange={event => onChange(event.target.value as Lesson["status"])}
-        aria-label={`Set status for ${lessonTitle}`}
-        className="appearance-none bg-transparent pr-2 text-[10px] font-semibold outline-none disabled:cursor-not-allowed"
-      >
-        <option value="new">New</option>
-        <option value="continue">In progress</option>
-        <option value="complete">Completed</option>
-      </select>
-      <ChevronDown className="size-3.5" />
-    </label>
+    <MobileSelect
+      value={status}
+      options={statusOptions}
+      disabled={disabled || pending}
+      onValueChange={onChange}
+      ariaLabel={`Set status for ${lessonTitle}`}
+      className={cn(
+        "h-9 w-auto rounded-full py-1 pl-3 pr-2 text-[11px] font-semibold sm:text-xs",
+        statusControlStyles[status],
+        disabled || pending ? "cursor-not-allowed opacity-60" : "hover:brightness-95",
+      )}
+    />
   );
 }
