@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Award, BadgeCheck, BarChart3, CalendarDays, Check, CheckCircle2,
-  Download, Eye, FileBadge2, Loader2, Medal, Share2, ShieldCheck, UserRound,
+  Download, Eye, FileBadge2, Loader2, Medal, Share2, ShieldCheck, UserRound, X,
 } from "lucide-react";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { CertificateTemplate } from "@/components/certificate-template";
@@ -22,6 +22,7 @@ function formatDate(iso?: string, compact = false) {
 export default function CertificatesPage() {
   const { user } = useStudentAuth();
   const [downloadCertificate, setDownloadCertificate] = useState<StudentCertificate | null>(null);
+  const [viewCertificate, setViewCertificate] = useState<StudentCertificate | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -127,8 +128,8 @@ export default function CertificatesPage() {
 
           <div className="mt-3 grid items-start gap-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(290px,.78fr)]">
             <div className="min-w-0 space-y-3">
-              <FeaturedCertificate certificate={selectedCertificate} onDownload={() => downloadPdf(selectedCertificate)} onShare={() => share(selectedCertificate)} copied={copiedCode === selectedCertificate.verificationCode} downloading={downloadingId === selectedCertificate.id} />
-              <CertificateHistory items={items} selectedId={selectedCertificate.id} onSelect={setSelectedId} onDownload={downloadPdf} onShare={share} copiedCode={copiedCode} downloadingId={downloadingId} />
+              <FeaturedCertificate certificate={selectedCertificate} onView={() => setViewCertificate(selectedCertificate)} onDownload={() => downloadPdf(selectedCertificate)} onShare={() => share(selectedCertificate)} copied={copiedCode === selectedCertificate.verificationCode} downloading={downloadingId === selectedCertificate.id} />
+              <CertificateHistory items={items} selectedId={selectedCertificate.id} onSelect={setSelectedId} onView={setViewCertificate} onDownload={downloadPdf} onShare={share} copiedCode={copiedCode} downloadingId={downloadingId} />
             </div>
             <aside className="min-w-0 space-y-3">
               <VerificationPanel certificate={selectedCertificate} copied={copiedCode === selectedCertificate.verificationCode} onCopy={() => share(selectedCertificate)} />
@@ -141,6 +142,15 @@ export default function CertificatesPage() {
         <div aria-hidden="true" className="pointer-events-none fixed left-[-10000px] top-0 h-[794px] w-[1123px] overflow-hidden">
           <PdfCertificate certificate={downloadCertificate} />
         </div>
+      ) : null}
+
+      {viewCertificate ? (
+        <CertificateModal
+          certificate={viewCertificate}
+          downloading={downloadingId === viewCertificate.id}
+          onClose={() => setViewCertificate(null)}
+          onDownload={() => downloadPdf(viewCertificate)}
+        />
       ) : null}
     </section>
   );
@@ -170,7 +180,7 @@ function MetricCard({ icon: Icon, label, value, detail, progress }: { icon: type
   );
 }
 
-function FeaturedCertificate({ certificate, onDownload, onShare, copied, downloading }: { certificate: StudentCertificate; onDownload: () => void; onShare: () => void; copied: boolean; downloading: boolean }) {
+function FeaturedCertificate({ certificate, onView, onDownload, onShare, copied, downloading }: { certificate: StudentCertificate; onView: () => void; onDownload: () => void; onShare: () => void; copied: boolean; downloading: boolean }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_8px_28px_rgba(15,23,42,0.05)] sm:p-5">
       <div className="grid gap-5 md:grid-cols-[minmax(245px,.92fr)_minmax(0,1.42fr)]">
@@ -184,7 +194,7 @@ function FeaturedCertificate({ certificate, onDownload, onShare, copied, downloa
             <CertificateDetail icon={BadgeCheck} label="Final score" value={`${certificate.percentage}% · Passed`} />
           </dl>
           <div className="mt-auto grid gap-2 pt-5 sm:grid-cols-3">
-            <button onClick={onDownload} disabled={downloading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-800 to-teal-600 px-3 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-wait disabled:opacity-70">{downloading ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />} {downloading ? "Preparing PDF..." : "View certificate"}</button>
+            <button onClick={onView} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-800 to-teal-600 px-3 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-105"><Eye className="size-4" /> View certificate</button>
             <button onClick={onDownload} disabled={downloading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-600 bg-white px-3 py-2.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 disabled:cursor-wait disabled:opacity-70">{downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} {downloading ? "Preparing PDF..." : "Download PDF"}</button>
             <button onClick={onShare} className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-600 bg-white px-3 py-2.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50">{copied ? <Check className="size-4" /> : <Share2 className="size-4" />} {copied ? "Shared" : "Share"}</button>
           </div>
@@ -225,7 +235,7 @@ function VerificationPanel({ certificate, onCopy, copied }: { certificate: Stude
   );
 }
 
-function CertificateHistory({ items, selectedId, onSelect, onDownload, onShare, copiedCode, downloadingId }: { items: StudentCertificate[]; selectedId: string; onSelect: (id: string) => void; onDownload: (cert: StudentCertificate) => void; onShare: (cert: StudentCertificate) => void; copiedCode: string | null; downloadingId: string | null }) {
+function CertificateHistory({ items, selectedId, onSelect, onView, onDownload, onShare, copiedCode, downloadingId }: { items: StudentCertificate[]; selectedId: string; onSelect: (id: string) => void; onView: (cert: StudentCertificate) => void; onDownload: (cert: StudentCertificate) => void; onShare: (cert: StudentCertificate) => void; copiedCode: string | null; downloadingId: string | null }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_7px_24px_rgba(15,23,42,0.04)]">
       <h2 className="px-5 pb-3 pt-4 text-sm font-bold text-slate-900">Certificate history</h2>
@@ -237,7 +247,7 @@ function CertificateHistory({ items, selectedId, onSelect, onDownload, onShare, 
               <span className="min-w-0 flex-1"><span className="block truncate font-semibold text-slate-800">{cert.courseTitle} Certificate</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">ID: {cert.certificateId} · {formatDate(cert.issuedAt, true)}</span></span>
               <span className="col-start-2 w-fit rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 min-[390px]:col-start-3 min-[390px]:row-start-1">Verified</span>
             </button>
-            <div className="mt-3 flex justify-end gap-1 border-t border-slate-100 pt-2"><ActionButton label="View certificate" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}>{downloadingId === cert.id ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}</ActionButton><ActionButton label="Download PDF" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}><Download className="size-4" /></ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div>
+            <div className="mt-3 flex justify-end gap-1 border-t border-slate-100 pt-2"><ActionButton label="View certificate" onClick={() => onView(cert)}><Eye className="size-4" /></ActionButton><ActionButton label="Download PDF" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}>{downloadingId === cert.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}</ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div>
           </article>
         ))}
       </div>
@@ -248,7 +258,7 @@ function CertificateHistory({ items, selectedId, onSelect, onDownload, onShare, 
             <tr key={cert.id} className={selectedId === cert.id ? "bg-teal-50/35" : ""}>
               <td className="px-3 py-2.5"><button onClick={() => onSelect(cert.id)} className="flex max-w-sm items-center gap-3 text-left"><span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#0b2132] text-[#e8c66c]"><FileBadge2 className="size-5" /></span><span className="min-w-0"><span className="block truncate font-semibold text-slate-800">{cert.courseTitle} Certificate</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">ID: {cert.certificateId}</span></span></button></td>
               <td className="px-3 py-2.5 text-slate-500">{formatDate(cert.issuedAt, true)}</td><td className="px-3 py-2.5"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">Verified</span></td>
-              <td className="px-3 py-2.5"><div className="flex justify-end gap-1"><ActionButton label="View certificate" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}>{downloadingId === cert.id ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}</ActionButton><ActionButton label="Download PDF" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}><Download className="size-4" /></ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div></td>
+              <td className="px-3 py-2.5"><div className="flex justify-end gap-1"><ActionButton label="View certificate" onClick={() => onView(cert)}><Eye className="size-4" /></ActionButton><ActionButton label="Download PDF" onClick={() => onDownload(cert)} disabled={Boolean(downloadingId)}>{downloadingId === cert.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}</ActionButton><ActionButton label="Share certificate" onClick={() => onShare(cert)}>{copiedCode === cert.verificationCode ? <Check className="size-4" /> : <Share2 className="size-4" />}</ActionButton></div></td>
             </tr>
           ))}</tbody>
         </table>
@@ -260,6 +270,47 @@ function CertificateHistory({ items, selectedId, onSelect, onDownload, onShare, 
 
 function ActionButton({ label, onClick, children, disabled = false }: { label: string; onClick: () => void; children: React.ReactNode; disabled?: boolean }) {
   return <button onClick={onClick} disabled={disabled} aria-label={label} title={label} className="grid size-8 place-items-center rounded-lg text-slate-500 transition hover:bg-teal-50 hover:text-teal-700 disabled:cursor-wait disabled:opacity-50">{children}</button>;
+}
+
+function CertificateModal({ certificate, downloading, onClose, onDownload }: { certificate: StudentCertificate; downloading: boolean; onClose: () => void; onDownload: () => void }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="certificate-modal-title" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6">
+      <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
+      <div className="relative z-10 flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 id="certificate-modal-title" className="truncate text-sm font-bold text-slate-950 sm:text-base">{certificate.courseTitle} Certificate</h2>
+            <p className="mt-0.5 truncate text-xs text-slate-500">Certificate ID: {certificate.certificateId}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={onDownload} disabled={downloading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-700 px-3 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:cursor-wait disabled:opacity-70 sm:px-4">
+              {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              <span className="hidden sm:inline">{downloading ? "Preparing PDF..." : "Download PDF"}</span>
+            </button>
+            <button type="button" onClick={onClose} autoFocus className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-950" aria-label="Close certificate preview"><X className="size-5" /></button>
+          </div>
+        </div>
+        <div className="overflow-auto bg-slate-100 p-2 sm:p-5">
+          <div className="mx-auto w-full max-w-[1123px] overflow-hidden rounded-lg bg-white shadow-lg">
+            <CertificatePreview certificate={certificate} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PdfCertificate({ certificate }: { certificate: StudentCertificate }) {

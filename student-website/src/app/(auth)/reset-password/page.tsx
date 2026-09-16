@@ -26,6 +26,9 @@ export default function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const runSingleFlight = useSingleFlight();
+  const passwordInvalid = password.length > 0 && !isStrongPassword(password);
+  const confirmMismatch = confirmPassword.length > 0 && confirmPassword !== password;
+  const canSubmit = isStrongPassword(password) && confirmPassword === password && !submitting;
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +130,7 @@ export default function ResetPasswordPage() {
                     onChange={event => setPassword(event.target.value)}
                     placeholder="8+ upper, lower, number, symbol"
                     aria-describedby="password-requirements"
+                    aria-invalid={passwordInvalid}
                     autoComplete="new-password"
                     required
                     minLength={8}
@@ -141,7 +145,7 @@ export default function ResetPasswordPage() {
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
-                <p id="password-requirements" className="text-xs text-slate-500">
+                <p id="password-requirements" className={`text-xs ${passwordInvalid ? "font-medium text-red-600" : "text-slate-500"}`}>
                   {STRONG_PASSWORD_MESSAGE}
                 </p>
               </label>
@@ -157,6 +161,8 @@ export default function ResetPasswordPage() {
                     onChange={event => setConfirmPassword(event.target.value)}
                     placeholder="Repeat your new password"
                     autoComplete="new-password"
+                    aria-describedby={confirmMismatch ? "confirm-password-error" : undefined}
+                    aria-invalid={confirmMismatch}
                     required
                     minLength={8}
                     className="pr-11"
@@ -170,8 +176,13 @@ export default function ResetPasswordPage() {
                     {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
+                {confirmMismatch ? (
+                  <p id="confirm-password-error" className="text-xs font-medium text-red-600">
+                    Passwords do not match.
+                  </p>
+                ) : null}
               </label>
-              <Button className="w-full" size="lg" disabled={submitting}>
+              <Button className="w-full" size="lg" disabled={!canSubmit}>
                 {submitting ? "Updating…" : "Update password"}
               </Button>
             </form>

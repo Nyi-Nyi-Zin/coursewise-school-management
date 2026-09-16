@@ -42,4 +42,25 @@ describe("ResetPasswordPage password policy", () => {
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith({}, "test-code", "Student12!"));
     expect(await screen.findByText("Your password has been updated.")).toBeTruthy();
   });
+
+  it("shows live validation and only enables submit for a strong matching password", async () => {
+    render(<ResetPasswordPage />);
+    const password = await screen.findByLabelText(/^New password/, { selector: "input" });
+    const confirmation = screen.getByLabelText("Confirm password");
+    const button = screen.getByRole("button", { name: "Update password" });
+
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(password, { target: { value: "weak" } });
+    expect(password.getAttribute("aria-invalid")).toBe("true");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(password, { target: { value: "Student12!" } });
+    fireEvent.change(confirmation, { target: { value: "Student12?" } });
+    expect(screen.getByText("Passwords do not match.")).toBeTruthy();
+    expect(confirmation.getAttribute("aria-invalid")).toBe("true");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(confirmation, { target: { value: "Student12!" } });
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+  });
 });
