@@ -57,7 +57,7 @@ export function CertificateTemplate({
       </div>
 
       <div className="absolute bottom-[4.6cqw] left-[7.2%] z-[2]">
-        <Image src="/certificate-seal.png" alt="Teza Tech Lab official seal" width={220} height={225} className="mb-[1.35cqw] size-[12.8cqw] object-contain" />
+        <Image src="/certificate-seal.jpg" alt="Teza Tech Lab official seal" width={564} height={528} className="mb-[1.35cqw] size-[12.8cqw] rounded-full object-cover" />
         <dl className="space-y-[0.32cqw] text-[0.95cqw] leading-tight text-[#44484c]">
           <div><dt className="inline font-extrabold">ISSUED BY: </dt><dd className="inline">Teza Tech Lab</dd></div>
           <div><dt className="inline font-extrabold">ISSUE DATE: </dt><dd className="inline">{issuedDate}</dd></div>
