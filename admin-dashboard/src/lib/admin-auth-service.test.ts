@@ -46,6 +46,9 @@ describe("administrator authentication", () => {
     const { requestAdministratorPasswordReset } = await import("./admin-auth-service");
 
     await requestAdministratorPasswordReset(" admin@teza.test ");
-    expect(firebaseAuth.sendPasswordResetEmail).toHaveBeenCalledWith("auth-client", "admin@teza.test", expect.objectContaining({ handleCodeInApp: false }));
+    expect(firebaseAuth.sendPasswordResetEmail).toHaveBeenCalledWith("auth-client", "admin@teza.test", {
+      handleCodeInApp: false,
+      url: "https://admin.teza.test/login",
+    });
   });
 });

@@ -11,6 +11,7 @@ import {
   isStrongPassword,
   STRONG_PASSWORD_MESSAGE,
 } from "../../../../shared/auth-validation";
+import { resolveEmailActionReturnUrl } from "../../../../shared/email-action-url";
 import { useSingleFlight } from "@/lib/use-single-flight";
 
 type Stage = "loading" | "ready" | "invalid" | "done";
@@ -29,6 +30,7 @@ export default function AdminResetPasswordPage() {
   const [isSubmitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setError] = useState(false);
+  const [returnUrl, setReturnUrl] = useState("/login");
   const runSingleFlight = useSingleFlight();
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export default function AdminResetPasswordPage() {
         if (!hasFirebaseConfiguration) throw new Error("unconfigured");
         const { auth } = getFirebaseClient();
         const params = new URLSearchParams(window.location.search);
+        setReturnUrl(resolveEmailActionReturnUrl(params.get("continueUrl")));
         const code = params.get("oobCode");
         if (params.get("mode") !== "resetPassword" || !code)
           throw new Error("invalid");
@@ -126,12 +129,12 @@ export default function AdminResetPasswordPage() {
               This password reset link is invalid or has expired. Request a
               fresh link from the sign-in page.
             </p>
-            <Link
+            <a
               className="flex h-11 w-full items-center justify-center rounded-xl bg-[#143d36] text-sm font-bold text-white transition hover:bg-[#1d5047]"
-              href="/login"
+              href={returnUrl}
             >
               Back to sign in
-            </Link>
+            </a>
           </div>
         ) : null}
         {stage === "ready" ? (

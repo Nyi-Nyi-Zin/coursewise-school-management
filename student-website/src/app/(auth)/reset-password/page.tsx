@@ -12,6 +12,7 @@ import { Input } from "../../../components/ui/input";
 import { firebaseAuth, isFirebaseConfigured } from "../../../lib/firebase";
 import { verifyStudentAuthSecurity } from "../../../lib/recaptcha";
 import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
+import { resolveEmailActionReturnUrl } from "../../../../../shared/email-action-url";
 import { useSingleFlight } from "../../../lib/use-single-flight";
 
 type Stage = "loading" | "ready" | "invalid" | "done";
@@ -25,6 +26,7 @@ export default function ResetPasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+  const [returnUrl, setReturnUrl] = useState("/login");
   const runSingleFlight = useSingleFlight();
   const passwordInvalid = password.length > 0 && !isStrongPassword(password);
   const confirmMismatch = confirmPassword.length > 0 && confirmPassword !== password;
@@ -36,6 +38,7 @@ export default function ResetPasswordPage() {
       .then(() => {
         if (!isFirebaseConfigured || !firebaseAuth) throw new Error("unconfigured");
         const params = new URLSearchParams(window.location.search);
+        setReturnUrl(resolveEmailActionReturnUrl(params.get("continueUrl")));
         const code = params.get("oobCode");
         if (params.get("mode") !== "resetPassword" || !code) throw new Error("invalid");
         return verifyPasswordResetCode(firebaseAuth, code).then(email => ({ code, email }));
@@ -194,12 +197,12 @@ export default function ResetPasswordPage() {
                 Your password has been changed. You can now sign in with your
                 new password.
               </p>
-              <Link
-                href="/login"
+              <a
+                href={returnUrl}
                 className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-teal-700 text-base font-semibold text-white shadow-[0_10px_24px_rgba(15,118,110,0.20)] transition-all duration-150 hover:bg-teal-800 active:scale-[0.97]"
               >
                 Back to login
-              </Link>
+              </a>
             </div>
           ) : null}
         </CardContent>

@@ -31,6 +31,26 @@ The Student Website also requires `SIGNUP_RATE_LIMIT_SALT`, a long random server
 
 Enable Email/Password Authentication, add both production hostnames to Authentication authorized domains, and keep the administrator's matching `users/{uid}` document set to `role: "admin"`.
 
+## Custom email action page
+
+Use the Student Website's stable Vercel project domain as the shared Firebase
+email action handler:
+
+`https://teza-tech-lab-student.vercel.app/auth/action`
+
+In Firebase Console, open **Authentication > Templates**, edit an email
+template, choose **Customize action URL**, and set the URL above. Firebase uses
+this handler for all email templates, so `/auth/action` dispatches password
+reset links to the branded `/reset-password` page and also completes email
+verification and email recovery actions.
+
+Password-reset and verification requests include the portal's current `/login`
+URL as their Firebase `continueUrl`. This lets the stable handler return users
+to the domain that initiated the email, including a future custom domain. Add
+every new production domain to **Authentication > Settings > Authorized
+domains** before using it. The action URL only needs to change if the stable
+Vercel project domain itself is renamed or removed.
+
 Deploy only Firebase security configuration from the repository root:
 
 ```bash

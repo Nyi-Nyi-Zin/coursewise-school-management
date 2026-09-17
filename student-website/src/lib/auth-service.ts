@@ -4,6 +4,7 @@ import { firebaseAuth, isFirebaseConfigured } from "./firebase";
 import { firestore } from "./firebase";
 import { executeRecaptcha, verifyStudentAuthSecurity } from "./recaptcha";
 import { isEnglishName, isStrongPassword, isValidEmail, normalizeEmail, STRONG_PASSWORD_MESSAGE } from "../../../shared/auth-validation";
+import { createEmailActionContinueUrl } from "../../../shared/email-action-url";
 import { getUserFacingErrorMessage } from "../../../shared/user-facing-errors";
 
 export type PortalRole = "admin" | "student" | null;
@@ -62,7 +63,7 @@ export async function requestPasswordReset(email: string) {
   if (!isValidEmail(normalizedEmail)) throw new Error("Enter a valid email address.");
   await verifyStudentAuthSecurity("student_reset_request", normalizedEmail);
   await sendPasswordResetEmail(firebaseAuth, normalizedEmail, {
-    url: `${window.location.origin}/reset-password`,
+    url: createEmailActionContinueUrl(window.location.origin),
     handleCodeInApp: false,
   });
 }

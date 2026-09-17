@@ -13,7 +13,8 @@ vi.mock("sonner", () => ({ toast: { error: mocks.error } }));
 describe("ResetPasswordPage password policy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.history.replaceState({}, "", "/reset-password?mode=resetPassword&oobCode=test-code");
+    const continueUrl = encodeURIComponent("https://student.example.com/login");
+    window.history.replaceState({}, "", `/reset-password?mode=resetPassword&oobCode=test-code&continueUrl=${continueUrl}`);
     mocks.verify.mockResolvedValue("student@example.com");
     mocks.security.mockResolvedValue(undefined);
     mocks.confirm.mockResolvedValue(undefined);
@@ -41,6 +42,7 @@ describe("ResetPasswordPage password policy", () => {
     await submit("Student12!");
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith({}, "test-code", "Student12!"));
     expect(await screen.findByText("Your password has been updated.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to login" }).getAttribute("href")).toBe("https://student.example.com/login");
   });
 
   it("shows live validation and only enables submit for a strong matching password", async () => {

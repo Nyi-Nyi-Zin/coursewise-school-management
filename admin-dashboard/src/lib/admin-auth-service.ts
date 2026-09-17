@@ -1,5 +1,6 @@
 import { sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { createEmailActionContinueUrl } from "../../../shared/email-action-url";
 import { getFirebaseClient, hasFirebaseConfiguration } from "./firebase";
 
 export async function signInAdministrator({ email, password }: { email: string; password: string }): Promise<User> {
@@ -18,7 +19,7 @@ export async function requestAdministratorPasswordReset(email: string) {
   if (!hasFirebaseConfiguration) throw new Error("Firebase Authentication is not configured.");
   const { auth } = getFirebaseClient();
   await sendPasswordResetEmail(auth, email.trim(), {
-    url: `${window.location.origin}/reset-password`,
+    url: createEmailActionContinueUrl(window.location.origin),
     handleCodeInApp: false,
   });
 }
