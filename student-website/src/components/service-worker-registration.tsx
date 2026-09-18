@@ -7,14 +7,18 @@ interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
+const INSTALL_PROMPT_SHOWN_KEY = "teza-student-install-prompt-shown";
+
 export function ServiceWorkerRegistration() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
-      setDismissed(false);
+
+      if (window.localStorage.getItem(INSTALL_PROMPT_SHOWN_KEY) === "true") return;
+
+      window.localStorage.setItem(INSTALL_PROMPT_SHOWN_KEY, "true");
       setInstallPrompt(event as BeforeInstallPromptEvent);
     };
 
@@ -42,7 +46,7 @@ export function ServiceWorkerRegistration() {
     setInstallPrompt(null);
   };
 
-  if (!installPrompt || dismissed) return null;
+  if (!installPrompt) return null;
 
   return (
     <aside
@@ -63,7 +67,7 @@ export function ServiceWorkerRegistration() {
       </button>
       <button
         type="button"
-        onClick={() => setDismissed(true)}
+        onClick={() => setInstallPrompt(null)}
         aria-label="Dismiss install prompt"
         className="rounded-lg px-2 py-2 text-lg leading-none text-slate-500"
       >

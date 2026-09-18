@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StudentBrand } from "@/components/student-brand";
 import { StudentFooter } from "@/components/student-footer";
+import { StudentNetworkStatus } from "@/components/student-network-status";
 import { cn } from "@/lib/utils";
 import { useStudentAuth } from "@/components/student-auth-provider";
 import { CourseBatchSelector, useCourseBatchSelection } from "@/components/course-batch-selector";
@@ -79,6 +80,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--background)] text-slate-800">
+      <StudentNetworkStatus />
       <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.025)] backdrop-blur-xl">
         <div className="mx-auto flex h-[76px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 xl:px-10">
           <Link href="/" aria-label="Teza Tech Lab home">

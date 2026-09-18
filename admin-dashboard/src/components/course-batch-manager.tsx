@@ -179,6 +179,7 @@ export function CourseBatchManager() {
   const allBatches = hasFirebaseConfiguration
     ? (allBatchesQuery.data ?? [])
     : batches;
+  const courseTitleById = new Map(courses.map(item => [item.id, item.title]));
   // The link workspace is not paginated: it must show every batch linked to the selected course.
   const enrollmentBatches = allBatches.filter(
     item => item.courseId === activeCourseId
@@ -681,14 +682,15 @@ export function CourseBatchManager() {
     const batch = allBatches.find(
       candidate => candidate.id === enrollment.batchId
     );
+    const courseName = courseTitleById.get(enrollment.courseId);
     setViewModal({
       title: "Student enrolment details",
       fields: [
         { label: "Student", value: student?.name ?? "Unknown student" },
         { label: "Student ID", value: student?.studentId || "—" },
         { label: "Email", value: student?.email || "—" },
-        { label: "Course", value: activeCourse?.title ?? enrollment.courseId },
-        { label: "Batch", value: batch?.name ?? "Unknown batch" },
+        { label: "Course", value: courseName ?? "Not enrolled" },
+        { label: "Batch", value: batch?.name ?? "Not enrolled" },
         {
           label: "Status",
           value: enrollment.status === "active" ? "Active" : "Inactive",
@@ -1122,7 +1124,11 @@ export function CourseBatchManager() {
                           <tr key={item.id} className="hover:bg-emerald-50/40">
                             <Td strong>{student?.name ?? "Unknown student"}</Td>
                             <Td>{student?.studentId || "—"}</Td>
-                            <Td>{batch?.name ?? "Unknown batch"}</Td>
+                            <Td>
+                              {item.status === "active" && batch && courseTitleById.get(item.courseId)
+                                ? `${courseTitleById.get(item.courseId)} — ${batch.name}`
+                                : "Not enrolled"}
+                            </Td>
                             <Td>
                               <BooleanStatusBadge
                                 active={item.status === "active"}

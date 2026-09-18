@@ -15,7 +15,7 @@ vi.mock("firebase/firestore", () => ({
   limit: vi.fn(), addDoc: vi.fn(), serverTimestamp: vi.fn(), setDoc: vi.fn(), updateDoc: vi.fn(),
 }));
 
-import { getStudentAnnouncements } from "./student-repository";
+import { getPublishedAnnouncements, getStudentAnnouncements } from "./student-repository";
 
 describe("student announcements", () => {
   beforeEach(() => {
@@ -41,5 +41,31 @@ describe("student announcements", () => {
     mocks.getDocs.mockResolvedValue({ docs: [] });
     expect(await getStudentAnnouncements("student")).toEqual([]);
     expect(mocks.getDocs).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps announcements from readable enrolled batches when another batch query fails", async () => {
+    mocks.getDocs.mockImplementation(async (parts: unknown[]) => {
+      if (parts[0] === "enrollments") {
+        return { docs: ["readable", "blocked"].map(batchId => ({ data: () => ({ courseId: "course", batchId }) })) };
+      }
+      const batchId = (parts.find(part => Array.isArray(part) && part[0] === "batchId") as string[])[2];
+      if (batchId === "blocked") throw new Error("permission-denied");
+      return { docs: [{ id: "notice", data: () => ({ title: "Visible notice" }) }] };
+    });
+
+    await expect(getStudentAnnouncements("student")).resolves.toEqual([
+      expect.objectContaining({ id: "notice", title: "Visible notice" }),
+    ]);
+  });
+
+  it("sorts announcements without requiring a composite orderBy query", async () => {
+    mocks.getDocs.mockResolvedValue({ docs: [
+      { id: "second", data: () => ({ title: "Second", sortOrder: 2 }) },
+      { id: "first", data: () => ({ title: "First", sortOrder: 1 }) },
+    ] });
+
+    const result = await getPublishedAnnouncements("course", "batch");
+    expect(result.map(item => item.id)).toEqual(["first", "second"]);
+    expect(mocks.getDocs.mock.calls[0][0]).not.toContainEqual(["sortOrder", "asc"]);
   });
 });

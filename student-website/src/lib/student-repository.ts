@@ -163,21 +163,28 @@ export async function getStudentEnrollments(userId: string): Promise<EnrollmentC
 export async function getStudentAnnouncements(userId: string): Promise<Announcement[]> {
   if (!firestore) return demoAnnouncements;
   const enrollments = await getStudentEnrollments(userId);
-  const announcements = await Promise.all(enrollments.map(({ courseId, batchId }) =>
+  const results = await Promise.allSettled(enrollments.map(({ courseId, batchId }) =>
     getPublishedAnnouncements(courseId, batchId),
   ));
-  return [...new Map(announcements.flat().map(item => [item.id, item])).values()];
+  const announcements = results.flatMap(result => result.status === "fulfilled" ? result.value : []);
+  return [...new Map(announcements.map(item => [item.id, item])).values()];
 }
 
 export async function getPublishedAnnouncements(courseId?: string, batchId?: string): Promise<Announcement[]> {
   if (!firestore) return demoAnnouncements;
   if (!courseId || !batchId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "announcements"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("sortOrder", "asc")));
-  return snapshot.docs.map((item) => {
-    const data = item.data();
-    const publishedAt = data.publishedAt as string ?? (data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "") ?? "";
-    return { id: item.id, title: String(data.title ?? "Announcement"), description: String(data.description ?? ""), bannerUrl: data.bannerUrl as string | undefined, linkUrl: data.linkUrl as string | undefined, publishedAt, accent: "from-sky-400/30 via-blue-500/20 to-transparent" } satisfies Announcement;
-  });
+  // Keep this query compatible with Firestore index merging. Requiring
+  // orderBy(sortOrder) here makes every announcement depend on a separately
+  // deployed composite index, so sort the scoped result locally instead.
+  const snapshot = await getDocs(query(collection(firestore, "announcements"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true)));
+  return snapshot.docs
+    .map((item) => {
+      const data = item.data();
+      const publishedAt = data.publishedAt as string ?? (data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "") ?? "";
+      return { sortOrder: Number(data.sortOrder ?? 0), announcement: { id: item.id, title: String(data.title ?? "Announcement"), description: String(data.description ?? ""), bannerUrl: data.bannerUrl as string | undefined, linkUrl: data.linkUrl as string | undefined, publishedAt, accent: "from-sky-400/30 via-blue-500/20 to-transparent" } satisfies Announcement };
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map(item => item.announcement);
 }
 
 export async function getPublishedLessons(courseId?: string, batchId?: string): Promise<Lesson[]> {
@@ -254,20 +261,23 @@ export async function getStudentAttendance(studentId: string, courseId?: string,
 
 export async function getPublishedAssignments(courseId?: string, batchId?: string): Promise<Assignment[]> {
   if (!firestore || !courseId || !batchId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "assignments"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true), orderBy("dueAt", "asc")));
-  return snapshot.docs.map((item) => {
+  // Equality filters can use Firestore's index merging. Sorting here avoids a
+  // hard dependency on the optional composite index in newly provisioned or
+  // permission-restricted deployments.
+  const snapshot = await getDocs(query(collection(firestore, "assignments"), where("courseId", "==", courseId), where("batchId", "==", batchId), where("isPublished", "==", true)));
+  return snapshot.docs.map<Assignment>((item) => {
     const data = item.data();
     return { id: item.id, title: String(data.title ?? "Assignment"), description: String(data.description ?? ""), courseId, batchId, dueAt: asDateString(data.dueAt), resourceUrl: stringOrUndefined(data.resourceUrl), submissionInstructions: stringOrUndefined(data.submissionInstructions) };
-  });
+  }).sort((left, right) => sortableDate(left.dueAt, Number.MAX_SAFE_INTEGER) - sortableDate(right.dueAt, Number.MAX_SAFE_INTEGER));
 }
 
 export async function getStudentAssignmentSubmissions(studentId: string, courseId?: string, batchId?: string): Promise<AssignmentSubmission[]> {
   if (!firestore || !courseId || !batchId) return [];
-  const snapshot = await getDocs(query(collection(firestore, "assignmentSubmissions"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId), orderBy("submittedAt", "desc")));
-  return snapshot.docs.map((item) => {
+  const snapshot = await getDocs(query(collection(firestore, "assignmentSubmissions"), where("studentId", "==", studentId), where("courseId", "==", courseId), where("batchId", "==", batchId)));
+  return snapshot.docs.map<AssignmentSubmission>((item) => {
     const data = item.data();
     return { id: item.id, assignmentId: String(data.assignmentId ?? ""), submittedAt: asDateString(data.submittedAt), submissionText: stringOrUndefined(data.submissionText), submissionUrl: stringOrUndefined(data.submissionUrl), submissionFileName: stringOrUndefined(data.submissionFileName), assetPublicId: stringOrUndefined(data.assetPublicId), assetResourceType: data.assetResourceType === "raw" ? "raw" : undefined, assetDeliveryType: data.assetDeliveryType === "authenticated" ? "authenticated" : undefined, assetFormat: stringOrUndefined(data.assetFormat), assetVersion: typeof data.assetVersion === "number" ? data.assetVersion : undefined, feedback: stringOrUndefined(data.feedback), score: typeof data.score === "number" ? data.score : null };
-  });
+  }).sort((left, right) => sortableDate(right.submittedAt, 0) - sortableDate(left.submittedAt, 0));
 }
 
 export async function submitAssignment(studentId: string, assignment: Assignment, input: { submissionText?: string; submissionUrl?: string; submissionFile?: File }) {
@@ -386,3 +396,4 @@ export async function getMyCertificates(): Promise<StudentCertificate[]> {
 
 function stringOrUndefined(value: unknown) { return typeof value === "string" && value ? value : undefined; }
 function asDateString(value: unknown) { return typeof value === "string" ? value : value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function" ? value.toDate().toISOString() : undefined; }
+function sortableDate(value: string | undefined, fallback: number) { const parsed = value ? new Date(value).getTime() : Number.NaN; return Number.isFinite(parsed) ? parsed : fallback; }

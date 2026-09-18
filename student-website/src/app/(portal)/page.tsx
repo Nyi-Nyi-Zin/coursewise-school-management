@@ -29,11 +29,11 @@ import {
 import {
   getBatchQuizzes,
   getMyCertificates,
-  getPublishedAnnouncements,
   getPublishedAssignments,
   getPublishedLessons,
   getLessonProgress,
   getStudentAssignmentSubmissions,
+  getStudentAnnouncements,
   getStudentProfile,
   getStudentQuizAttempts,
 } from "@/lib/student-repository";
@@ -84,10 +84,10 @@ export default function StudentHomePage() {
     enabled: !isFirebaseConfigured || Boolean(user?.uid && selectionReady && enrollment),
   });
   const announcements = useQuery({
-    queryKey: [...studentQueryKeys.announcements, enrollment?.courseId, enrollment?.batchId],
-    queryFn: () => getPublishedAnnouncements(enrollment?.courseId, enrollment?.batchId),
+    queryKey: [...studentQueryKeys.announcements, user?.uid],
+    queryFn: () => getStudentAnnouncements(user!.uid),
     initialData: isFirebaseConfigured ? undefined : demoAnnouncements,
-    enabled: !isFirebaseConfigured || Boolean(selectionReady && enrollment),
+    enabled: !isFirebaseConfigured || Boolean(user?.uid),
   });
   const quizzes = useQuery({
     queryKey: [
