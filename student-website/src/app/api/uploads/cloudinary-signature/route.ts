@@ -60,8 +60,8 @@ export async function POST(request: Request) {
     const timestamp = Math.floor(Date.now() / 1000);
     const folder = kind === "assignment" ? `${selected.folder}/${user.uid}/${String(body.assignmentId)}` : selected.folder;
     const parameters: Record<string, string | number> = kind === "assignment"
-      ? { folder, public_id: randomUUID(), timestamp, type: "authenticated", upload_preset: "coursewise_assignment_private" }
-      : { folder, timestamp, upload_preset: "coursewise_images" };
+      ? { folder, public_id: randomUUID(), timestamp, type: "authenticated" }
+      : { folder, timestamp };
     return NextResponse.json({ ...createSignedUpload(parameters), resourceType: selected.resourceType });
   } catch (error) {
     return apiErrorResponse(error, "A secure upload could not be prepared.");

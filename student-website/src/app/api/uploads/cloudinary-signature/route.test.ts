@@ -37,7 +37,19 @@ it("signs a private raw upload only for the student's active assignment", async 
   const body = await response.json();
   expect(response.status).toBe(200);
   expect(body).toMatchObject({ resourceType: "raw", type: "authenticated", folder: "coursewise/assignments/student-a/assignment-a" });
+  expect(body).not.toHaveProperty("upload_preset");
   expect(body.public_id).toMatch(/^[0-9a-f-]{36}$/);
+});
+
+it("signs an avatar upload without requiring a Cloudinary upload preset", async () => {
+  const response = await POST(new Request("http://localhost/api/uploads/cloudinary-signature", {
+    method: "POST",
+    body: JSON.stringify({ kind: "avatar", contentType: "image/jpeg", size: 1024 }),
+  }));
+  const body = await response.json();
+  expect(response.status).toBe(200);
+  expect(body).toMatchObject({ resourceType: "image", folder: "coursewise/avatars" });
+  expect(body).not.toHaveProperty("upload_preset");
 });
 
 it("rejects oversized, unsupported, and out-of-scope assignment uploads", async () => {

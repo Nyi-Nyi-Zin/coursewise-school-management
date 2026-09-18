@@ -18,7 +18,6 @@ export type UploadedPrivateAsset = {
 type SignedUpload = {
   cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string;
   resourceType: "image" | "raw"; public_id?: string; type?: "authenticated";
-  upload_preset?: string;
 };
 
 async function requestSignedUpload(body: Record<string, unknown>): Promise<SignedUpload> {
@@ -38,7 +37,6 @@ async function uploadSigned(file: Blob, fileName: string, signed: SignedUpload) 
   body.append("folder", signed.folder);
   if (signed.public_id) body.append("public_id", signed.public_id);
   if (signed.type) body.append("type", signed.type);
-  if (signed.upload_preset) body.append("upload_preset", signed.upload_preset);
   const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/${signed.resourceType}/upload`, { method: "POST", body });
   const payload = await response.json().catch(() => null) as { secure_url?: string; public_id?: string; resource_type?: string; type?: string; format?: string; version?: number; error?: { message?: string } } | null;
   if (!response.ok || !payload?.secure_url) throw new Error(`Cloudinary could not upload this file.${payload?.error?.message ? ` ${payload.error.message}` : ""}`);
@@ -67,7 +65,6 @@ export async function uploadAssignmentFileToCloudinary(
   body.append("folder", signed.folder);
   body.append("public_id", signed.public_id!);
   body.append("type", "authenticated");
-  if (signed.upload_preset) body.append("upload_preset", signed.upload_preset);
   const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/raw/upload`, { method: "POST", body });
   const payload = await response.json().catch(() => null) as { public_id?: string; resource_type?: string; type?: string; format?: string; version?: number; error?: { message?: string } } | null;
   if (!response.ok || !payload?.public_id) {
