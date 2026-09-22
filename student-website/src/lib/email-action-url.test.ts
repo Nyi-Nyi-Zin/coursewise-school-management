@@ -14,7 +14,9 @@ describe("email action return URLs", () => {
   it("returns to the login page on a Firebase-authorized HTTPS origin", () => {
     expect(
       resolveEmailActionReturnUrl(
-        "https://admin.example.com/somewhere?temporary=value#section"
+        "https://admin.example.com/somewhere?temporary=value#section",
+        "/login",
+        ["https://admin.example.com", "https://student.example.com"]
       )
     ).toBe("https://admin.example.com/login");
   });
@@ -27,5 +29,22 @@ describe("email action return URLs", () => {
       resolveEmailActionReturnUrl("http://example.com/reset-password")
     ).toBe("/login");
     expect(resolveEmailActionReturnUrl("javascript:alert(1)")).toBe("/login");
+    expect(
+      resolveEmailActionReturnUrl("https://attacker.example/login", "/login", [
+        "https://student.example.com",
+      ])
+    ).toBe("/login");
+    expect(
+      resolveEmailActionReturnUrl(
+        "https://student.example.com@attacker.example/login",
+        "/login",
+        ["https://student.example.com"]
+      )
+    ).toBe("/login");
+    expect(
+      resolveEmailActionReturnUrl("//attacker.example/login", "/login", [
+        "https://student.example.com",
+      ])
+    ).toBe("/login");
   });
 });

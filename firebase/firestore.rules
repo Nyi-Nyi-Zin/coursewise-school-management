@@ -43,13 +43,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAdmin() || isOwner(userId);
-      allow create: if isAdmin() || (
-        isOwner(userId) &&
-        request.auth.token.email_verified == true &&
-        request.resource.data.role == 'student' &&
-        request.resource.data.email == request.auth.token.email &&
-        request.resource.data.keys().hasOnly(['name', 'email', 'role', 'studentId', 'createdAt', 'updatedAt'])
-      );
+      // Student identities and sequential student numbers are provisioned only
+      // by the trusted registration route through the Admin SDK.
+      allow create: if isAdmin();
       allow delete: if isAdmin();
       allow update: if isAdmin() || (
         isOwner(userId) &&

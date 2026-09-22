@@ -7,11 +7,20 @@ import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 import { toast } from "sonner";
 import { StudentBrand } from "../../../components/student-brand";
 import { Button } from "../../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { firebaseAuth, isFirebaseConfigured } from "../../../lib/firebase";
 import { verifyStudentAuthSecurity } from "../../../lib/recaptcha";
-import { isStrongPassword, STRONG_PASSWORD_MESSAGE } from "../../../../../shared/auth-validation";
+import {
+  isStrongPassword,
+  STRONG_PASSWORD_MESSAGE,
+} from "../../../../../shared/auth-validation";
 import { resolveEmailActionReturnUrl } from "../../../../../shared/email-action-url";
 import { useSingleFlight } from "../../../lib/use-single-flight";
 
@@ -29,19 +38,30 @@ export default function ResetPasswordPage() {
   const [returnUrl, setReturnUrl] = useState("/login");
   const runSingleFlight = useSingleFlight();
   const passwordInvalid = password.length > 0 && !isStrongPassword(password);
-  const confirmMismatch = confirmPassword.length > 0 && confirmPassword !== password;
-  const canSubmit = isStrongPassword(password) && confirmPassword === password && !submitting;
+  const confirmMismatch =
+    confirmPassword.length > 0 && confirmPassword !== password;
+  const canSubmit =
+    isStrongPassword(password) && confirmPassword === password && !submitting;
 
   useEffect(() => {
     let cancelled = false;
     Promise.resolve()
       .then(() => {
-        if (!isFirebaseConfigured || !firebaseAuth) throw new Error("unconfigured");
+        if (!isFirebaseConfigured || !firebaseAuth)
+          throw new Error("unconfigured");
         const params = new URLSearchParams(window.location.search);
-        setReturnUrl(resolveEmailActionReturnUrl(params.get("continueUrl")));
+        setReturnUrl(
+          resolveEmailActionReturnUrl(params.get("continueUrl"), "/login", [
+            window.location.origin,
+          ])
+        );
         const code = params.get("oobCode");
-        if (params.get("mode") !== "resetPassword" || !code) throw new Error("invalid");
-        return verifyPasswordResetCode(firebaseAuth, code).then(email => ({ code, email }));
+        if (params.get("mode") !== "resetPassword" || !code)
+          throw new Error("invalid");
+        return verifyPasswordResetCode(firebaseAuth, code).then(email => ({
+          code,
+          email,
+        }));
       })
       .then(verified => {
         if (cancelled) return;
@@ -143,12 +163,21 @@ export default function ResetPasswordPage() {
                     type="button"
                     onClick={() => setShowPassword(value => !value)}
                     className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 hover:text-teal-700"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                   >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    {showPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
                   </button>
                 </div>
-                <p id="password-requirements" className={`text-xs ${passwordInvalid ? "font-medium text-red-600" : "text-slate-500"}`}>
+                <p
+                  id="password-requirements"
+                  className={`text-xs ${passwordInvalid ? "font-medium text-red-600" : "text-slate-500"}`}
+                >
                   {STRONG_PASSWORD_MESSAGE}
                 </p>
               </label>
@@ -164,7 +193,9 @@ export default function ResetPasswordPage() {
                     onChange={event => setConfirmPassword(event.target.value)}
                     placeholder="Repeat your new password"
                     autoComplete="new-password"
-                    aria-describedby={confirmMismatch ? "confirm-password-error" : undefined}
+                    aria-describedby={
+                      confirmMismatch ? "confirm-password-error" : undefined
+                    }
                     aria-invalid={confirmMismatch}
                     required
                     minLength={8}
@@ -174,13 +205,22 @@ export default function ResetPasswordPage() {
                     type="button"
                     onClick={() => setShowConfirmPassword(value => !value)}
                     className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 hover:text-teal-700"
-                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
                   >
-                    {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
                   </button>
                 </div>
                 {confirmMismatch ? (
-                  <p id="confirm-password-error" className="text-xs font-medium text-red-600">
+                  <p
+                    id="confirm-password-error"
+                    className="text-xs font-medium text-red-600"
+                  >
                     Passwords do not match.
                   </p>
                 ) : null}

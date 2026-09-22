@@ -39,7 +39,9 @@ export default function EmailActionPage() {
     typeof window === "undefined"
       ? "/login"
       : resolveEmailActionReturnUrl(
-          new URLSearchParams(window.location.search).get("continueUrl")
+          new URLSearchParams(window.location.search).get("continueUrl"),
+          "/login",
+          [window.location.origin]
         );
 
   useEffect(() => {

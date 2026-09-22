@@ -6,7 +6,8 @@ export function createEmailActionContinueUrl(origin: string) {
 
 export function resolveEmailActionReturnUrl(
   continueUrl: string | null,
-  fallback = "/login"
+  fallback = "/login",
+  allowedOrigins: readonly string[] = []
 ) {
   if (!continueUrl) return fallback;
 
@@ -17,6 +18,19 @@ export function resolveEmailActionReturnUrl(
       url.protocol === "http:" && LOCAL_DEVELOPMENT_HOSTS.has(url.hostname);
 
     if ((!isSecure && !isLocalDevelopment) || url.username || url.password) {
+      return fallback;
+    }
+
+    const normalizedAllowedOrigins = new Set(
+      allowedOrigins.flatMap(origin => {
+        try {
+          return [new URL(origin).origin];
+        } catch {
+          return [];
+        }
+      })
+    );
+    if (!isLocalDevelopment && !normalizedAllowedOrigins.has(url.origin)) {
       return fallback;
     }
 

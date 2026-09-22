@@ -22,7 +22,7 @@ describe("EmailActionPage", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  it("verifies an email and returns to the originating portal login", async () => {
+  it("verifies an email and rejects an untrusted return origin", async () => {
     const continueUrl = encodeURIComponent(
       "https://new-student.example.com/login"
     );
@@ -42,7 +42,7 @@ describe("EmailActionPage", () => {
     expect(mocks.apply).toHaveBeenCalledWith({}, "test-code");
     expect(
       screen.getByRole("link", { name: "Back to login" }).getAttribute("href")
-    ).toBe("https://new-student.example.com/login");
+    ).toBe("/login");
   });
 
   it("shows a safe error state for unsupported or expired actions", async () => {
