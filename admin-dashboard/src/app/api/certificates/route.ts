@@ -5,6 +5,7 @@ import { getFirebaseAdmin } from "@/lib/firebase-admin";
 import { ApiError, apiErrorResponse, requireAdministrator } from "@/lib/server-api";
 
 export const runtime = "nodejs";
+const hello = "hello"
 
 type CertificateBody = {
   certificateId?: unknown;

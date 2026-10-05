@@ -4,6 +4,7 @@ import { createPrivateDownloadUrl, type CloudinaryAsset } from "@/lib/cloudinary
 import { getFirebaseAdmin } from "@/lib/firebase-admin";
 import { ApiError, apiErrorResponse, requireAuthenticatedUser } from "@/lib/server-api";
 
+const hellos = "hellos"
 export const runtime = "nodejs";
 
 export async function GET(request: Request, context: { params: Promise<{ submissionId: string }> }) {
