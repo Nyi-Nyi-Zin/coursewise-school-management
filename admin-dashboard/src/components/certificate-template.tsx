@@ -40,7 +40,7 @@ export function CertificateTemplate({
 
       <div className="absolute inset-x-[7.2%] top-[5.3cqw] z-[2] flex flex-col items-center text-center">
         <div className="flex items-center gap-[1.5cqw]">
-          <Image src="/teza-tech-lab-logo.svg" alt="Teza Tech Lab" width={96} height={96} className="size-[8cqw] rounded-[1.5cqw]" priority />
+          <Image src="/certificate-logo-transparent.png" alt="Teza Tech Lab" width={1287} height={1222} className="size-[8cqw] object-contain" preload />
           <div className="text-left">
             <p className="text-[4.2cqw] font-extrabold leading-none tracking-[0.02em] text-[#0b1220]">Teza Tech Lab</p>
             <p className="mt-[0.65cqw] text-[1.65cqw] font-bold tracking-[0.19em] text-[#148fc5]">IT &amp; KNOWLEDGE SHARING</p>
